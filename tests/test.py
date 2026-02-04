@@ -66,14 +66,17 @@ def compare_results(label, thermo, ase_thermo, vib, elec, spin, sigma, linear, n
 
     # Your model
     etrans, strans, _ = thermo.get_translational(T, P)
-    evib, svib, _ = thermo.get_vibrational(vib, T)
+    evib, svib, _ = thermo.get_vibrational(vib, T, zpe=True)
     erot, srot, _ = thermo.get_rotational(T, islinear=linear, sigma=sigma)
     eelec, selec, _ = thermo.get_electronic(elec, T)
     sspin, _ = thermo.get_nuclear_spin(nuclear_spin)
+    
+    u_total = etrans + evib + erot + eelec
+    s_total = strans + svib + srot + selec + sspin
 
     # ASE model
-    h_ase = ase_thermo.get_enthalpy(T)
-    s_ase = ase_thermo.get_entropy(T, P)
+    h_ase = ase_thermo.get_enthalpy(T, verbose=False)
+    s_ase = ase_thermo.get_entropy(T, P, verbose=False)
     u_ase = h_ase - kB * T  # U = H - RT
 
     # Print header
@@ -84,12 +87,24 @@ def compare_results(label, thermo, ase_thermo, vib, elec, spin, sigma, linear, n
     print(f"{'Rotational':<22} {erot:>25.5f} {srot:>30.5f}")
     print(f"{'Electronic':<22} {eelec:>25.5f} {selec:>30.5f}")
     print(f"{'Nuclear Spin':<22} {'—':>25} {sspin:>30.5f}")
+    print(f"{'Internal Energy (U)':<22} {u_total:>25.5f} {'—':>30}")
+    print(f"{'Entropy (S)':<22} {'—':>25} {s_total:>30.5f}")
 
     print(f"\n{'ASE IdealGasThermo Results':<22}")
     print("-" * 80)
     print(f"{'Internal Energy (U)':<22} {u_ase:>25.5f} {'—':>30}")
     print(f"{'Entropy (S)':<22} {'—':>25} {s_ase:>30.5f}")
     print()
+
+    # Compare numerically to ASE
+    diff_U = u_ase - u_total
+    diff_S = s_ase - s_total
+
+    print(f"\n{'Differences vs ASE':<22}")
+    print("-" * 80)
+    print(f"{'ΔU (ASE - yours)':<22} {diff_U:>25.5f} {'—':>30}")
+    print(f"{'ΔS (ASE - yours)':<22} {'—':>25} {diff_S:>30.5f}")
+
 
 
 

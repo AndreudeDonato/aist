@@ -2,9 +2,11 @@ README.md
 pyproject.toml
 setup.py
 aist/__init__.py
+aist/composedthermo.py
 aist/stoichiometry.py
 aist/taylorfit.py
 aist/thermo.py
+aist/utils.py
 aist.egg-info/PKG-INFO
 aist.egg-info/SOURCES.txt
 aist.egg-info/dependency_links.txt
