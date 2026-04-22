@@ -1,3 +1,4 @@
+import os
 from ase import Atoms
 import re
 
@@ -23,3 +24,10 @@ def to_latex_formula(formula):
                       lambda m: m.group(1) + (f'$_{{{m.group(2)}}}$' if
                                               m.group(2) else ''),
                       formula)
+
+
+def ensure_output_dir(path: str):
+    """Ensure the output directory for a file path exists."""
+    out_dir = os.path.dirname(path)
+    if out_dir:
+        os.makedirs(out_dir, exist_ok=True)
