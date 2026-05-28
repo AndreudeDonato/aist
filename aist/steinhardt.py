@@ -336,6 +336,40 @@ def _peak_index_from_kde(
     raise ValueError(f"Unknown peak mode {mode!r}; expected 'global' or 'first_local'.")
 
 
+def _kde_left_edge(
+    grid: np.ndarray,
+    density: np.ndarray,
+    k_peak: int,
+    *,
+    from_onset: bool,
+    onset_density_frac: float = 1e-6,
+) -> float:
+    """Distance at the left base of the bond KDE peak.
+
+    ``from_onset=True`` (default in motif clustering)
+        First grid point left of the peak where density exceeds
+        ``onset_density_frac * max(density)`` — i.e. where the KDE first
+        becomes non-negligible.
+
+    ``from_onset=False`` (legacy)
+        Last grid point left of the peak still at or below half the peak
+        height (FWHM-style left edge).
+    """
+    left_grid = grid[: k_peak + 1]
+    left_density = density[: k_peak + 1]
+    if from_onset:
+        y_max = float(density.max())
+        if y_max <= 0.0:
+            return float(left_grid[0])
+        thresh = max(1e-15, float(onset_density_frac) * y_max)
+        idx = np.where(left_density > thresh)[0]
+        return float(left_grid[int(idx[0])]) if idx.size else float(left_grid[0])
+
+    half = 0.5 * float(density[k_peak])
+    below = np.where(left_density <= half)[0]
+    return float(left_grid[int(below[-1])]) if below.size else float(left_grid[0])
+
+
 def derive_pair_cutoff_kde(
     structures: Iterable,
     symbol_a: str,
@@ -346,14 +380,26 @@ def derive_pair_cutoff_kde(
     broaden: float = 2.0,
     peak_mode: str = "global",
     min_peak_prominence_frac: float = 0.01,
+    left_from_onset: bool = True,
+    onset_density_frac: float = 1e-6,
 ):
     """Derive an upper bond cutoff for atom pair ``(symbol_a, symbol_b)``.
 
     Collects every ``symbol_a``-``symbol_b`` interatomic distance in
     ``[x_min, x_max]`` across all structures, builds a Gaussian KDE, locates
     the bond peak (see ``peak_mode``), and finds the half-maximum on the
-    *left* side. The half-width is ``x_peak - x_half_left``; the returned
+    *left* side to define ``half_width = x_peak - x_half_left``. The returned
     upper cutoff is ``x_peak + broaden * half_width``.
+
+    Left cutoff (``cutoff_lower`` in the returned ``info``)
+    -------------------------------------------------------
+    ``left_from_onset=True`` (default)
+        First distance left of the peak where the KDE density exceeds
+        ``onset_density_frac * max(density)``.  ``half_width`` and
+        ``cutoff_upper`` still use the half-maximum left edge so bond
+        counting is unchanged.
+    ``left_from_onset=False``
+        Symmetric lower bound ``x_peak - broaden * half_width`` (legacy).
 
     Parameters
     ----------
@@ -376,6 +422,12 @@ def derive_pair_cutoff_kde(
     min_peak_prominence_frac : float
         Minimum ``scipy.signal.find_peaks`` prominence as a fraction of the
         global KDE maximum; only used when ``peak_mode="first_local"``.
+    left_from_onset : bool
+        If True, the left edge / lower cutoff is the KDE onset (see above).
+        If False, use the half-maximum left crossing (legacy).
+    onset_density_frac : float
+        Density threshold as a fraction of the KDE maximum when
+        ``left_from_onset=True``.
 
     Returns
     -------
@@ -383,8 +435,9 @@ def derive_pair_cutoff_kde(
         Upper limit of the accepted bond window (A).
     info : dict
         Diagnostics containing ``x_peak``, ``y_peak``, ``x_half_left``,
-        ``half_width``, ``broaden``, ``cutoff_upper``, ``peak_mode``,
-        ``x_global_peak`` and ``n_distances``.
+        ``half_width``, ``broaden``, ``cutoff_upper``, ``cutoff_lower``,
+        ``left_from_onset``, ``peak_mode``, ``x_global_peak`` and
+        ``n_distances``.
     """
     distances: list = []
     for atoms in structures:
@@ -429,13 +482,22 @@ def derive_pair_cutoff_kde(
     y_peak = float(density[k_peak])
     x_global_peak = float(grid[k_global])
 
-    half = 0.5 * y_peak
-    left_density = density[: k_peak + 1]
-    left_grid = grid[: k_peak + 1]
-    below = np.where(left_density <= half)[0]
-    x_half_left = float(left_grid[below[-1]]) if below.size > 0 else float(left_grid[0])
+    x_half_left = _kde_left_edge(
+        grid, density, k_peak, from_onset=False,
+    )
     half_width = x_peak - x_half_left
     cutoff_upper = x_peak + broaden * half_width
+
+    if left_from_onset:
+        cutoff_lower = _kde_left_edge(
+            grid,
+            density,
+            k_peak,
+            from_onset=True,
+            onset_density_frac=onset_density_frac,
+        )
+    else:
+        cutoff_lower = x_peak - broaden * half_width
 
     return cutoff_upper, {
         "x_peak": x_peak,
@@ -444,6 +506,8 @@ def derive_pair_cutoff_kde(
         "half_width": half_width,
         "broaden": broaden,
         "cutoff_upper": cutoff_upper,
+        "cutoff_lower": cutoff_lower,
+        "left_from_onset": bool(left_from_onset),
         "peak_mode": peak_mode,
         "x_global_peak": x_global_peak,
         "n_distances": int(distances_arr.size),
