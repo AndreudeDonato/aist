@@ -1,0 +1,20 @@
+"""Re-export GC–ACE join helpers from aist.ace."""
+from aist.ace.join import (  # noqa: F401
+    atom_motif_population_vs_T_at_pressure,
+    build_joined_table,
+    cluster_population_fractions,
+    cluster_population_map,
+    cluster_population_vs_T_at_pressure,
+    ir_motif_population_fractions,
+    ir_motif_population_vs_T_at_pressure,
+    o_motif_population_fractions,
+    o_motif_population_vs_T_at_pressure,
+    ensemble_mean_cluster_map,
+    ensemble_mean_motif_index_map,
+    ensemble_weighted_mean_map,
+    fixed_point_cluster_populations,
+    fixed_point_cluster_populations_from_pgi,
+    motif_population_map,
+    ranked_cumulative_population_lines,
+    structure_populations_at_fixed_point,
+)

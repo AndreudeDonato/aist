@@ -4,7 +4,10 @@ from aist.utils import get_energy, get_info_value
 
 def process_frequencies(thermo, frequencies):
     """Remove translational and rotational modes based on linearity."""
-    if frequencies is None or len(frequencies) == 0:
+    if frequencies is None or not hasattr(frequencies, "__len__"):
+        return np.array([])
+    frequencies = np.asarray(frequencies, dtype=float).ravel()
+    if frequencies.size == 0:
         return np.array([])
     return frequencies[5:] if thermo.is_linear() else frequencies[6:]
 
@@ -18,8 +21,11 @@ def compute_thermo_contributions(structure, Tg, Pg, elec_states=None,
     """
     en = get_energy(structure)
     thermo = ThermoFromAtoms(structure)
-    zpe = get_info_value(structure, "zpe") if include_zpe else 0
-    frequencies = process_frequencies(thermo, get_info_value(structure, "frequencies")) if include_v else []
+    zpe = structure.info.get("zpe", 0) if include_zpe else 0
+    if include_zpe and zpe is None:
+        zpe = 0
+    freq_raw = structure.info.get("frequencies")
+    frequencies = process_frequencies(thermo, freq_raw) if include_v else []
 
     et = st = ev = sv = er = sr = eelec = selec = 0
 
