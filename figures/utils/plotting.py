@@ -6,13 +6,10 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.cm import ScalarMappable
-from matplotlib.patches import Patch
 from matplotlib.colors import BoundaryNorm, ListedColormap, Normalize, to_rgb
 
 from aist.ace.common import (
-    DATASET_COLORS,
     discrete_palette,
-    gradient_colormap,
     struct_cluster_palette,
 )
 
@@ -118,30 +115,6 @@ def draw_tchar_boundary(ax, Ts, Ps, tchar_map,
 # Colour helpers (from aist.ace.common)
 # ---------------------------------------------------------------------------
 
-def _stackplot_no_edges(
-    ax,
-    x: np.ndarray,
-    Y: np.ndarray,
-    colors,
-    *,
-    labels=None,
-    zorder: int = 2,
-):
-    """Stacked population bands without per-band edge lines."""
-    polys = ax.stackplot(
-        x, Y,
-        colors=colors,
-        labels=labels,
-        linewidth=0.0,
-        edgecolor="none",
-        zorder=zorder,
-    )
-    for pc in polys:
-        pc.set_edgecolor("none")
-        pc.set_linewidth(0.0)
-    return polys
-
-
 def population_weighted_rgb(pop_fractions: np.ndarray, colors: list) -> np.ndarray:
     """RGB field ``(nP, nT, 3)`` by mixing category colours with population fractions."""
     pop = np.asarray(pop_fractions, dtype=float)
@@ -168,141 +141,6 @@ def draw_population_mixed_phase_panel(
     style_phase_ax(ax)
     ax.set_title(title, fontsize=7)
     return mesh
-
-
-def draw_twin_population_vs_T_panel(
-    ax,
-    Ts: np.ndarray,
-    x_avg: np.ndarray,
-    x_phase: np.ndarray,
-    Y: np.ndarray,
-    stack_colors: list,
-    stack_labels: list[str],
-    *,
-    title: str = "",
-    pop_ylabel: str = "Population (%)",
-    ratio_label: str = r"$n_O/n_{Ir}$",
-    legend_ncol: int = 2,
-):
-    """Twin-axis slice: black oxidation lines (left y) + coloured population stack (right y)."""
-    ax2 = ax.twinx()
-    ax2.set_zorder(1)
-    ax.set_zorder(2)
-    ax.patch.set_visible(False)
-
-    ax.plot(
-        Ts, x_avg,
-        color="black", linewidth=2, alpha=0.5,
-        label=rf"$\langle {ratio_label}\rangle$ (ensemble)",
-        zorder=3,
-    )
-    ax.step(
-        Ts, x_phase,
-        where="mid", color="black",
-        linewidth=1.5, linestyle="--",
-        label=f"Stable phase {ratio_label}",
-        zorder=3,
-    )
-
-    if Y is not None and Y.size > 0:
-        _stackplot_no_edges(ax2, Ts, Y, stack_colors, zorder=1)
-    else:
-        ax2.text(
-            0.5, 0.5, "No population data",
-            transform=ax2.transAxes,
-            ha="center", va="center",
-            fontsize=7, color="gray",
-        )
-
-    ax.set_xlabel("Temperature (K)", fontsize=8)
-    ax.set_ylabel(ratio_label, fontsize=8)
-    ax2.set_ylabel(pop_ylabel, fontsize=8)
-    ax.set_xlim(float(Ts[0]), float(Ts[-1]))
-    ax2.set_ylim(0.0, 100.0)
-    if title:
-        ax.set_title(title, fontsize=7)
-
-    ox_handles, ox_labels = ax.get_legend_handles_labels()
-    stack_handles = [
-        Patch(facecolor=c, edgecolor="none", alpha=0.85)
-        for c in stack_colors
-    ]
-    ax.legend(
-        ox_handles + stack_handles,
-        ox_labels + stack_labels,
-        fontsize=5, frameon=False, loc="lower left", ncol=legend_ncol,
-    )
-    ax.tick_params(axis="both", labelsize=7)
-    ax2.tick_params(axis="y", labelsize=7)
-
-
-def draw_isomer_population_vs_T_panel(
-    ax,
-    Ts: np.ndarray,
-    x_avg: np.ndarray,
-    x_phase: np.ndarray,
-    Y: np.ndarray | None,
-    color_values: np.ndarray | None,
-    *,
-    stoich_cmap,
-    stoich_norm: Normalize,
-    pressure_pa: float,
-    title: str = "",
-    ratio_label: str = r"$n_O/n_{Ir}$",
-):
-    """Twin-axis panel: ensemble + stable-phase oxidation vs T, isomer pop. stack (right y)."""
-    ax2 = ax.twinx()
-    ax2.set_zorder(1)
-    ax.set_zorder(2)
-    ax.patch.set_visible(False)
-
-    ax.plot(
-        Ts, x_avg,
-        color="black", linewidth=2, alpha=0.5,
-        label=rf"$\langle {ratio_label}\rangle$ (ensemble)",
-        zorder=3,
-    )
-    ax.step(
-        Ts, x_phase,
-        where="mid", color="black",
-        linewidth=1.5, linestyle="--",
-        label=f"Stable phase {ratio_label}",
-        zorder=3,
-    )
-
-    if Y is not None and color_values is not None and Y.size > 0:
-        colors = [stoich_cmap(stoich_norm(float(c))) for c in color_values]
-        _stackplot_no_edges(ax2, Ts, Y, colors, zorder=1)
-    else:
-        ax2.text(
-            0.5, 0.5,
-            "No isomers above threshold",
-            transform=ax2.transAxes,
-            ha="center", va="center",
-            fontsize=7, color="gray",
-        )
-
-    ax.set_xlabel("Temperature (K)", fontsize=8)
-    ax.set_ylabel(ratio_label, fontsize=8)
-    ax2.set_ylabel("Population (%)", fontsize=8)
-    ax.set_xlim(float(Ts[0]), float(Ts[-1]))
-    ax2.set_ylim(0.0, 100.0)
-    if title:
-        ax.set_title(title, fontsize=7)
-    else:
-        ax.set_title(
-            rf"$p_{{\mathrm{{O_2}}}} = {pressure_pa:.3g}$ Pa",
-            fontsize=7,
-        )
-    ax.legend(fontsize=6, loc="lower left", frameon=False)
-    ax.tick_params(axis="both", labelsize=7)
-    ax2.tick_params(axis="y", labelsize=7)
-
-    sm = ScalarMappable(cmap=stoich_cmap, norm=stoich_norm)
-    sm.set_array([])
-    cb = plt.colorbar(sm, ax=[ax, ax2], pad=0.02, fraction=0.046)
-    cb.set_label(f"{ratio_label} fraction", fontsize=8)
-    cb.ax.tick_params(labelsize=7)
 
 
 def draw_population_stack(
@@ -375,20 +213,6 @@ def ir_motif_colors(k: int):
 
 def o_motif_colors(k: int):
     return discrete_palette("plasma_r", k)
-
-
-def ensemble_motif_colormap(colors: list, k: int | None = None):
-    """Smooth gradient through all motif/cluster colours (for ⟨index⟩ phase maps)."""
-    k = k if k is not None else len(colors)
-    return gradient_colormap(colors[:k], name="ensemble_motif")
-
-
-def dominant_motif_cmap(colors: list, k: int):
-    """Discrete ListedColormap + BoundaryNorm for a dominant-motif phase map."""
-    cmap = ListedColormap([c for c in colors[:k]])
-    bounds = np.arange(-0.5, k, 1.0)
-    norm = BoundaryNorm(bounds, cmap.N)
-    return cmap, norm
 
 
 def discrete_category_colorbar(

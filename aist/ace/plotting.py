@@ -1,4 +1,4 @@
-"""All ACE-clustering plots (UMAP+KMeans pipeline -> every atom has a cluster)."""
+"""All ACE-clustering plots (SOAP -> PCA -> UMAP -> KMeans for atoms)."""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ def draw_atom_scatter_on_ax(
     fontsize: int = 7,
     paper_style: bool = False,
 ):
-    """Draw atom UMAP/PCA scatter on an existing axes (from cached ``fit`` dict)."""
+    """Draw atom UMAP scatter on an existing axes (from cached ``fit`` dict)."""
     k = int(fit["k"])
     Xp = np.asarray(fit["X_plot"])
     labels = np.asarray(fit["labels"], dtype=int)

@@ -40,10 +40,10 @@ REQUIRED_RAW_FILES = (
     IR_REF_PBE0,
 )
 
-# Grand-canonical / thermo figures: full PBE structures, coarse T–p grid for speed
+# Grand-canonical / thermo figures: full PBE structures
 GC_STRUCTURES = TRAJ_PBE
-GC_N_T = 100
-GC_N_P = 100
+GC_N_T = 400
+GC_N_P = 400
 
 # ---------------------------------------------------------------------------
 # Derived cache  (produced by figures/utils/cache.py from data/ only)
@@ -114,9 +114,14 @@ FIXED_POINTS = [
     {"label": "500K_1atm", "T": 500.0, "P": 101325.0},
 ]
 
-# Figure 6: motif/cluster populations vs T at ambient pO₂ (Pa)
+# Figure 6: motif populations vs T at ambient pO₂ (Pa), vertical 88 mm
 FIG06_PRESSURE_PA = 101325.0
 FIG06_SMOOTH_SIGMA = 1.0
+FIG06_POP_ZOOM_MIN = 60.0   # O terminal/bridging panel: y from 60% to 100%
+# O motif indices (SOAP–UMAP clustering): O-A1 ≈ terminal, O-A0 ≈ bridging
+FIG06_O_TERMINAL_IDX = 1
+FIG06_O_BRIDGING_IDX = 0
+FIG06_SPIN_XMAX = 1.0   # |Hirshfeld spin| display limit for O-spin KDE panels
 
 # Figure 8: 1D ΔG-contribution cut at this pO₂ (Pa)
 FIG08_PRESSURE_PA = 101325.0
@@ -132,9 +137,13 @@ DPI = 800
 
 CLUSTER_PAPER_LABELS: dict[int, str] = {}
 
+# ACE clustering reproducibility (must match ``aist.ace.constants``)
+ACE_RANDOM_STATE = 42
+ACE_SILHOUETTE_SAMPLE = 5000
+
 
 def gc_grid_config(**overrides):
-    """``GCConfig`` with the figure-pipeline T–p grid (default 100×100).
+    """``GCConfig`` with the figure-pipeline T–p grid (default 400×400).
 
     Override per-term flags, e.g. ``include_v_product``, ``include_zpe_mu``, etc.
     """

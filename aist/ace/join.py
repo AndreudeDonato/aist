@@ -236,6 +236,85 @@ def atom_motif_population_vs_T_at_pressure(
     return np.asarray(joined["Ts"], dtype=float), pressure_used, Y
 
 
+def o_bridging_terminal_interface_vs_T_at_pressure(
+    joined: dict,
+    pressure_pa: float,
+    bridging_o_index: int,
+    *,
+    smooth_sigma: float = 0.0,
+) -> tuple[np.ndarray, float, np.ndarray]:
+    """Cumulative stack % where bridging O ends and terminal O begins.
+
+    Matches the black Ir|O boundary plus the bridging O motif band in the
+  atom-motif stack (Ir-A* below, O-A* above; interface after ``O-A{bridging}``).
+    """
+    Ts, pressure_used, Y = atom_motif_population_vs_T_at_pressure(
+        joined, pressure_pa, smooth_sigma=smooth_sigma,
+    )
+    k_ir = int(joined["ir_frac"].shape[1])
+    bridge_row = k_ir + int(bridging_o_index)
+    interface = np.sum(Y[:k_ir, :], axis=0) + Y[bridge_row, :]
+    return Ts, pressure_used, interface
+
+
+def population_weighted_o_spins_by_motif_at_pressure(
+    joined: dict,
+    structures: list,
+    motif_json_path: str,
+    pressure_pa: float,
+) -> tuple[dict[str, tuple[np.ndarray, np.ndarray]], dict]:
+    """O-atom |Hirshfeld spin| samples weighted by GC population at fixed ``pO₂``.
+
+    At each ``T`` on the joined grid, structure ``i`` contributes weight
+    ``Pgi[i, p, T]`` for every O atom in that structure. Returns
+    ``{motif_tag: (spins, weights)}`` and the motif JSON dict (colours).
+    """
+    from aist.ace.io import load_motif_atoms_json
+
+    motif = load_motif_atoms_json(motif_json_path)
+    order = list(motif.get("ir_motifs", [])) + list(motif.get("o_motifs", []))
+    buckets: dict[str, list[tuple[float, float]]] = {tag: [] for tag in order}
+
+    p_idx, _ = pressure_grid_index(joined["Ps"], pressure_pa)
+    Pgi = joined["Pgi"]
+    n_T = int(Pgi.shape[2])
+    n = int(joined["n"])
+
+    for i in range(n):
+        fi = int(joined["frame_index"][i])
+        if fi < 0 or fi >= len(structures):
+            continue
+        atoms = structures[fi]
+        labels = motif.get("frames", {}).get(str(fi))
+        if labels is None:
+            continue
+        h = atoms.info.get("hirshfeld")
+        if not isinstance(h, dict) or "spins" not in h:
+            continue
+        spins = np.abs(np.asarray(h["spins"], dtype=float))
+        syms = atoms.get_chemical_symbols()
+        if len(labels) != len(syms) or len(spins) != len(syms):
+            continue
+
+        for ai, (sym, mot) in enumerate(zip(syms, labels)):
+            if sym != "O" or mot not in buckets:
+                continue
+            spin = float(spins[ai])
+            for j in range(n_T):
+                w = float(Pgi[i, p_idx, j])
+                if w > 0:
+                    buckets[mot].append((spin, w))
+
+    points = {
+        tag: (
+            np.array([p[0] for p in pts], dtype=float),
+            np.array([p[1] for p in pts], dtype=float),
+        )
+        for tag, pts in buckets.items()
+    }
+    return points, motif
+
+
 def cluster_population_map(joined: dict) -> np.ndarray:
     """Dominant cluster id at each (T, P) — legacy; prefer ``ensemble_mean_cluster_map``."""
     return np.argmax(cluster_population_fractions(joined), axis=0)

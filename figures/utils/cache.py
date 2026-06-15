@@ -157,9 +157,17 @@ def ensure_gc_variants(*, force: bool = False) -> None:
     )
 
 
-_FIG_NEEDS_ACE = {2, 3, 4, 5, 6, 9, 10}
-_FIG_NEEDS_GC = {5, 6, 7, 8, 10, 11}
-_FIG_NEEDS_GC_VARIANTS = {5, 7, 10}
+_FIG_NEEDS_ACE = {2, 3, 4, 5, 6}
+_FIG_NEEDS_GC = {5, 6, 7, 8, 9, 10}
+_FIG_NEEDS_GC_VARIANTS = {5, 7, 9, 10}
+_SUPPLEMENTARY_NEEDS_ACE = {"supp_atom_hirshfeld"}
+
+
+def ensure_for_supplementary(names: Iterable[str], *, force: bool = False) -> None:
+    ensure_raw_data()
+    names = set(names)
+    if names & _SUPPLEMENTARY_NEEDS_ACE:
+        ensure_ace(force=force)
 
 
 def ensure_for_figures(fig_nums: Iterable[int], *, force: bool = False) -> None:

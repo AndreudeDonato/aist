@@ -58,11 +58,11 @@ def validate_cache_for_figures(fig_nums: set[int]) -> None:
     )
     from figures.utils.io import load_ace_features, load_gc_npz, load_traj
 
-    needs_ace = bool(fig_nums & {2, 3, 4, 5, 6, 9, 10})
-    needs_gc = bool(fig_nums & {5, 6, 7, 8, 10, 11})
-    needs_variants = bool(fig_nums & {5, 7, 10})
-    needs_gc_join = bool(fig_nums & {10})
-    needs_fig4_gc = bool(fig_nums & {5, 6, 11})
+    needs_ace = bool(fig_nums & {2, 3, 4, 5, 6})
+    needs_gc = bool(fig_nums & {5, 6, 7, 8, 9, 10})
+    needs_variants = bool(fig_nums & {5, 7, 9, 10})
+    needs_gc_join = bool(fig_nums & {9})
+    needs_fig4_gc = bool(fig_nums & {5, 6, 10})
 
     if needs_ace:
         from figures.config import ACE_ATOM_IR_NPZ, ACE_ATOM_O_NPZ, ACE_STRUCT_NPZ, MOTIF_JSON

@@ -6,9 +6,7 @@ Per-atom stage (Ir and O, separately, pooled across PBE + PBE0)
     SOAP (radial x angular per-atom descriptor, dscribe)
       -> StandardScaler
       -> PCA (keeps ``pca_variance_target`` of the variance, default 0.95)
-      -> UMAP (non-linear reduction to 2D — brings out density structure
-                that linear PCA hides for continuous SOAP spaces)
-      -> KMeans (fixed ``ir_atom_k`` / ``o_atom_k`` for Ir and O)
+      -> UMAP (2D, PCA init) -> KMeans (silhouette ``k`` over ``k_atom_range``)
 
 Per-structure stage (PBE + PBE0 pooled)
     descriptor = per-cluster Ir-fraction + per-cluster O-fraction
@@ -17,7 +15,7 @@ Per-structure stage (PBE + PBE0 pooled)
 
 Outputs (under ``analysis/ace_results/``):
    plots/
-     ace_ir_atom_pca.svg, ace_o_atom_pca.svg     (2D UMAP scatter, atoms)
+     ace_ir_atom_pca.svg, ace_o_atom_pca.svg     (2D PCA scatter, atoms)
      ace_struct_clustering_2d.svg                 (2D PCA scatter, structures)
      ace_composition_densities.svg                (n_O/n_Ir & n_Ir histograms)
      ace_cluster_composition.svg                  (stacked atom-cluster bars)
@@ -57,6 +55,8 @@ from aist.ace.clustering import (
     reorder_struct_clusters_by_oxidation,
 )
 from aist.ace.common import composition_features_for_struct
+from aist.ace.constants import ACE_RANDOM_STATE, SILHOUETTE_SAMPLE
+from aist.ace.reproducibility import set_reproducible_seed
 from aist.ace.descriptors import (
     compute_per_atom_descriptors,
     split_descriptors_by_species,
@@ -83,18 +83,15 @@ soap_sigma = 0.5      # Gaussian width of atomic densities (A)
 # --- PCA (always 95% variance retained as the user requested)
 pca_variance_target = 0.95
 
-# --- UMAP (atom stage only — non-linear reduction so KMeans on it works well)
-umap_n_components = 2          # 2D matches the scatter plot exactly
-umap_n_neighbors = 30          # 15-50 typical; larger = more global structure
-umap_min_dist = 0.0            # 0.0 -> tightest local clusters; 0.1 default
+# --- UMAP (atoms only) + KMeans silhouette k-selection
+umap_n_components = 2
+umap_n_neighbors = 30
+umap_min_dist = 0.0
 umap_metric = "euclidean"
-
-# --- KMeans (atom motifs: fixed k; structure clusters: silhouette in range)
-ir_atom_k = 4                  # Ir-A0 … Ir-A3
-o_atom_k = 3                   # O-A0 … O-A2
+k_atom_range = (2, 8)
 k_struct_range = (2, 8)
-silhouette_sample = 5000       # sample size used to score silhouette (full O(n^2) is slow)
-random_state = 42              # propagates to UMAP and KMeans for reproducibility
+silhouette_sample = SILHOUETTE_SAMPLE
+random_state = ACE_RANDOM_STATE
 
 standardize_atom_features = True
 standardize_struct_features = True
@@ -216,6 +213,8 @@ def main(
         datasets = datasets_override
     if results_dir is not None:
         configure_outputs(results_dir)
+    set_reproducible_seed(random_state)
+    print(f"[repro] random_state={random_state}  silhouette_sample={silhouette_sample}  threads=1")
     os.makedirs(PLOTS_DIR, exist_ok=True)
     os.makedirs(ATOMS_DIR, exist_ok=True)
 
@@ -272,7 +271,7 @@ def main(
     X_ir = np.vstack([r for r in ir_rows if r.size]) if any(r.size for r in ir_rows) else np.zeros((0, 0))
     X_o = np.vstack([r for r in o_rows if r.size]) if any(r.size for r in o_rows) else np.zeros((0, 0))
 
-    # --- Atom clustering: UMAP + KMeans at fixed k per species
+    # --- Atom clustering: PCA -> UMAP -> silhouette-selected KMeans
     ir_fit = cluster_atoms_umap_kmeans(
         X_ir,
         pca_variance_target=pca_variance_target,
@@ -280,7 +279,7 @@ def main(
         umap_n_neighbors=umap_n_neighbors,
         umap_min_dist=umap_min_dist,
         umap_metric=umap_metric,
-        k_min=ir_atom_k, k_max=ir_atom_k,
+        k_min=k_atom_range[0], k_max=k_atom_range[1],
         standardize=standardize_atom_features,
         random_state=random_state,
         sil_sample=silhouette_sample,
@@ -293,7 +292,7 @@ def main(
         umap_n_neighbors=umap_n_neighbors,
         umap_min_dist=umap_min_dist,
         umap_metric=umap_metric,
-        k_min=o_atom_k, k_max=o_atom_k,
+        k_min=k_atom_range[0], k_max=k_atom_range[1],
         standardize=standardize_atom_features,
         random_state=random_state,
         sil_sample=silhouette_sample,

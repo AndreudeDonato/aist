@@ -1,3 +1,7 @@
 __pycache__/
 *.pyc
+*.code-workspace
 scripts/results/
+scripts/resultsall/
+scripts/IryOx/
+figures/cache/

@@ -42,7 +42,13 @@ from figures.utils.vib_metrics import tchar_energy_weighted_ensemble_map
 OUTPUT_PATH = os.path.join(OUTPUT_DIR, "fig08_vib_contrib_tchar.svg")
 
 
-def _contributions_at_p_panel(ax, gc, pressure_pa: float) -> None:
+def _pin_line_xlim(ax, xmin: float, xmax: float) -> None:
+    """Tight x limits for line plots — no white margin at axis ends."""
+    ax.set_xlim(xmin, xmax)
+    ax.set_xmargin(0)
+
+
+def _contributions_at_p_panel(ax, gc, pressure_pa: float) -> tuple[float, float] | None:
     """Top-left: all ΔG contribution lines vs T at fixed pO₂."""
     try:
         Ts, p_used, curves = contribution_lines_at_pressure(gc, pressure_pa)
@@ -53,11 +59,13 @@ def _contributions_at_p_panel(ax, gc, pressure_pa: float) -> None:
         ax.set_title(rf"$\Delta G$ terms at $p_{{\mathrm{{O_2}}}}={p_used:.3g}$ Pa", fontsize=7)
         ax.tick_params(axis="both", labelsize=7)
         ax.legend(fontsize=6, frameon=False, loc="best")
+        return float(Ts[0]), float(Ts[-1])
     except KeyError as exc:
         ax.text(
             0.5, 0.5, str(exc),
             ha="center", va="center", fontsize=7, transform=ax.transAxes, wrap=True,
         )
+        return None
 
 
 def _gcontrib_map_panel(ax, gc, key: str, title: str, cmap: str = "BrBG"):
@@ -76,7 +84,7 @@ def _gcontrib_map_panel(ax, gc, key: str, title: str, cmap: str = "BrBG"):
     return mesh
 
 
-def _zpe_panel(ax, structures) -> None:
+def _zpe_panel(ax, structures) -> tuple[float, float] | None:
     from aist.core.vibrational import zpe_global_minima_by_ir_content
 
     grouped = zpe_global_minima_by_ir_content(structures)
@@ -84,7 +92,7 @@ def _zpe_panel(ax, structures) -> None:
     if not grouped:
         ax.text(0.5, 0.5, "No ZPE data", ha="center", va="center",
                 fontsize=7, transform=ax.transAxes)
-        return
+        return None
 
     ir_vals = sorted(grouped)
     norm = Normalize(vmin=float(min(ir_vals)), vmax=float(max(ir_vals)))
@@ -102,6 +110,8 @@ def _zpe_panel(ax, structures) -> None:
     ax.set_title("Global-minimum ZPE vs oxygen (by Ir)", fontsize=8)
     ax.tick_params(axis="both", labelsize=7)
     ax.legend(fontsize=5, frameon=False, ncol=3, loc="best")
+    all_o = [r["n_o"] for n_ir in ir_vals for r in grouped[n_ir]]
+    return float(min(all_o)), float(max(all_o))
 
 
 def _tchar_panel(ax, gc, structures) -> None:
@@ -137,7 +147,7 @@ def main() -> None:
     fig, axes = plt.subplots(2, 2, figsize=(180 / 25.4, 130 / 25.4), dpi=DPI)
 
     # (0,0): 1D ΔG contributions at fixed pO₂
-    _contributions_at_p_panel(axes[0, 0], gc, FIG08_PRESSURE_PA)
+    dg_xlim = _contributions_at_p_panel(axes[0, 0], gc, FIG08_PRESSURE_PA)
 
     # (0,1): vibrational Gibbs map
     if "E_vib_avg" in gc:
@@ -153,12 +163,16 @@ def main() -> None:
                         transform=axes[0, 1].transAxes)
 
     # (1,0): ZPE
-    _zpe_panel(axes[1, 0], structures)
+    zpe_xlim = _zpe_panel(axes[1, 0], structures)
 
     # (1,1): Tchar
     _tchar_panel(axes[1, 1], gc, structures)
 
     fig.tight_layout(pad=6 / 25.4)
+    if dg_xlim is not None:
+        _pin_line_xlim(axes[0, 0], *dg_xlim)
+    if zpe_xlim is not None:
+        _pin_line_xlim(axes[1, 0], *zpe_xlim)
     save_fig(fig, OUTPUT_PATH, dpi=DPI)
     print(f"\n[fig08] {OUTPUT_PATH}")
 

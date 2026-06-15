@@ -1,4 +1,4 @@
-"""Figure 10 – Global-minimum phase map + fixed-point population lines (PBE).
+"""Figure 9 – Global-minimum phase map + fixed-point population lines (PBE).
 
 Novib and full (vib+ZPE) populations come from ``gc_variants.npz`` on ``IryOxPBE.traj``.
 
@@ -7,7 +7,7 @@ Novib and full (vib+ZPE) populations come from ``gc_variants.npz`` on ``IryOxPBE
   (1): At T=273 K, pO₂=101325 Pa — s1, s2, … (97% novib population)
   (2): Same at T=500 K — s'1, s'2, …
 
-Output: ``figures/outputs/fig10_min_pop_fixedpoints.svg``
+Output: ``figures/outputs/fig09_min_pop_fixedpoints.svg``
 """
 from __future__ import annotations
 
@@ -40,7 +40,7 @@ from figures.utils.plotting import (
     style_phase_ax,
 )
 
-OUTPUT_PATH = os.path.join(OUTPUT_DIR, "fig10_min_pop_fixedpoints.svg")
+OUTPUT_PATH = os.path.join(OUTPUT_DIR, "fig09_min_pop_fixedpoints.svg")
 FIG_W_MM = 88
 FIG_H_MM = 150
 CUMULATIVE_FRAC = 0.97
@@ -130,7 +130,7 @@ def _cumulative_population_panel(
 
 
 def main() -> None:
-    ensure_for_figures([10])
+    ensure_for_figures([9])
     ensure_dirs(OUTPUT_DIR)
 
     gc_full = load_gc_npz(GC_NPZ)
@@ -171,10 +171,8 @@ def main() -> None:
         )
 
     fig.subplots_adjust(left=0.14, right=0.96, top=0.97, bottom=0.08)
-    for ax in ax_lines:
-        _pin_xlim_edge_to_edge(ax)
     save_fig(fig, OUTPUT_PATH, dpi=DPI)
-    print(f"\n[fig10] {OUTPUT_PATH}")
+    print(f"\n[fig09] {OUTPUT_PATH}")
 
 
 if __name__ == "__main__":

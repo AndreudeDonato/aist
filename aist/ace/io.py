@@ -31,6 +31,7 @@ def save_atom_embedding_npz(fit: dict, path: str) -> None:
         cumulative_variance=float(fit.get("cumulative_variance", np.nan)),
         silhouette_best=float(sil.get("best_score", np.nan)),
         plot_axes=np.asarray(fit.get("plot_axes", ("UMAP-1", "UMAP-2")), dtype=object),
+        random_state=int(fit.get("random_state", -1)),
     )
     print(f"[save] atom embedding cache -> {path}")
 
@@ -71,6 +72,7 @@ def save_struct_embeddings_npz(datasets_loaded, struct_fit: dict, path: str) -> 
         cumulative_variance=cache["cumulative_variance"],
         silhouette_best=cache["silhouette_best"],
         plot_axes=np.asarray(cache["plot_axes"], dtype=object),
+        random_state=int(struct_fit.get("random_state", -1)),
     )
     print(f"[save] structure embedding cache -> {path}")
 
@@ -130,7 +132,7 @@ def save_features_csv(d, struct_fit, path):
 
 
 def _centroid_distance_space(fit):
-    """Use UMAP coords for atoms, PCA coords for structures.  Returns (X, centroids)."""
+    """Embedding coords for centroid distance ranking. Returns (X, centroids)."""
     if "centroids_umap" in fit:
         return fit["X_umap"], fit["centroids_umap"]
     return fit["X_pca"], fit["centroids_pca"]

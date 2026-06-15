@@ -1,9 +1,7 @@
-"""PCA -> UMAP -> KMeans helpers for atoms; PCA -> KMeans for structures.
+"""PCA -> UMAP -> KMeans for atoms; PCA -> KMeans for structures.
 
-KMeans partitions every point (no "noise" label).  ``k`` is chosen by silhouette
-over a user-supplied range.  UMAP is used only for atoms — it brings out
-density structure that PCA's linear projection of SOAP descriptors hides.
-Structure-level descriptors are already low-dim, so a plain PCA is enough.
+Atom SOAP descriptors: scaler -> PCA (var) -> UMAP -> silhouette KMeans.
+Structure motif fractions are low-dimensional; PCA + KMeans is sufficient.
 """
 
 from __future__ import annotations
@@ -49,7 +47,12 @@ def kmeans_with_silhouette(
     best = None
     best_score = -np.inf
     for k in range(max(2, k_min), max(2, k_max) + 1):
-        km = KMeans(n_clusters=k, n_init=10, random_state=random_state)
+        km = KMeans(
+            n_clusters=k,
+            n_init=10,
+            algorithm="lloyd",
+            random_state=random_state,
+        )
         labels = km.fit_predict(X)
         if len(np.unique(labels)) < 2:
             continue
@@ -59,7 +62,12 @@ def kmeans_with_silhouette(
             best_score = s
             best = (km, labels, k)
     if best is None:
-        km = KMeans(n_clusters=max(2, k_min), n_init=10, random_state=random_state)
+        km = KMeans(
+            n_clusters=max(2, k_min),
+            n_init=10,
+            algorithm="lloyd",
+            random_state=random_state,
+        )
         labels = km.fit_predict(X)
         best = (km, labels, max(2, k_min))
         scores[best[2]] = float("nan")
@@ -81,8 +89,92 @@ def _relabel_by_size(labels: np.ndarray) -> np.ndarray:
 
 
 # ---------------------------------------------------------------------------
-# Per-atom pipeline:  StandardScaler -> PCA(var) -> UMAP -> KMeans
+# Per-atom pipeline:  StandardScaler -> PCA(var) -> KMeans
 # ---------------------------------------------------------------------------
+
+
+def _pca_plot_axes(pca: PCA) -> tuple[str, str]:
+    evr = pca.explained_variance_ratio_
+    x1 = f"PC1 ({evr[0] * 100:.1f}%)"
+    x2 = (
+        f"PC2 ({evr[1] * 100:.1f}%)"
+        if evr.size >= 2
+        else "PC2"
+    )
+    return x1, x2
+
+
+def cluster_atoms_pca_kmeans(
+    X_raw: np.ndarray,
+    *,
+    pca_variance_target: float,
+    k_min: int = 2,
+    k_max: int = 8,
+    standardize: bool = True,
+    random_state: int = 42,
+    sil_sample: int = 5000,
+    label_for_print: str = "",
+):
+    """Cluster per-atom SOAP descriptors with PCA + silhouette-selected KMeans."""
+    n = X_raw.shape[0]
+    if n == 0:
+        raise RuntimeError(f"No data points for {label_for_print or 'cluster'}")
+
+    if standardize:
+        scaler = StandardScaler()
+        X_std = scaler.fit_transform(X_raw)
+    else:
+        scaler = None
+        X_std = X_raw
+
+    pca = PCA(n_components=float(pca_variance_target), svd_solver="full")
+    X_pca = pca.fit_transform(X_std)
+    cum_var = float(np.sum(pca.explained_variance_ratio_))
+
+    km, labels_raw, sil_info = kmeans_with_silhouette(
+        X_pca,
+        k_min=k_min, k_max=k_max,
+        sil_sample=sil_sample, random_state=random_state,
+    )
+    labels = _relabel_by_size(labels_raw)
+    k = int(labels.max()) + 1
+
+    centroids_pca = np.array(
+        [X_pca[labels == c].mean(axis=0) if (labels == c).any() else np.zeros(X_pca.shape[1])
+         for c in range(k)]
+    )
+
+    cluster_sizes = np.array([(labels == c).sum() for c in range(k)], dtype=int)
+    if label_for_print:
+        sizes_str = ", ".join(f"A{c}={cluster_sizes[c]}" for c in range(k))
+        sil_str = ", ".join(f"k={kk}:{ss:.3f}" for kk, ss in sorted(sil_info["silhouettes"].items()))
+        print(
+            f"[{label_for_print}] n={n}  pca_dim={X_pca.shape[1]} (var={cum_var:.3f})  "
+            f"k={k} ({sizes_str})  silhouette={sil_info['best_score']:.3f}  [{sil_str}]"
+        )
+
+    plot = X_pca[:, :2] if X_pca.shape[1] >= 2 else np.hstack(
+        [X_pca, np.zeros((n, 2 - X_pca.shape[1]))]
+    )
+
+    return {
+        "X_raw": X_raw,
+        "X_std": X_std,
+        "X_pca": X_pca,
+        "X_plot": plot,
+        "labels": labels,
+        "k": k,
+        "centroids_pca": centroids_pca,
+        "cluster_sizes": cluster_sizes,
+        "scaler": scaler,
+        "pca": pca,
+        "kmeans": km,
+        "explained_variance_ratio": pca.explained_variance_ratio_,
+        "cumulative_variance": cum_var,
+        "silhouette_info": sil_info,
+        "plot_axes": _pca_plot_axes(pca),
+        "random_state": random_state,
+    }
 
 
 def cluster_atoms_umap_kmeans(
@@ -100,7 +192,7 @@ def cluster_atoms_umap_kmeans(
     sil_sample: int = 5000,
     label_for_print: str = "",
 ):
-    """Cluster per-atom SOAP descriptors with UMAP + KMeans."""
+    """Cluster per-atom SOAP descriptors: scaler -> PCA(var) -> UMAP -> KMeans."""
     n = X_raw.shape[0]
     if n == 0:
         raise RuntimeError(f"No data points for {label_for_print or 'cluster'}")
@@ -122,6 +214,8 @@ def cluster_atoms_umap_kmeans(
         min_dist=float(umap_min_dist),
         metric=umap_metric,
         random_state=random_state,
+        init="pca",
+        n_jobs=1,
     )
     X_umap = reducer.fit_transform(X_pca)
 
@@ -133,7 +227,6 @@ def cluster_atoms_umap_kmeans(
     labels = _relabel_by_size(labels_raw)
     k = int(labels.max()) + 1
 
-    # Recompute centroids in UMAP space after relabeling (so C0 == largest cluster).
     centroids_umap = np.array(
         [X_umap[labels == c].mean(axis=0) if (labels == c).any() else np.zeros(X_umap.shape[1])
          for c in range(k)]
@@ -166,8 +259,8 @@ def cluster_atoms_umap_kmeans(
         "explained_variance_ratio": pca.explained_variance_ratio_,
         "cumulative_variance": cum_var,
         "silhouette_info": sil_info,
-        # 2D scatter axes labels for the plot:
         "plot_axes": ("UMAP-1", "UMAP-2"),
+        "random_state": random_state,
     }
 
 
@@ -244,6 +337,7 @@ def cluster_structures_pca_kmeans(
         "plot_axes": (f"PC1 ({pca.explained_variance_ratio_[0] * 100:.1f}%)",
                       f"PC2 ({pca.explained_variance_ratio_[1] * 100:.1f}%)"
                       if pca.explained_variance_ratio_.size >= 2 else "PC2"),
+        "random_state": random_state,
     }
 
 
@@ -283,7 +377,10 @@ def reorder_ir_atom_clusters_by_oxidation(
         remap[old_id] = new_id
 
     ir_fit["labels"] = remap[labels]
-    ir_fit["centroids_umap"] = ir_fit["centroids_umap"][order]
+    if "centroids_umap" in ir_fit:
+        ir_fit["centroids_umap"] = ir_fit["centroids_umap"][order]
+    if "centroids_pca" in ir_fit:
+        ir_fit["centroids_pca"] = ir_fit["centroids_pca"][order]
     ir_fit["cluster_sizes"] = np.array(
         [(ir_fit["labels"] == c).sum() for c in range(k)], dtype=int,
     )

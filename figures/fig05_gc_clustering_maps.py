@@ -90,7 +90,6 @@ def _scalar_ensemble_panel(
     cmap,
     vmin,
     vmax,
-    cbar_label,
     *,
     overlay_labels: list[str] | None = None,
 ):
@@ -160,7 +159,7 @@ def main() -> None:
         mesh0 = _scalar_ensemble_panel(
             axes[0, col], gc, gc["x_per_non_o"],
             f"{ds['label']} — ⟨{r'n_O/n_{Ir}'}⟩",
-            PHASE_CMAP, None, None, r"$n_O/n_{Ir}$",
+            PHASE_CMAP, None, None,
             overlay_labels=stoich_labels,
         )
         if mesh0 is not None:

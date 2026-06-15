@@ -52,6 +52,16 @@ def run_gc_variants(
         config=cfg_full,
         save_outputs=False,
     )
+    stoich = full["stoich"]
+    full_out = {
+        "Ts": full["Ts"],
+        "Ps": full["Ps"],
+        "full_phase_index": full["phase_index"],
+        "full_x_per_non_o": full["x_per_non_o"],
+        "full_stoich_map": stoich[full["phase_index"]],
+        "full_Pgi": full["Pgi"],
+    }
+    del full
 
     print("[gc_variants] novib (no vib, no ZPE)")
     novib = compute_gc(
@@ -60,20 +70,13 @@ def run_gc_variants(
         config=cfg_novib,
         save_outputs=False,
     )
+    novib_out = {
+        "novib_phase_index": novib["phase_index"],
+        "novib_x_per_non_o": novib["x_per_non_o"],
+        "novib_stoich_map": stoich[novib["phase_index"]],
+        "novib_Pgi": novib["Pgi"],
+    }
+    del novib
 
-    stoich = full["stoich"]
-    np.savez(
-        output_npz,
-        Ts=full["Ts"],
-        Ps=full["Ps"],
-        stoich=stoich,
-        full_phase_index=full["phase_index"],
-        full_x_per_non_o=full["x_per_non_o"],
-        full_stoich_map=stoich[full["phase_index"]],
-        full_Pgi=full["Pgi"],
-        novib_phase_index=novib["phase_index"],
-        novib_x_per_non_o=novib["x_per_non_o"],
-        novib_stoich_map=stoich[novib["phase_index"]],
-        novib_Pgi=novib["Pgi"],
-    )
+    np.savez(output_npz, stoich=stoich, **full_out, **novib_out)
     print(f"[gc_variants] saved: {output_npz}")

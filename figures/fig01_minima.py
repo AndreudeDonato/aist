@@ -4,7 +4,8 @@ Layout: 180 × 230 mm total; each dataset panel 88 × 230 mm with a 4 mm blank g
         (88 + 4 + 88 = 180). No titles or other text.
         PBE and PBE0 share one ``half_span`` (uniform Å scale across both panels).
 
-Also writes per-dataset 88 × 230 mm SVGs (same content as ``analysis/plotminima.py`` panels).
+Also writes supplementary per-dataset 88 × 230 mm SVGs:
+``supp_minima_PBE.svg``, ``supp_minima_PBE0.svg``.
 
 Output: ``figures/outputs/fig01_minima.svg``
 """
@@ -41,7 +42,6 @@ DATASETS = [
 ]
 
 OUTPUT_PATH = os.path.join(OUTPUT_DIR, "fig01_minima.svg")
-MINIMA_TRAJ_OUT = MINIMA_TRAJ
 
 plt.rcParams["svg.fonttype"] = "none"
 
@@ -172,7 +172,7 @@ def main() -> None:
         selected = select_stoichiometry_minima(structures)
         selected_by_label[ds["label"]] = selected
 
-        write(MINIMA_TRAJ_OUT[ds["label"]], [a for _, _, a in selected])
+        write(MINIMA_TRAJ[ds["label"]], [a for _, _, a in selected])
         print(f"[fig01] {ds['label']}: {len(selected)} stoichiometries")
 
     if len(selected_by_label) < 2:
@@ -188,7 +188,7 @@ def main() -> None:
     print(f"[fig01] shared half_span (PBE + PBE0): {shared_half_span:.4f}")
 
     for label, selected in selected_by_label.items():
-        panel_path = os.path.join(OUTPUT_DIR, f"fig01_minima_{label}.svg")
+        panel_path = os.path.join(OUTPUT_DIR, f"supp_minima_{label}.svg")
         panel_fig = plt.figure(
             figsize=(PANEL_W_MM * MM, PANEL_H_MM * MM), dpi=DPI,
         )
