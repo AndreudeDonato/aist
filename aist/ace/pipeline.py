@@ -61,6 +61,8 @@ from aist.ace.descriptors import (
     compute_per_atom_descriptors,
     split_descriptors_by_species,
 )
+from aist.inertia import inertia_shape_weighted_by_extent
+from aist.thermo import ThermoPartitionFunctions
 
 
 # ============================================================
@@ -90,6 +92,36 @@ umap_min_dist = 0.0
 umap_metric = "euclidean"
 k_atom_range = (2, 8)
 k_struct_range = (2, 8)
+
+# --- Per-species atom-clustering overrides (analysis/Iratoms hyperparameter search).
+# Ir resolves more motifs in the oxidised regime (n_O/n_Ir ~ 2-3) with a larger UMAP
+# neighbourhood and a fixed motif count; O keeps the production neighbourhood / 3 motifs.
+ir_umap_n_neighbors = 60
+o_umap_n_neighbors = umap_n_neighbors
+ir_atom_k = 4   # fixed Ir motif count (None -> silhouette over k_atom_range)
+o_atom_k = 3    # fixed O motif count  (None -> silhouette over k_atom_range)
+
+# --- Structure-level geometry: shape (I1/I3, I2/I3) weighted by partially
+# shape-corrected extent.  "partial" blends the sphere-only exponent (5/6)
+# toward the full shape-correction (1/2 + 1/d_eff) by extent_blend ∈ [0,1].
+# At 0.1 within-shape spread dominates on the E axis while still correcting
+# for mass; higher blend increases between-shape separation on extent.
+use_inertia_struct_features = True
+shape_extent_alpha = 1.0        # strength of extent-weighted shape block
+extent_blend = 0.1              # blend fraction for shape correction (0=sphere, 1=full)
+shape_corner_purity_beta = 0.5  # extra (1 + beta*purity^2) boost near S/L/P Nagai corners
+
+# --- Structure clustering granularity + targeted feature emphasis.
+# struct_k: None -> silhouette-selected k over k_struct_range; int -> fixed k.
+# o2_structure_feature: append a binary "contains a molecular O2" column to the
+#   structure descriptor and up-weight it (post-standardization) so that ALL
+#   O2-bearing structures coalesce into one distinct cluster regardless of how
+#   much O2 they contain. (A continuous molecular-O fraction instead splits them
+#   by amount, so the binary flag is what matches "one distinct O2 group".)
+struct_k = 9
+o2_structure_feature = True
+o2_feature_weight = 1.4  # O2 column emphasis (was 2.0; lower so PC1 is not O2-only)
+O2_BOND_MAX = 1.6  # A, O-O separation counted as a molecular O2
 silhouette_sample = SILHOUETTE_SAMPLE
 random_state = ACE_RANDOM_STATE
 
@@ -180,6 +212,17 @@ def _count_species(structures, symbol):
     )
 
 
+def _structure_has_o2(atoms) -> bool:
+    """True if the structure contains a molecular O2 (any O-O pair < O2_BOND_MAX)."""
+    sym = np.asarray(atoms.get_chemical_symbols())
+    o_pos = atoms.get_positions()[sym == "O"]
+    n = o_pos.shape[0]
+    for i in range(n - 1):
+        if np.any(np.linalg.norm(o_pos[i + 1:] - o_pos[i], axis=1) < O2_BOND_MAX):
+            return True
+    return False
+
+
 def load_dataset(label, path):
     structures = list(read(path, ":"))
     return {
@@ -205,8 +248,12 @@ def main(
     *,
     datasets_override: list[dict] | None = None,
     write_plots: bool = True,
+    extent_normalization: str = "partial",
+    extent_blend_override: float | None = None,
 ) -> None:
-    global datasets
+    global datasets, extent_blend
+    if extent_blend_override is not None:
+        extent_blend = extent_blend_override
     if data_dir is not None:
         set_data_dir(data_dir)
     if datasets_override is not None:
@@ -271,15 +318,21 @@ def main(
     X_ir = np.vstack([r for r in ir_rows if r.size]) if any(r.size for r in ir_rows) else np.zeros((0, 0))
     X_o = np.vstack([r for r in o_rows if r.size]) if any(r.size for r in o_rows) else np.zeros((0, 0))
 
-    # --- Atom clustering: PCA -> UMAP -> silhouette-selected KMeans
+    # --- Atom clustering: PCA -> UMAP -> silhouette-selected (or fixed-k) KMeans
+    ir_k_min, ir_k_max = (
+        (ir_atom_k, ir_atom_k) if ir_atom_k is not None else k_atom_range
+    )
+    o_k_min, o_k_max = (
+        (o_atom_k, o_atom_k) if o_atom_k is not None else k_atom_range
+    )
     ir_fit = cluster_atoms_umap_kmeans(
         X_ir,
         pca_variance_target=pca_variance_target,
         umap_n_components=umap_n_components,
-        umap_n_neighbors=umap_n_neighbors,
+        umap_n_neighbors=ir_umap_n_neighbors,
         umap_min_dist=umap_min_dist,
         umap_metric=umap_metric,
-        k_min=k_atom_range[0], k_max=k_atom_range[1],
+        k_min=ir_k_min, k_max=ir_k_max,
         standardize=standardize_atom_features,
         random_state=random_state,
         sil_sample=silhouette_sample,
@@ -289,10 +342,10 @@ def main(
         X_o,
         pca_variance_target=pca_variance_target,
         umap_n_components=umap_n_components,
-        umap_n_neighbors=umap_n_neighbors,
+        umap_n_neighbors=o_umap_n_neighbors,
         umap_min_dist=umap_min_dist,
         umap_metric=umap_metric,
-        k_min=k_atom_range[0], k_max=k_atom_range[1],
+        k_min=o_k_min, k_max=o_k_max,
         standardize=standardize_atom_features,
         random_state=random_state,
         sil_sample=silhouette_sample,
@@ -316,7 +369,22 @@ def main(
         d["per_struct_o_cluster"] = per_struct_o_pooled[offset: offset + n]
         offset += n
 
-    # --- Per-structure descriptor: per-cluster Ir + O fractions
+    # --- Per-structure descriptor: motif fractions + extent-weighted shape
+    tp_inertia = ThermoPartitionFunctions() if use_inertia_struct_features else None
+    pooled_for_shape = (
+        [a for d in datasets_loaded for a in d["structures"]]
+        if use_inertia_struct_features else []
+    )
+    shape_block_pooled = (
+        inertia_shape_weighted_by_extent(
+            pooled_for_shape, tp_inertia, alpha=shape_extent_alpha,
+            extent_normalization=extent_normalization,
+            extent_blend=extent_blend,
+            corner_purity_beta=shape_corner_purity_beta,
+        )
+        if use_inertia_struct_features else None
+    )
+    shape_offset = 0
     for d in datasets_loaded:
         d["ir_cluster_fractions"] = composition_features_for_struct(
             len(d["structures"]), d["per_struct_ir_cluster"], "Ir", ir_fit["k"],
@@ -324,23 +392,58 @@ def main(
         d["o_cluster_fractions"] = composition_features_for_struct(
             len(d["structures"]), d["per_struct_o_cluster"], "O", o_fit["k"],
         )
+        if use_inertia_struct_features:
+            n = len(d["structures"])
+            d["inertia_features"] = shape_block_pooled[shape_offset: shape_offset + n]
+            shape_offset += n
 
     # --- Pooled structure clustering (PBE + PBE0): PCA(95%) + KMeans(silhouette)
     struct_blocks = []
     for d in datasets_loaded:
-        struct_blocks.append(np.hstack([d["ir_cluster_fractions"], d["o_cluster_fractions"]]))
+        blocks = [d["ir_cluster_fractions"], d["o_cluster_fractions"]]
+        if use_inertia_struct_features:
+            blocks.append(d["inertia_features"])
+        if o2_structure_feature:
+            has_o2 = np.array(
+                [[float(_structure_has_o2(a))] for a in d["structures"]], dtype=float,
+            )
+            blocks.append(has_o2)
+        struct_blocks.append(np.hstack(blocks))
     X_struct_pooled = np.vstack(struct_blocks)
     if X_struct_pooled.shape[0] < 5:
         raise SystemExit("Too few structures for pooled structure clustering.")
 
+    # Targeted O2 emphasis: up-weight the binary "contains O2" column (last one)
+    # so all O2-bearing structures form a single distinct cluster.
+    feature_weights = None
+    if o2_structure_feature and o2_feature_weight != 1.0:
+        feature_weights = np.ones(X_struct_pooled.shape[1], dtype=float)
+        feature_weights[-1] = float(o2_feature_weight)
+
+    extra = []
+    if use_inertia_struct_features:
+        extra.append(f"shape×extent(α={shape_extent_alpha:g})")
+    if o2_structure_feature:
+        n_o2 = sum(int(_structure_has_o2(a)) for d in datasets_loaded for a in d["structures"])
+        extra.append(f"O2-flag(x{o2_feature_weight:g}, n={n_o2})")
+    print(
+        f"[struct-features] motif fractions (Ir={ir_fit['k']}, O={o_fit['k']})"
+        + (" + " + " + ".join(extra) if extra else "")
+        + f" -> dim={X_struct_pooled.shape[1]}"
+    )
+
+    sk_min, sk_max = (
+        (struct_k, struct_k) if struct_k is not None else k_struct_range
+    )
     struct_fit = cluster_structures_pca_kmeans(
         X_struct_pooled,
         pca_variance_target=pca_variance_target,
-        k_min=k_struct_range[0], k_max=k_struct_range[1],
+        k_min=sk_min, k_max=sk_max,
         standardize=standardize_struct_features,
         random_state=random_state,
         sil_sample=silhouette_sample,
         label_for_print="struct-pooled",
+        feature_weights=feature_weights,
     )
     struct_result = {"fit": struct_fit}
     reorder_struct_clusters_by_oxidation(

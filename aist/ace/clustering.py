@@ -279,8 +279,15 @@ def cluster_structures_pca_kmeans(
     random_state: int = 42,
     sil_sample: int = 5000,
     label_for_print: str = "",
+    feature_weights: np.ndarray | None = None,
 ):
-    """Cluster per-structure descriptors (composition fractions) with PCA + KMeans."""
+    """Cluster per-structure descriptors (composition fractions) with PCA + KMeans.
+
+    ``feature_weights`` (length = n_features) is applied **after** standardization
+    so a value > 1 genuinely emphasises that column (a pre-scaling would be undone
+    by the StandardScaler). Use it to up-weight an interpretable feature such as
+    the molecular-O fraction without otherwise altering the descriptor.
+    """
     n = X_raw.shape[0]
     if n == 0:
         raise RuntimeError(f"No data points for {label_for_print or 'cluster'}")
@@ -291,6 +298,14 @@ def cluster_structures_pca_kmeans(
     else:
         scaler = None
         X_std = X_raw
+
+    if feature_weights is not None:
+        w = np.asarray(feature_weights, dtype=float).reshape(1, -1)
+        if w.shape[1] != X_std.shape[1]:
+            raise ValueError(
+                f"feature_weights length {w.shape[1]} != n_features {X_std.shape[1]}"
+            )
+        X_std = X_std * w
 
     pca = PCA(n_components=float(pca_variance_target), svd_solver="full")
     X_pca = pca.fit_transform(X_std)

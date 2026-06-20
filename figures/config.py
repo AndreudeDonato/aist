@@ -26,24 +26,24 @@ RAW_DATA_DIR = os.path.join(ROOT, "data")
 
 TRAJ_PBE = os.path.join(RAW_DATA_DIR, "IryOxPBE.traj")
 TRAJ_PBE0 = os.path.join(RAW_DATA_DIR, "IryOxPBE0.traj")
-O2_TRAJ_PBE = os.path.join(RAW_DATA_DIR, "O2_PBE.xyz")
-O2_TRAJ_PBE0 = os.path.join(RAW_DATA_DIR, "O2_PBE0.xyz")
+O2_REF_PBE = os.path.join(RAW_DATA_DIR, "O2_PBE.xyz")
+O2_REF_PBE0 = os.path.join(RAW_DATA_DIR, "O2_PBE0.xyz")
 IR_REF_PBE = os.path.join(RAW_DATA_DIR, "IrPBE.xyz")
 IR_REF_PBE0 = os.path.join(RAW_DATA_DIR, "IrPBE0.xyz")
 
 REQUIRED_RAW_FILES = (
     TRAJ_PBE,
     TRAJ_PBE0,
-    O2_TRAJ_PBE,
-    O2_TRAJ_PBE0,
+    O2_REF_PBE,
+    O2_REF_PBE0,
     IR_REF_PBE,
     IR_REF_PBE0,
 )
 
 # Grand-canonical / thermo figures: full PBE structures
 GC_STRUCTURES = TRAJ_PBE
-GC_N_T = 400
-GC_N_P = 400
+GC_N_T = 150
+GC_N_P = 150
 
 # ---------------------------------------------------------------------------
 # Derived cache  (produced by figures/utils/cache.py from data/ only)
@@ -102,20 +102,24 @@ MINIMA_TRAJ = {
 VIB_DATASET = "PBE"
 VIB_TRAJ = TRAJ_PBE
 VIB_ACE_FEATURES = ACE_FEATURES["PBE"]
-VIB_O2_TRAJ = O2_TRAJ_PBE
+VIB_O2_REF = O2_REF_PBE
 VIB_GC_NPZ = GC_NPZ
 GC_ACE_FEATURES = ACE_FEATURES["PBE"]
 
 # ---------------------------------------------------------------------------
-# Fixed thermodynamic points (Figures 7 & 8)
-# ---------------------------------------------------------------------------
+# Ambient O₂ partial pressure (~20% of 1 atm dry air)
+ATMOSPHERIC_PRESSURE_PA = 101325.0
+AMBIENT_PO2_FRACTION = 0.20
+AMBIENT_PO2_PA = ATMOSPHERIC_PRESSURE_PA * AMBIENT_PO2_FRACTION
+
+# Fixed thermodynamic points (Figures 9 population lines)
 FIXED_POINTS = [
-    {"label": "273K_1atm", "T": 273.0, "P": 101325.0},
-    {"label": "500K_1atm", "T": 500.0, "P": 101325.0},
+    {"label": "273K_ambient_pO2", "T": 273.0, "P": AMBIENT_PO2_PA},
+    {"label": "500K_ambient_pO2", "T": 500.0, "P": AMBIENT_PO2_PA},
 ]
 
 # Figure 6: motif populations vs T at ambient pO₂ (Pa), vertical 88 mm
-FIG06_PRESSURE_PA = 101325.0
+FIG06_PRESSURE_PA = AMBIENT_PO2_PA
 FIG06_SMOOTH_SIGMA = 1.0
 FIG06_POP_ZOOM_MIN = 60.0   # O terminal/bridging panel: y from 60% to 100%
 # O motif indices (SOAP–UMAP clustering): O-A1 ≈ terminal, O-A0 ≈ bridging
@@ -124,7 +128,7 @@ FIG06_O_BRIDGING_IDX = 0
 FIG06_SPIN_XMAX = 1.0   # |Hirshfeld spin| display limit for O-spin KDE panels
 
 # Figure 8: 1D ΔG-contribution cut at this pO₂ (Pa)
-FIG08_PRESSURE_PA = 101325.0
+FIG08_PRESSURE_PA = AMBIENT_PO2_PA
 
 # ---------------------------------------------------------------------------
 # Plot style
@@ -134,8 +138,6 @@ O_CMAP = "plasma_r"
 PHASE_CMAP = "coolwarm"
 DATASET_COLORS = {"PBE": "#2166ac", "PBE0": "#b2182b"}
 DPI = 800
-
-CLUSTER_PAPER_LABELS: dict[int, str] = {}
 
 # ACE clustering reproducibility (must match ``aist.ace.constants``)
 ACE_RANDOM_STATE = 42

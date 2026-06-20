@@ -12,8 +12,83 @@ from aist.ace.common import (
     discrete_palette,
     struct_cluster_palette,
 )
+from aist.core.grandcanonical import global_minimum_population_map
 
 plt.rcParams["svg.fonttype"] = "none"
+
+CBAR_LABEL_FONTSIZE = 8
+GLOBAL_MIN_POP_CMAP = "PuBu"
+PHASE_COLORBAR_KW = {
+    "location": "right",
+    "pad": 0.06,
+    "fraction": 0.04,
+    "shrink": 0.92,
+}
+
+
+def add_phase_colorbar(
+    fig,
+    mappable,
+    ax=None,
+    label: str | None = None,
+    *,
+    cax=None,
+    label_fontsize: float = CBAR_LABEL_FONTSIZE,
+    tick_fontsize: float = 7,
+):
+    """Shared vertical colorbar style (length/padding matched to Figure 7).
+
+    Pass ``cax`` to draw in a fixed axes (plot panels keep their size).
+    Pass ``ax`` to attach to panel axes (shrinks them, as in Figure 7).
+    """
+    if cax is not None:
+        cbar = fig.colorbar(mappable, cax=cax)
+    elif ax is not None:
+        cbar = fig.colorbar(mappable, ax=ax, **PHASE_COLORBAR_KW)
+    else:
+        raise ValueError("add_phase_colorbar requires ax or cax")
+    if label:
+        cbar.set_label(label, fontsize=label_fontsize)
+    cbar.ax.tick_params(labelsize=tick_fontsize)
+    return cbar
+
+
+def margin_colorbar_cax(
+    fig,
+    ax_left,
+    ax_right,
+    *,
+    gap: float = 0.015,
+    width: float = 0.012,
+):
+    """Dedicated colorbar axes in the tight_layout right margin (no panel resize)."""
+    pos_l = ax_left.get_position()
+    pos_r = ax_right.get_position()
+    x = pos_r.x1 + gap
+    return fig.add_axes([x, pos_l.y0, width, pos_l.height])
+
+
+def add_fig06_interface_pbe_pbe0_diff_axis(
+    ax,
+    Ts: np.ndarray,
+    pbe_y: np.ndarray,
+    pbe0_y: np.ndarray,
+) -> None:
+    """Twin y-axis: dotted zero line + thin black PBE−PBE0 difference (behind main curves)."""
+    ax2 = ax.twinx()
+    ax2.set_zorder(0)
+    ax.set_zorder(1)
+    ax.patch.set_visible(False)
+
+    diff = np.asarray(pbe_y, dtype=float) - np.asarray(pbe0_y, dtype=float)
+    ax2.axhline(
+        0.0, color="black", linewidth=0.5, linestyle="dotted", zorder=1,
+    )
+    ax2.plot(Ts, diff, color="black", linewidth=0.6, zorder=2)
+    dmin, dmax = float(np.min(diff)), float(np.max(diff))
+    ax2.set_ylim(min(dmin, 0.0), max(dmax, 0.0))
+    ax2.tick_params(axis="y", labelsize=5, colors="black")
+    ax2.set_ylabel("PBE−PBE0", fontsize=6)
 
 
 # ---------------------------------------------------------------------------
@@ -24,6 +99,35 @@ def style_phase_ax(ax, xlabel="T (K)", ylabel=r"$p_{\mathrm{O_2}}$ (Pa)"):
     ax.set_yscale("log")
     ax.set_xlabel(xlabel, fontsize=8)
     ax.set_ylabel(ylabel, fontsize=8)
+    ax.tick_params(axis="both", labelsize=7)
+
+
+def style_ir_size_panel_ax(
+    ax,
+    n_ir: int,
+    col: int,
+    row: int,
+    last_row: int,
+    *,
+    title: str = "",
+) -> None:
+    """Ir-size GC grid panels (shared-axis layout, matching supp_gc_g_vs_mu)."""
+    ax.set_yscale("log")
+    if row == 0 and title:
+        ax.set_title(title, fontsize=8, pad=3)
+    if col == 0:
+        ax.set_ylabel(
+            f"Ir$_{{{n_ir}}}$\n$p_{{\\mathrm{{O_2}}}}$ (Pa)",
+            fontsize=8,
+        )
+    else:
+        ax.set_ylabel("")
+        ax.tick_params(labelleft=False)
+    if row < last_row:
+        ax.tick_params(labelbottom=False)
+        ax.set_xlabel("")
+    else:
+        ax.set_xlabel("T (K)", fontsize=8)
     ax.tick_params(axis="both", labelsize=7)
 
 
@@ -53,6 +157,45 @@ def stoichiometry_overlay_labels(formulas) -> list[str]:
 def cluster_overlay_labels(clusters: np.ndarray) -> list[str]:
     """Per-structure ``C*`` labels aligned with GC structure indices."""
     return [f"C{int(c)}" for c in np.asarray(clusters, dtype=int)]
+
+
+def majority_category_index(pop_fractions: np.ndarray) -> np.ndarray:
+    """Index of the dominant category at each ``(p, T)``; shape ``(nP, nT)``."""
+    return np.argmax(np.asarray(pop_fractions, dtype=float), axis=0)
+
+
+def add_majority_category_phase_labels(
+    ax,
+    Ts: np.ndarray,
+    Ps: np.ndarray,
+    pop_fractions: np.ndarray,
+    category_labels: list[str],
+    *,
+    fontsize: float = 7,
+) -> None:
+    """Label each majority-category region with ``category_labels[c]``."""
+    idx = majority_category_index(pop_fractions)
+    add_global_minimum_phase_labels(
+        ax, Ts, Ps, idx, category_labels, fontsize=fontsize,
+    )
+
+
+def draw_majority_category_phase_overlay(
+    ax,
+    Ts: np.ndarray,
+    Ps: np.ndarray,
+    pop_fractions: np.ndarray,
+    category_labels: list[str],
+    *,
+    linewidth: float = 1.0,
+    label_fontsize: float = 7,
+) -> None:
+    """Phase boundaries + labels for the population-majority category at each region."""
+    idx = majority_category_index(pop_fractions)
+    draw_phase_boundaries(ax, Ts, Ps, idx, linewidth=linewidth)
+    add_majority_category_phase_labels(
+        ax, Ts, Ps, pop_fractions, category_labels, fontsize=label_fontsize,
+    )
 
 
 def add_global_minimum_phase_labels(
@@ -102,6 +245,32 @@ def draw_global_minimum_phase_overlay(
     )
 
 
+def draw_global_minimum_population_panel(
+    ax,
+    gc: dict,
+    overlay_labels: list[str],
+    *,
+    title: str = "",
+    title_fontsize: float = 7,
+):
+    """PuBu map of global-minimum structure population (%) with phase overlay."""
+    Ts, Ps = gc["Ts"], gc["Ps"]
+    minima_pop = global_minimum_population_map(gc)
+    mesh = ax.pcolormesh(
+        Ts, Ps, minima_pop, shading="auto",
+        cmap=GLOBAL_MIN_POP_CMAP,
+        norm=Normalize(vmin=0.0, vmax=100.0),
+        rasterized=True,
+    )
+    draw_global_minimum_phase_overlay(
+        ax, Ts, Ps, gc["phase_index"], overlay_labels,
+    )
+    style_phase_ax(ax)
+    if title:
+        ax.set_title(title, fontsize=title_fontsize)
+    return mesh
+
+
 def draw_tchar_boundary(ax, Ts, Ps, tchar_map,
                         linewidth=1.5, color="black", alpha=1.0):
     """Draw T = Tchar contour (where T/Tchar crosses 1)."""
@@ -132,14 +301,39 @@ def draw_population_mixed_phase_panel(
     *,
     overlay_labels: list[str] | None = None,
     phase_index: np.ndarray | None = None,
+    majority_labels: list[str] | None = None,
 ):
     """Phase map coloured by population-weighted RGB mix of ``colors``."""
     RGB = population_weighted_rgb(pop_fractions, colors)
     mesh = ax.pcolormesh(Ts, Ps, RGB, shading="auto", rasterized=True)
+    if majority_labels is not None:
+        draw_majority_category_phase_overlay(ax, Ts, Ps, pop_fractions, majority_labels)
+    elif overlay_labels is not None and phase_index is not None:
+        draw_global_minimum_phase_overlay(ax, Ts, Ps, phase_index, overlay_labels)
+    style_phase_ax(ax)
+    if title:
+        ax.set_title(title, fontsize=7)
+    return mesh
+
+
+def draw_shape_extent_rgb_phase_panel(
+    ax,
+    Ts: np.ndarray,
+    Ps: np.ndarray,
+    rgb_field: np.ndarray,
+    title: str,
+    *,
+    overlay_labels: list[str] | None = None,
+    phase_index: np.ndarray | None = None,
+):
+    """Phase map from precomputed RGB field ``(nP, nT, 3)`` (inertia shape × extent)."""
+    RGB = np.clip(np.asarray(rgb_field, dtype=float), 0.0, 1.0)
+    mesh = ax.pcolormesh(Ts, Ps, RGB, shading="auto", rasterized=True)
     if overlay_labels is not None and phase_index is not None:
         draw_global_minimum_phase_overlay(ax, Ts, Ps, phase_index, overlay_labels)
     style_phase_ax(ax)
-    ax.set_title(title, fontsize=7)
+    if title:
+        ax.set_title(title, fontsize=7)
     return mesh
 
 
@@ -216,15 +410,22 @@ def o_motif_colors(k: int):
 
 
 def discrete_category_colorbar(
-    ax,
     colors: list,
     labels: list[str],
     *,
+    ax=None,
     cbar_label: str | None = None,
-    pad: float = 0.02,
-    fraction: float = 0.046,
+    pad: float = 0.06,
+    fraction: float = 0.04,
+    shrink: float = 0.92,
+    cax=None,
+    label_fontsize: float = CBAR_LABEL_FONTSIZE,
 ):
-    """Solid-block colorbar with one colour and tick label per category."""
+    """Solid-block colorbar with one colour and tick label per category.
+
+    ``ax`` may be a single axes or an array/list of axes (shared colorbar).
+    When ``cax`` is given, the colorbar is drawn on that axes instead.
+    """
     k = len(colors)
     if k == 0 or len(labels) != k:
         return None
@@ -233,13 +434,19 @@ def discrete_category_colorbar(
     norm = BoundaryNorm(bounds, cmap.N)
     sm = ScalarMappable(cmap=cmap, norm=norm)
     sm.set_array([])
-    cb = plt.colorbar(
-        sm, ax=ax, pad=pad, fraction=fraction, ticks=np.arange(k),
-    )
-    cb.ax.set_yticklabels(labels, fontsize=7)
-    cb.ax.tick_params(labelsize=7)
+    if cax is not None:
+        cb = plt.colorbar(sm, cax=cax, ticks=np.arange(k))
+    elif ax is not None:
+        cb = plt.colorbar(
+            sm, ax=ax, pad=pad, fraction=fraction, shrink=shrink,
+            ticks=np.arange(k),
+        )
+    else:
+        return None
+    cb.ax.set_yticklabels(labels, fontsize=6)
+    cb.ax.tick_params(labelsize=6)
     if cbar_label:
-        cb.set_label(cbar_label, fontsize=8)
+        cb.set_label(cbar_label, fontsize=label_fontsize)
     return cb
 
 
@@ -247,8 +454,8 @@ def discrete_category_colorbar(
 # Per-figure save helper
 # ---------------------------------------------------------------------------
 
-def save_fig(fig, path: str, dpi: int = 800):
+def save_fig(fig, path: str, dpi: int = 800, pad_inches: float = 0.1):
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    fig.savefig(path, dpi=dpi, bbox_inches="tight")
+    fig.savefig(path, dpi=dpi, bbox_inches="tight", pad_inches=pad_inches)
     plt.close(fig)
     print(f"[save] {path}")

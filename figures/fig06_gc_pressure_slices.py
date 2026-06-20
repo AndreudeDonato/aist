@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.gridspec import GridSpec
 
-from aist.ace.common import ace_atom_label
+from aist.ace.common import ace_atom_display_label, ace_atom_label
 
 from figures.config import (
     ACE_FEATURES,
@@ -48,6 +48,7 @@ from figures.utils.join import (
     o_bridging_terminal_interface_vs_T_at_pressure,
 )
 from figures.utils.plotting import (
+    add_fig06_interface_pbe_pbe0_diff_axis,
     draw_population_stack,
     ir_motif_colors,
     o_motif_colors,
@@ -88,8 +89,8 @@ def _draw_atom_panel(
     k_ir = joined["ir_frac"].shape[1]
     k_o = joined["o_frac"].shape[1]
     colors = ir_motif_colors(k_ir) + o_motif_colors(k_o)
-    motif_labels = [ace_atom_label("Ir", c) for c in range(k_ir)]
-    motif_labels += [ace_atom_label("O", c) for c in range(k_o)]
+    motif_labels = [ace_atom_display_label("Ir", c) for c in range(k_ir)]
+    motif_labels += [ace_atom_display_label("O", c) for c in range(k_o)]
     draw_population_stack(
         ax, Ts, Y, colors,
         labels=motif_labels,
@@ -107,8 +108,8 @@ def _draw_o_interface_panel(
     joined_by_label: dict[str, dict],
     pressure_pa: float,
 ) -> None:
-    plotted = 0
-    xlim: tuple[float, float] | None = None
+    series: dict[str, np.ndarray] = {}
+    Ts_ref: np.ndarray | None = None
 
     for label in ("PBE", "PBE0"):
         jt = joined_by_label.get(label)
@@ -120,19 +121,31 @@ def _draw_o_interface_panel(
             FIG06_O_BRIDGING_IDX,
             smooth_sigma=FIG06_SMOOTH_SIGMA,
         )
-        xlim = (float(Ts[0]), float(Ts[-1]))
-        color = DATASET_COLORS.get(label, "#333333")
-        ax.plot(Ts, interface, color=color, linewidth=1.5, label=label)
-        plotted += 1
+        Ts_ref = Ts
+        series[label] = interface
 
-    if plotted == 0:
+    if not series:
         ax.text(0.5, 0.5, "GC data missing", ha="center", va="center",
                 fontsize=7, transform=ax.transAxes)
         ax.set_axis_off()
         return
 
-    if xlim is not None:
-        ax.set_xlim(xlim)
+    if Ts_ref is not None and "PBE" in series and "PBE0" in series:
+        add_fig06_interface_pbe_pbe0_diff_axis(
+            ax, Ts_ref, series["PBE"], series["PBE0"],
+        )
+
+    for label in ("PBE", "PBE0"):
+        if label not in series:
+            continue
+        color = DATASET_COLORS.get(label, "#333333")
+        ax.plot(
+            Ts_ref, series[label],
+            color=color, linewidth=1.5, label=label, zorder=3,
+        )
+
+    xlim = (float(Ts_ref[0]), float(Ts_ref[-1]))
+    ax.set_xlim(xlim)
     ax.margins(x=0)
     ax.set_xlabel("T (K)", fontsize=7)
     ax.set_ylabel("Cumulative pop. (%)", fontsize=7)

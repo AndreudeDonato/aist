@@ -31,10 +31,13 @@ def check_gc_grid(path: str, n_t: int, n_p: int) -> None:
 
 
 def check_gc_variants_npz(path: str) -> None:
-    """Ensure variant NPZ includes full ``Pgi`` tensors for Figures 5 and 8."""
+    """Ensure variant NPZ includes full ``Pgi`` tensors for Figures 3 and 8."""
     check_file(path, "gc_variants")
     data = np.load(path)
-    required = ("Ts", "Ps", "full_Pgi", "novib_Pgi", "full_phase_index", "novib_phase_index")
+    required = (
+        "Ts", "Ps", "full_Pgi", "novib_Pgi", "full_phase_index",
+        "novib_phase_index", "novib_G_tensor",
+    )
     missing = [k for k in required if k not in data]
     if missing:
         raise ValueError(
@@ -58,11 +61,11 @@ def validate_cache_for_figures(fig_nums: set[int]) -> None:
     )
     from figures.utils.io import load_ace_features, load_gc_npz, load_traj
 
-    needs_ace = bool(fig_nums & {2, 3, 4, 5, 6})
-    needs_gc = bool(fig_nums & {5, 6, 7, 8, 9, 10})
-    needs_variants = bool(fig_nums & {5, 7, 9, 10})
+    needs_ace = bool(fig_nums & {2, 3, 6})
+    needs_gc = bool(fig_nums & {3, 6, 7, 8, 9, 10, 12})
+    needs_variants = bool(fig_nums & {3, 7, 9, 10, 12})
     needs_gc_join = bool(fig_nums & {9})
-    needs_fig4_gc = bool(fig_nums & {5, 6, 10})
+    needs_pbe0_gc = bool(fig_nums & {3, 6, 10})
 
     if needs_ace:
         from figures.config import ACE_ATOM_IR_NPZ, ACE_ATOM_O_NPZ, ACE_STRUCT_NPZ, MOTIF_JSON
@@ -91,7 +94,7 @@ def validate_cache_for_figures(fig_nums: set[int]) -> None:
             rows = load_ace_features(GC_ACE_FEATURES)
             check_gc_ace_alignment(gc, rows, "PBE")
 
-    if needs_fig4_gc:
+    if needs_pbe0_gc:
         check_file(GC_NPZ_PBE0, "grand-canonical PBE0")
         check_gc_grid(GC_NPZ_PBE0, GC_N_T, GC_N_P)
         gc0 = load_gc_npz(GC_NPZ_PBE0)

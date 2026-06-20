@@ -30,6 +30,7 @@ from figures.config import (
 from figures.utils.cache import ensure_for_figures
 from figures.utils.io import ensure_dirs, load_gc_npz, load_traj
 from figures.utils.plotting import (
+    CBAR_LABEL_FONTSIZE,
     draw_global_minimum_phase_overlay,
     draw_tchar_boundary,
     save_fig,
@@ -132,8 +133,9 @@ def _tchar_panel(ax, gc, structures) -> None:
     draw_tchar_boundary(ax, Ts, Ps, tc_map)
     style_phase_ax(ax)
     ax.set_title(r"Cluster $\langle\Theta_{\mathrm{eff}}(T)\rangle$", fontsize=7)
-    plt.colorbar(mesh, ax=ax, pad=0.02, fraction=0.046,
-                 label=r"$\langle\Theta_{\mathrm{eff}}\rangle$ (K)").ax.tick_params(labelsize=7)
+    cbar = plt.colorbar(mesh, ax=ax, pad=0.02, fraction=0.046)
+    cbar.set_label(r"$\langle\Theta_{\mathrm{eff}}\rangle$ (K)", fontsize=CBAR_LABEL_FONTSIZE)
+    cbar.ax.tick_params(labelsize=7)
 
 
 def main() -> None:
@@ -155,8 +157,9 @@ def main() -> None:
             axes[0, 1], gc, "E_vib_avg",
             r"Vibrational $\langle G_{vib}\rangle$ (eV)",
         )
-        plt.colorbar(m2, ax=axes[0, 1], pad=0.02, fraction=0.046,
-                     label="eV").ax.tick_params(labelsize=7)
+        cbar = plt.colorbar(m2, ax=axes[0, 1], pad=0.02, fraction=0.046)
+        cbar.set_label("eV", fontsize=CBAR_LABEL_FONTSIZE)
+        cbar.ax.tick_params(labelsize=7)
     else:
         axes[0, 1].text(0.5, 0.5, "E_vib_avg not in NPZ",
                         ha="center", va="center", fontsize=7,

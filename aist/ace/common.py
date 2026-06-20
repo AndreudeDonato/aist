@@ -6,9 +6,34 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
+def ace_motif_subscript(cluster_id: int) -> str:
+    """Lowercase letter subscript for motif index (a, b, c, …)."""
+    i = int(cluster_id)
+    if 0 <= i < 26:
+        return chr(ord("a") + i)
+    return str(i)
+
+
 def ace_atom_label(species: str, cluster_id: int) -> str:
-    """Per-atom motif label (compatible with the visualizer JSON)."""
+    """Internal motif key (JSON / palette): ``Ir-A0``, ``O-A1``, …"""
     return f"{species}-A{int(cluster_id)}"
+
+
+def ace_atom_display_label(species: str, cluster_id: int) -> str:
+    """Matplotlib mathtext label for figures: Ir_a, O_b, …"""
+    sub = ace_motif_subscript(cluster_id)
+    return f"$\\mathrm{{{species}}}_{{{sub}}}$"
+
+
+def ace_atom_display_from_key(key: str) -> str:
+    """Map internal key ``Ir-A0`` to a figure display label."""
+    if "-A" not in key:
+        return key
+    species, rest = key.split("-A", 1)
+    try:
+        return ace_atom_display_label(species, int(rest))
+    except ValueError:
+        return key
 
 
 def discrete_palette(cmap_name: str, k: int):

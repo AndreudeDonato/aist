@@ -13,7 +13,6 @@ Output: ``figures/outputs/fig10_homo_lumo_gap_maps.svg``
 from __future__ import annotations
 
 import os
-from collections import defaultdict
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -31,15 +30,23 @@ from figures.config import (
     TRAJ_PBE0,
 )
 from figures.utils.cache import ensure_for_figures
+from figures.utils.homo_lumo import (
+    HOMO_LUMO_CMAP,
+    HOMO_LUMO_KEY,
+    homo_lumo_gap_map,
+    homo_lumo_gap_minmax_vs_oxidation,
+    homo_lumo_gaps,
+)
 from figures.utils.io import (
     ensure_dirs,
     load_gc_npz,
     load_gc_pbe_novib_view,
     load_traj,
 )
-from figures.utils.join import ensemble_weighted_mean_map
 from figures.utils.plotting import (
+    add_phase_colorbar,
     draw_global_minimum_phase_overlay,
+    margin_colorbar_cax,
     save_fig,
     stoichiometry_overlay_labels,
     style_phase_ax,
@@ -48,8 +55,6 @@ from figures.utils.plotting import (
 OUTPUT_PATH = os.path.join(OUTPUT_DIR, "fig10_homo_lumo_gap_maps.svg")
 FIG_W_MM = 88
 FIG_H_MM = 195
-HOMO_LUMO_KEY = "HOMO-LUMO"
-CMAP = "Greens"
 
 DATASETS = [
     {
@@ -65,46 +70,9 @@ DATASETS = [
 ]
 
 
-def _homo_lumo_gaps(structures) -> np.ndarray:
-    gaps = np.full(len(structures), np.nan, dtype=float)
-    for i, atoms in enumerate(structures):
-        val = atoms.info.get(HOMO_LUMO_KEY)
-        if val is not None:
-            gaps[i] = float(val)
-    return gaps
-
-
-def _gap_map(gc, gaps: np.ndarray) -> np.ndarray:
-    n = min(gaps.size, gc["Pgi"].shape[0])
-    return ensemble_weighted_mean_map(gc["Pgi"][:n], gaps[:n])
-
-
-def _gap_minmax_vs_oxidation(structures) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Min/max HOMO–LUMO gap at each stoichiometry (grouped by n_Ir, n_O)."""
-    by_stoich: dict[tuple[int, int], list[float]] = defaultdict(list)
-    for atoms in structures:
-        syms = atoms.get_chemical_symbols()
-        n_ir = sum(s == "Ir" for s in syms)
-        n_o = sum(s == "O" for s in syms)
-        gap = atoms.info.get(HOMO_LUMO_KEY)
-        if gap is None or n_ir == 0:
-            continue
-        by_stoich[(n_ir, n_o)].append(float(gap))
-
-    rows: list[tuple[float, float, float]] = []
-    for (n_ir, n_o), gs in by_stoich.items():
-        x = n_o / n_ir
-        rows.append((x, min(gs), max(gs)))
-    rows.sort(key=lambda r: r[0])
-    xs = np.asarray([r[0] for r in rows], dtype=float)
-    ymin = np.asarray([r[1] for r in rows], dtype=float)
-    ymax = np.asarray([r[2] for r in rows], dtype=float)
-    return xs, ymin, ymax
-
-
 def _gap_panel(ax, gc, gaps, overlay_labels, title, vmin, vmax):
     Ts, Ps = gc["Ts"], gc["Ps"]
-    Z = _gap_map(gc, gaps)
+    Z = homo_lumo_gap_map(gc["Pgi"], gaps)
     if not np.isfinite(Z).any():
         ax.text(0.5, 0.5, "No HOMO–LUMO data", ha="center", va="center",
                 fontsize=7, transform=ax.transAxes)
@@ -114,7 +82,7 @@ def _gap_panel(ax, gc, gaps, overlay_labels, title, vmin, vmax):
 
     mesh = ax.pcolormesh(
         Ts, Ps, Z, shading="auto",
-        cmap=CMAP, norm=Normalize(vmin=vmin, vmax=vmax),
+        cmap=HOMO_LUMO_CMAP, norm=Normalize(vmin=vmin, vmax=vmax),
         rasterized=True,
     )
     draw_global_minimum_phase_overlay(
@@ -154,7 +122,7 @@ def main() -> None:
             continue
         gc = ds["load_gc"]()
         structures = list(load_traj(ds["traj"]))
-        gaps = _homo_lumo_gaps(structures)
+        gaps = homo_lumo_gaps(structures)
         if not np.isfinite(gaps).any():
             raise RuntimeError(
                 f"[{ds['label']}] No {HOMO_LUMO_KEY} in {ds['traj']}. "
@@ -164,7 +132,7 @@ def main() -> None:
         map_panels.append((gc, gaps, labels, ds["label"]))
         all_gaps.append(gaps[np.isfinite(gaps)])
 
-        xs, ymin, ymax = _gap_minmax_vs_oxidation(structures)
+        xs, ymin, ymax = homo_lumo_gap_minmax_vs_oxidation(structures)
         if xs.size:
             envelope_data.append((ds["label"], xs, ymin, ymax))
 
@@ -199,16 +167,11 @@ def main() -> None:
 
     fig.subplots_adjust(left=0.14, right=0.84, top=0.97, bottom=0.07, hspace=0.28)
     if mesh_ref is not None:
-        cbar = fig.colorbar(
-            mesh_ref,
-            ax=map_axes[:len(map_panels)],
-            location="right",
-            pad=0.04,
-            fraction=0.03,
-            shrink=0.88,
+        add_phase_colorbar(
+            fig, mesh_ref,
+            cax=margin_colorbar_cax(fig, map_axes[0], map_axes[-1]),
             label="HOMO–LUMO gap (eV)",
         )
-        cbar.ax.tick_params(labelsize=7)
 
     save_fig(fig, OUTPUT_PATH, dpi=DPI)
     print(f"\n[fig10] {OUTPUT_PATH}")

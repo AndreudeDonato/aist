@@ -78,6 +78,20 @@ def ensemble_weighted_mean_map(
         return np.where(weight_sum > 0, numerator / weight_sum, np.nan)
 
 
+def ensemble_weighted_rgb_map(
+    Pgi: np.ndarray,
+    per_structure_rgb: np.ndarray,
+) -> np.ndarray:
+    """Population-weighted RGB field on (P, T); shape ``(nP, nT, 3)``."""
+    per_structure_rgb = np.asarray(per_structure_rgb, dtype=float)
+    numerator = np.einsum("il,ijk->jkl", per_structure_rgb, Pgi)
+    weight_sum = Pgi.sum(axis=0)
+    denom = weight_sum[..., np.newaxis]
+    with np.errstate(invalid="ignore", divide="ignore"):
+        rgb = np.divide(numerator, denom, out=np.zeros_like(numerator), where=denom > 0)
+    return np.clip(rgb, 0.0, 1.0)
+
+
 def ensemble_mean_cluster_map(joined: dict) -> np.ndarray:
     """Ensemble-averaged structure-cluster index ⟨C⟩ on (T, P)."""
     return ensemble_weighted_mean_map(joined["Pgi"], joined["cluster"].astype(float))
@@ -139,6 +153,20 @@ def o_motif_population_fractions(joined: dict) -> np.ndarray:
     with np.errstate(invalid="ignore", divide="ignore"):
         f_m = np.where(den > 0, f_m / den, 0.0)
     return f_m
+
+
+def ensemble_o_motif_per_ir_map(joined: dict, o_motif_index: int) -> np.ndarray:
+    """Ensemble motif O per Ir on the ``(P, T)`` grid: ``Σ Pgi·n_O·f_m / Σ Pgi·n_Ir``."""
+    Pgi = joined["Pgi"]
+    n_Ir = np.asarray(joined["n_Ir"], dtype=float)
+    n_O = np.asarray(joined["n_O"], dtype=float)
+    o_frac = np.asarray(joined["o_frac"], dtype=float)
+    m = int(o_motif_index)
+    n_o_motif = n_O * o_frac[:, m]
+    numerator = np.einsum("i,ijk->jk", n_o_motif, Pgi)
+    denominator = np.einsum("i,ijk->jk", n_Ir, Pgi)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        return np.where(denominator > 0, numerator / denominator, np.nan)
 
 
 def _smooth_population_stack_along_T(

@@ -6,6 +6,7 @@ import os
 import numpy as np
 from scipy.stats import gaussian_kde
 
+from aist.ace.common import ace_atom_display_from_key
 from aist.ace.io import load_motif_atoms_json
 
 from figures.utils.io import load_traj
@@ -155,7 +156,7 @@ def charge_spin_panel(
             s=6,
             alpha=0.35,
             edgecolors="none",
-            label=tag,
+            label=ace_atom_display_from_key(tag),
             rasterized=True,
         )
 
@@ -195,7 +196,8 @@ def o_spin_kde_panel(
             continue
         x, y = curve
         ymax = max(ymax, float(y.max()))
-        ax.plot(x, y, color=palette.get(tag, "#888888"), linewidth=1.2, label=tag)
+        ax.plot(x, y, color=palette.get(tag, "#888888"), linewidth=1.2,
+                label=ace_atom_display_from_key(tag))
         plotted += 1
 
     if plotted == 0:

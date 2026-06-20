@@ -19,12 +19,16 @@ for _p in [_HERE, os.path.join(_HERE, "analysis")]:
         sys.path.insert(0, _p)
 
 
-def load_npz(path: str) -> dict:
-    """Load any cache NPZ as a plain dict."""
+def load_npz(path: str, *, keys: tuple[str, ...] | None = None) -> dict:
+    """Load a cache NPZ as a plain dict.
+
+    Pass ``keys`` to load only those arrays (much lower RAM for large GC files).
+    """
     if not os.path.exists(path):
         raise FileNotFoundError(f"NPZ not found: {path}\nRun: python3 figures/utils/cache.py")
     data = np.load(path, allow_pickle=True)
-    out = {k: data[k] for k in data.files}
+    file_keys = keys if keys is not None else data.files
+    out = {k: data[k] for k in file_keys if k in data.files}
     if "dataset_names" in out:
         out["dataset_names"] = [str(x) for x in np.asarray(out["dataset_names"]).tolist()]
     if "plot_axes" in out:
@@ -32,14 +36,23 @@ def load_npz(path: str) -> dict:
     return out
 
 
-def load_gc_npz(path: str) -> dict:
-    """Load grandcanonical_results.npz and return as plain dict."""
+def load_gc_npz(path: str, *, light: bool = False) -> dict:
+    """Load grandcanonical_results.npz and return as plain dict.
+
+    With ``light=True``, skip ``G_tensor`` and other fields not needed for
+    subset oxidation maps (saves ~100 MB per file at 150×150 grids).
+    """
     if not os.path.exists(path):
         raise FileNotFoundError(
             f"GC results not found: {path}\n"
             "Run: python3 figures/utils/cache.py"
         )
-    return load_npz(path)
+    if not light:
+        return load_npz(path)
+    return load_npz(
+        path,
+        keys=("Ts", "Ps", "Pgi", "stoich", "formulas"),
+    )
 
 
 def load_gc_pbe_novib_view(variants_npz: str, formulas_npz: str) -> dict:
@@ -48,8 +61,11 @@ def load_gc_pbe_novib_view(variants_npz: str, formulas_npz: str) -> dict:
     Built from ``gc_variants.npz`` (novib tensors) plus per-structure ``formulas``
     from the full PBE GC NPZ (same structure order; electronic G only changes weights).
     """
-    vd = load_npz(variants_npz)
-    formulas = load_npz(formulas_npz)["formulas"]
+    vd = load_npz(
+        variants_npz,
+        keys=("Ts", "Ps", "novib_Pgi", "novib_phase_index", "novib_x_per_non_o"),
+    )
+    formulas = load_npz(formulas_npz, keys=("formulas",))["formulas"]
     return {
         "Ts": vd["Ts"],
         "Ps": vd["Ps"],
@@ -58,6 +74,20 @@ def load_gc_pbe_novib_view(variants_npz: str, formulas_npz: str) -> dict:
         "x_per_non_o": vd["novib_x_per_non_o"],
         "formulas": formulas,
     }
+
+
+def load_gc_pbe_novib_g_tensor(variants_npz: str) -> tuple[np.ndarray, dict]:
+    """Novib ``G_tensor`` plus ``Ts``, ``Ps``, ``novib_Pgi``, ``stoich`` for G–μ slices."""
+    vd = load_npz(
+        variants_npz,
+        keys=("Ts", "Ps", "novib_Pgi", "novib_G_tensor", "stoich"),
+    )
+    gc = {
+        "Ts": vd["Ts"],
+        "Ps": vd["Ps"],
+        "Pgi": vd["novib_Pgi"],
+    }
+    return vd["novib_G_tensor"], gc
 
 
 def load_ace_features(path: str) -> list[dict]:

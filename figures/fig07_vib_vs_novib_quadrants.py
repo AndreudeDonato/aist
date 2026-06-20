@@ -29,7 +29,9 @@ from figures.config import GC_NPZ, GC_VARIANTS_NPZ, OUTPUT_DIR, DPI
 from figures.utils.io import ensure_dirs, load_gc_npz
 from figures.utils.cache import ensure_for_figures
 from figures.utils.plotting import (
+    add_phase_colorbar,
     draw_global_minimum_phase_overlay,
+    margin_colorbar_cax,
     save_fig,
     stoichiometry_overlay_labels,
     style_phase_ax,
@@ -103,18 +105,13 @@ def main() -> None:
         if mesh_ref is None:
             mesh_ref = mesh
 
-    fig.tight_layout(pad=6 / 25.4, rect=[0, 0, 0.84, 1])
+    fig.tight_layout(pad=6 / 25.4, rect=[0, 0, 0.92, 1])
     if mesh_ref is not None:
-        cbar = fig.colorbar(
-            mesh_ref,
-            ax=axes,
-            location="right",
-            pad=0.06,
-            fraction=0.04,
-            shrink=0.92,
+        add_phase_colorbar(
+            fig, mesh_ref,
+            cax=margin_colorbar_cax(fig, axes[0, 0], axes[1, 1]),
             label=r"$n_O / n_{Ir}$",
         )
-        cbar.ax.tick_params(labelsize=7)
     save_fig(fig, OUTPUT_PATH, dpi=DPI)
     print(f"\n[fig07] {OUTPUT_PATH}")
 

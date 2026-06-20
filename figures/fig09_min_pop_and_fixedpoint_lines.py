@@ -4,7 +4,7 @@ Novib and full (vib+ZPE) populations come from ``gc_variants.npz`` on ``IryOxPBE
 
 3×1 vertical layout (88 mm width):
   (0): Global-minimum structure population (%) on T × pO₂
-  (1): At T=273 K, pO₂=101325 Pa — s1, s2, … (97% novib population)
+  (1): At T=273 K, ambient pO₂ — s1, s2, … (97% novib population)
   (2): Same at T=500 K — s'1, s'2, …
 
 Output: ``figures/outputs/fig09_min_pop_fixedpoints.svg``
@@ -15,10 +15,7 @@ import os
 
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.colors import Normalize
 from matplotlib.gridspec import GridSpec
-
-from aist.core.grandcanonical import global_minimum_population_map
 
 from figures.config import (
     DPI,
@@ -34,10 +31,10 @@ from figures.utils.join import (
     structure_populations_at_fixed_point,
 )
 from figures.utils.plotting import (
-    draw_global_minimum_phase_overlay,
+    CBAR_LABEL_FONTSIZE,
+    draw_global_minimum_population_panel,
     save_fig,
     stoichiometry_overlay_labels,
-    style_phase_ax,
 )
 
 OUTPUT_PATH = os.path.join(OUTPUT_DIR, "fig09_min_pop_fixedpoints.svg")
@@ -47,18 +44,11 @@ CUMULATIVE_FRAC = 0.97
 
 
 def _global_min_pop_panel(ax, gc, overlay_labels: list[str]) -> None:
-    Ts, Ps = gc["Ts"], gc["Ps"]
-    minima_pop = global_minimum_population_map(gc)
-    mesh = ax.pcolormesh(
-        Ts, Ps, minima_pop, shading="auto",
-        cmap="PuBu", norm=Normalize(vmin=0.0, vmax=100.0), rasterized=True,
+    return draw_global_minimum_population_panel(
+        ax, gc, overlay_labels,
+        title="Global-minimum population",
+        title_fontsize=8,
     )
-    draw_global_minimum_phase_overlay(
-        ax, Ts, Ps, gc["phase_index"], overlay_labels,
-    )
-    style_phase_ax(ax)
-    ax.set_title("Global-minimum population", fontsize=8)
-    return mesh
 
 
 def _edge_to_edge_x(n: int) -> np.ndarray:
@@ -158,7 +148,8 @@ def main() -> None:
 
     mesh0 = _global_min_pop_panel(ax_phase, gc_full, overlay_labels)
     if mesh0 is not None:
-        cbar = fig.colorbar(mesh0, cax=cax, label="Population (%)")
+        cbar = fig.colorbar(mesh0, cax=cax)
+        cbar.set_label("Population (%)", fontsize=CBAR_LABEL_FONTSIZE)
         cbar.ax.tick_params(labelsize=7)
 
     for i, fp in enumerate(FIXED_POINTS[:2]):

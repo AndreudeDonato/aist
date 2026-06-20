@@ -75,6 +75,7 @@ def run_gc_variants(
         "novib_x_per_non_o": novib["x_per_non_o"],
         "novib_stoich_map": stoich[novib["phase_index"]],
         "novib_Pgi": novib["Pgi"],
+        "novib_G_tensor": novib["G_tensor"],
     }
     del novib
 

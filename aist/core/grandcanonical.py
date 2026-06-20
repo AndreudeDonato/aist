@@ -447,6 +447,13 @@ GC_CONTRIBUTION_SERIES = (
 )
 
 
+def temperature_grid_index(Ts: np.ndarray, temperature_k: float) -> tuple[int, float]:
+    """Nearest temperature-grid index and the grid value used."""
+    Ts = np.asarray(Ts, dtype=float)
+    t_idx = int(np.argmin(np.abs(Ts - temperature_k)))
+    return t_idx, float(Ts[t_idx])
+
+
 def pressure_grid_index(Ps: np.ndarray, pressure_pa: float) -> tuple[int, float]:
     """Nearest pressure-grid index and the grid value used."""
     Ps = np.asarray(Ps, dtype=float)

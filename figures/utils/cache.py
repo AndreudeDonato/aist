@@ -23,8 +23,8 @@ from figures.config import (
     MOTIF_JSON,
     IR_REF_PBE,
     IR_REF_PBE0,
-    O2_TRAJ_PBE,
-    O2_TRAJ_PBE0,
+    O2_REF_PBE,
+    O2_REF_PBE0,
     RAW_DATA_DIR,
     REQUIRED_RAW_FILES,
     TRAJ_PBE,
@@ -124,7 +124,7 @@ def ensure_gc(*, force: bool = False) -> None:
     _ensure_gc_dataset(
         label="PBE",
         structures_file=GC_STRUCTURES,
-        o2_traj=O2_TRAJ_PBE,
+        o2_traj=O2_REF_PBE,
         ir_ref=IR_REF_PBE,
         output_npz=GC_NPZ,
         force=force,
@@ -132,16 +132,25 @@ def ensure_gc(*, force: bool = False) -> None:
     _ensure_gc_dataset(
         label="PBE0",
         structures_file=TRAJ_PBE0,
-        o2_traj=O2_TRAJ_PBE0,
+        o2_traj=O2_REF_PBE0,
         ir_ref=IR_REF_PBE0,
         output_npz=GC_NPZ_PBE0,
         force=force,
     )
 
 
+def _gc_variants_stale(path: str) -> bool:
+    if _gc_npz_grid_mismatch(path):
+        return True
+    if not os.path.exists(path):
+        return True
+    with np.load(path) as data:
+        return "novib_G_tensor" not in data.files
+
+
 def ensure_gc_variants(*, force: bool = False) -> None:
-    sources = [GC_STRUCTURES, O2_TRAJ_PBE, IR_REF_PBE]
-    stale = _gc_npz_grid_mismatch(GC_VARIANTS_NPZ)
+    sources = [GC_STRUCTURES, O2_REF_PBE, IR_REF_PBE]
+    stale = _gc_variants_stale(GC_VARIANTS_NPZ)
     if not force and not stale and os.path.exists(GC_VARIANTS_NPZ) and not _any_newer_than(
         sources, [GC_VARIANTS_NPZ]
     ):
@@ -151,16 +160,33 @@ def ensure_gc_variants(*, force: bool = False) -> None:
     print(f"[cache] GC variants PBE, grid {GC_N_T}×{GC_N_P} -> {GC_VARIANTS_NPZ}")
     run_gc_variants(
         GC_STRUCTURES,
-        O2_TRAJ_PBE,
+        O2_REF_PBE,
         GC_VARIANTS_NPZ,
         grid_config=gc_grid_config(reference_file=IR_REF_PBE),
     )
 
 
-_FIG_NEEDS_ACE = {2, 3, 4, 5, 6}
-_FIG_NEEDS_GC = {5, 6, 7, 8, 9, 10}
-_FIG_NEEDS_GC_VARIANTS = {5, 7, 9, 10}
-_SUPPLEMENTARY_NEEDS_ACE = {"supp_atom_hirshfeld"}
+_FIG_NEEDS_ACE = {2, 3, 6}
+_FIG_NEEDS_GC = {3, 6, 7, 8, 9, 10, 12}
+_FIG_NEEDS_GC_VARIANTS = {3, 7, 9, 10, 12}
+_SUPPLEMENTARY_NEEDS_ACE = {
+    "supp_atom_hirshfeld",
+    "supp_moments_of_inertia",
+    "supp_ir_size_gc_maps",
+    "supp_ir_size_o_motif_ratio_maps",
+    "supp_ir_size_vib_vs_novib_maps",
+}
+_SUPPLEMENTARY_NEEDS_GC = {
+    "fig06_gc_pressure_slices_alt",
+    "supp_ir_size_gc_maps",
+    "supp_ir_size_o_motif_ratio_maps",
+    "supp_ir_size_vib_vs_novib_maps",
+}
+_SUPPLEMENTARY_NEEDS_GC_VARIANTS = {
+    "supp_gc_g_vs_mu",
+    "supp_ir_size_gc_maps",
+    "supp_ir_size_vib_vs_novib_maps",
+}
 
 
 def ensure_for_supplementary(names: Iterable[str], *, force: bool = False) -> None:
@@ -168,6 +194,10 @@ def ensure_for_supplementary(names: Iterable[str], *, force: bool = False) -> No
     names = set(names)
     if names & _SUPPLEMENTARY_NEEDS_ACE:
         ensure_ace(force=force)
+    if names & _SUPPLEMENTARY_NEEDS_GC:
+        ensure_gc(force=force)
+    if names & _SUPPLEMENTARY_NEEDS_GC_VARIANTS:
+        ensure_gc_variants(force=force)
 
 
 def ensure_for_figures(fig_nums: Iterable[int], *, force: bool = False) -> None:
