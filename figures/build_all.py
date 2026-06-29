@@ -32,9 +32,9 @@ from figures.utils.cache import ensure_for_figures, ensure_for_supplementary
 
 FIGURE_MODULES = {
     1: ("fig01_minima", "PBE+PBE0 stoichiometry minima tiles (+ supp_minima_PBE/PBE0)"),
-    2: ("fig02_motif_clustering_panel", "Motif clustering 3×4 + Nagai + horizontal centroid strip"),
-    3: ("fig03_gc_clustering_maps", "GC phase diagrams + motif overlays (7×2)"),
-    6: ("fig06_gc_pressure_slices", "Ambient-pO₂ motifs + O interface + O |spin| KDE (dataset)"),
+    2: ("fig02_motif_clustering_panel", "Motif clustering 3×4 + moment ratios + horizontal centroid strip"),
+    3: ("fig03_gc_clustering_maps", "GC phase diagrams + motif overlays (5×2)"),
+    4: ("fig04_gc_pressure_slices", "Low-pO₂ motifs + terminal/bridging O maps (3×2)"),
     7: ("fig07_vib_vs_novib_quadrants", "PBE vib vs no-vib phase diagrams (2×2)"),
     8: ("fig08_vib_contrib_tchar", "PBE G-contrib 1D + vib map, ZPE, Tchar (2×2)"),
     9: ("fig09_min_pop_and_fixedpoint_lines", "PBE global-min map + fixed-point pop lines (1×3)"),
@@ -44,12 +44,12 @@ FIGURE_MODULES = {
 
 SUPPLEMENTARY_MODULES = {
     "supp_atom_hirshfeld": "Hirshfeld q vs |spin| by atom motif (1×2)",
-    "fig06_gc_pressure_slices_alt": "Fig6 alt: terminal/bridging O per Ir phase maps (2×2)",
+    "supp_motif_spin_kde": "O | Ir motif |Hirshfeld spin| KDE (PBE | PBE0, 2×2)",
     "supp_ir_size_o_motif_ratio_maps": "Per-Ir terminal | bridging O / n_Ir maps (7×2 each)",
     "supp_gc_g_vs_mu": "Per-structure G vs μ_O₂ at 273 K & 500 K (7×2 each)",
     "supp_ir_size_gc_maps": "Per-Ir GC maps: min pop | oxidation | cluster | Ir | O | inertia | HOMO–LUMO (7×2 each)",
     "supp_ir_size_vib_vs_novib_maps": "Per-Ir PBE vib vs no-vib ⟨n_O/n_Ir⟩ maps (7×2)",
-    "supp_moments_of_inertia": "Moments of inertia Nagai triangle (O | Ir | structures, 3×1)",
+    "supp_moments_of_inertia": "Principal moment-ratio triangle (O | Ir | structures, 3×1)",
 }
 
 

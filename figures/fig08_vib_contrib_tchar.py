@@ -30,6 +30,10 @@ from figures.config import (
 from figures.utils.cache import ensure_for_figures
 from figures.utils.io import ensure_dirs, load_gc_npz, load_traj
 from figures.utils.plotting import (
+    TITLE_FONTSIZE,
+    AXIS_LABEL_FONTSIZE,
+    TICK_FONTSIZE,
+    LEGEND_FONTSIZE,
     CBAR_LABEL_FONTSIZE,
     draw_global_minimum_phase_overlay,
     draw_tchar_boundary,
@@ -55,16 +59,16 @@ def _contributions_at_p_panel(ax, gc, pressure_pa: float) -> tuple[float, float]
         Ts, p_used, curves = contribution_lines_at_pressure(gc, pressure_pa)
         for label, y in curves:
             ax.plot(Ts, y, linewidth=1.2, label=label)
-        ax.set_xlabel("T (K)", fontsize=8)
-        ax.set_ylabel(r"$\Delta G$ contribution (eV)", fontsize=8)
-        ax.set_title(rf"$\Delta G$ terms at $p_{{\mathrm{{O_2}}}}={p_used:.3g}$ Pa", fontsize=7)
-        ax.tick_params(axis="both", labelsize=7)
-        ax.legend(fontsize=6, frameon=False, loc="best")
+        ax.set_xlabel("T (K)", fontsize=AXIS_LABEL_FONTSIZE)
+        ax.set_ylabel(r"$\Delta G$ contribution (eV)", fontsize=AXIS_LABEL_FONTSIZE)
+        ax.set_title(rf"$\Delta G$ terms at $p_{{\mathrm{{O_2}}}}={p_used:.3g}$ Pa", fontsize=TITLE_FONTSIZE)
+        ax.tick_params(axis="both", labelsize=TICK_FONTSIZE)
+        ax.legend(fontsize=LEGEND_FONTSIZE, frameon=False, loc="best")
         return float(Ts[0]), float(Ts[-1])
     except KeyError as exc:
         ax.text(
             0.5, 0.5, str(exc),
-            ha="center", va="center", fontsize=7, transform=ax.transAxes, wrap=True,
+            ha="center", va="center", fontsize=AXIS_LABEL_FONTSIZE, transform=ax.transAxes, wrap=True,
         )
         return None
 
@@ -81,7 +85,7 @@ def _gcontrib_map_panel(ax, gc, key: str, title: str, cmap: str = "BrBG"):
         ax, Ts, Ps, gc["phase_index"], overlay_labels,
     )
     style_phase_ax(ax)
-    ax.set_title(title, fontsize=7)
+    ax.set_title(title, fontsize=TITLE_FONTSIZE)
     return mesh
 
 
@@ -92,7 +96,7 @@ def _zpe_panel(ax, structures) -> tuple[float, float] | None:
 
     if not grouped:
         ax.text(0.5, 0.5, "No ZPE data", ha="center", va="center",
-                fontsize=7, transform=ax.transAxes)
+                fontsize=AXIS_LABEL_FONTSIZE, transform=ax.transAxes)
         return None
 
     ir_vals = sorted(grouped)
@@ -106,11 +110,11 @@ def _zpe_panel(ax, structures) -> tuple[float, float] | None:
         ax.plot(x, y, color=cmap(norm(float(n_ir))),
                 linewidth=1.2, label=f"Ir{n_ir}")
 
-    ax.set_xlabel("Number of O atoms", fontsize=8)
-    ax.set_ylabel(r"$\Delta$ZPE vs Ir$_n$ (eV)", fontsize=8)
-    ax.set_title("Global-minimum ZPE vs oxygen (by Ir)", fontsize=8)
-    ax.tick_params(axis="both", labelsize=7)
-    ax.legend(fontsize=5, frameon=False, ncol=3, loc="best")
+    ax.set_xlabel("Number of O atoms", fontsize=AXIS_LABEL_FONTSIZE)
+    ax.set_ylabel(r"$\Delta$ZPE vs Ir$_n$ (eV)", fontsize=AXIS_LABEL_FONTSIZE)
+    ax.set_title("Global-minimum ZPE vs oxygen (by Ir)", fontsize=TITLE_FONTSIZE)
+    ax.tick_params(axis="both", labelsize=TICK_FONTSIZE)
+    ax.legend(fontsize=LEGEND_FONTSIZE, frameon=False, ncol=3, loc="best")
     all_o = [r["n_o"] for n_ir in ir_vals for r in grouped[n_ir]]
     return float(min(all_o)), float(max(all_o))
 
@@ -121,7 +125,7 @@ def _tchar_panel(ax, gc, structures) -> None:
 
     if np.all(np.isnan(tc_map)):
         ax.text(0.5, 0.5, "No vib data — Θ_eff unavailable",
-                ha="center", va="center", fontsize=7, transform=ax.transAxes)
+                ha="center", va="center", fontsize=AXIS_LABEL_FONTSIZE, transform=ax.transAxes)
         style_phase_ax(ax)
         return
 
@@ -132,10 +136,10 @@ def _tchar_panel(ax, gc, structures) -> None:
                          rasterized=True)
     draw_tchar_boundary(ax, Ts, Ps, tc_map)
     style_phase_ax(ax)
-    ax.set_title(r"Cluster $\langle\Theta_{\mathrm{eff}}(T)\rangle$", fontsize=7)
+    ax.set_title(r"Cluster $\langle\Theta_{\mathrm{eff}}(T)\rangle$", fontsize=TITLE_FONTSIZE)
     cbar = plt.colorbar(mesh, ax=ax, pad=0.02, fraction=0.046)
     cbar.set_label(r"$\langle\Theta_{\mathrm{eff}}\rangle$ (K)", fontsize=CBAR_LABEL_FONTSIZE)
-    cbar.ax.tick_params(labelsize=7)
+    cbar.ax.tick_params(labelsize=TICK_FONTSIZE)
 
 
 def main() -> None:
@@ -159,10 +163,10 @@ def main() -> None:
         )
         cbar = plt.colorbar(m2, ax=axes[0, 1], pad=0.02, fraction=0.046)
         cbar.set_label("eV", fontsize=CBAR_LABEL_FONTSIZE)
-        cbar.ax.tick_params(labelsize=7)
+        cbar.ax.tick_params(labelsize=TICK_FONTSIZE)
     else:
         axes[0, 1].text(0.5, 0.5, "E_vib_avg not in NPZ",
-                        ha="center", va="center", fontsize=7,
+                        ha="center", va="center", fontsize=AXIS_LABEL_FONTSIZE,
                         transform=axes[0, 1].transAxes)
 
     # (1,0): ZPE

@@ -16,7 +16,14 @@ from aist.core.grandcanonical import global_minimum_population_map
 
 plt.rcParams["svg.fonttype"] = "none"
 
-CBAR_LABEL_FONTSIZE = 8
+# Paper figure typography (titles / axis labels / ticks / legends)
+TITLE_FONTSIZE = 8
+AXIS_LABEL_FONTSIZE = 7
+TICK_FONTSIZE = 6
+LEGEND_FONTSIZE = 6
+CBAR_LABEL_FONTSIZE = AXIS_LABEL_FONTSIZE
+ANNOTATION_FONTSIZE = AXIS_LABEL_FONTSIZE  # placeholder text, phase-map overlays
+
 GLOBAL_MIN_POP_CMAP = "PuBu"
 PHASE_COLORBAR_KW = {
     "location": "right",
@@ -34,7 +41,7 @@ def add_phase_colorbar(
     *,
     cax=None,
     label_fontsize: float = CBAR_LABEL_FONTSIZE,
-    tick_fontsize: float = 7,
+    tick_fontsize: float = TICK_FONTSIZE,
 ):
     """Shared vertical colorbar style (length/padding matched to Figure 7).
 
@@ -87,19 +94,44 @@ def add_fig06_interface_pbe_pbe0_diff_axis(
     ax2.plot(Ts, diff, color="black", linewidth=0.6, zorder=2)
     dmin, dmax = float(np.min(diff)), float(np.max(diff))
     ax2.set_ylim(min(dmin, 0.0), max(dmax, 0.0))
-    ax2.tick_params(axis="y", labelsize=5, colors="black")
-    ax2.set_ylabel("PBE−PBE0", fontsize=6)
+    ax2.tick_params(axis="y", labelsize=TICK_FONTSIZE, colors="black")
+    ax2.set_ylabel("PBE−PBE0", fontsize=AXIS_LABEL_FONTSIZE)
 
 
 # ---------------------------------------------------------------------------
 # Phase-diagram axis helpers
 # ---------------------------------------------------------------------------
 
+def style_shared_gc_panel_ax(
+    ax,
+    row: int,
+    col: int,
+    last_row: int,
+    *,
+    title: str = "",
+) -> None:
+    """Shared-axis GC map grid (e.g. Fig. 3: PBE | PBE0 columns)."""
+    ax.set_yscale("log")
+    if row == 0 and title:
+        ax.set_title(title, fontsize=TITLE_FONTSIZE, pad=3)
+    if col == 0:
+        ax.set_ylabel(r"$p_{\mathrm{O_2}}$ (Pa)", fontsize=AXIS_LABEL_FONTSIZE)
+    else:
+        ax.set_ylabel("")
+        ax.tick_params(labelleft=False)
+    if row < last_row:
+        ax.tick_params(labelbottom=False)
+        ax.set_xlabel("")
+    else:
+        ax.set_xlabel("T (K)", fontsize=AXIS_LABEL_FONTSIZE)
+    ax.tick_params(axis="both", labelsize=TICK_FONTSIZE)
+
+
 def style_phase_ax(ax, xlabel="T (K)", ylabel=r"$p_{\mathrm{O_2}}$ (Pa)"):
     ax.set_yscale("log")
-    ax.set_xlabel(xlabel, fontsize=8)
-    ax.set_ylabel(ylabel, fontsize=8)
-    ax.tick_params(axis="both", labelsize=7)
+    ax.set_xlabel(xlabel, fontsize=AXIS_LABEL_FONTSIZE)
+    ax.set_ylabel(ylabel, fontsize=AXIS_LABEL_FONTSIZE)
+    ax.tick_params(axis="both", labelsize=TICK_FONTSIZE)
 
 
 def style_ir_size_panel_ax(
@@ -114,11 +146,11 @@ def style_ir_size_panel_ax(
     """Ir-size GC grid panels (shared-axis layout, matching supp_gc_g_vs_mu)."""
     ax.set_yscale("log")
     if row == 0 and title:
-        ax.set_title(title, fontsize=8, pad=3)
+        ax.set_title(title, fontsize=TITLE_FONTSIZE, pad=3)
     if col == 0:
         ax.set_ylabel(
             f"Ir$_{{{n_ir}}}$\n$p_{{\\mathrm{{O_2}}}}$ (Pa)",
-            fontsize=8,
+            fontsize=AXIS_LABEL_FONTSIZE,
         )
     else:
         ax.set_ylabel("")
@@ -127,8 +159,8 @@ def style_ir_size_panel_ax(
         ax.tick_params(labelbottom=False)
         ax.set_xlabel("")
     else:
-        ax.set_xlabel("T (K)", fontsize=8)
-    ax.tick_params(axis="both", labelsize=7)
+        ax.set_xlabel("T (K)", fontsize=AXIS_LABEL_FONTSIZE)
+    ax.tick_params(axis="both", labelsize=TICK_FONTSIZE)
 
 
 def draw_phase_boundaries(ax, Ts, Ps, phase_index,
@@ -171,7 +203,7 @@ def add_majority_category_phase_labels(
     pop_fractions: np.ndarray,
     category_labels: list[str],
     *,
-    fontsize: float = 7,
+    fontsize: float = ANNOTATION_FONTSIZE,
 ) -> None:
     """Label each majority-category region with ``category_labels[c]``."""
     idx = majority_category_index(pop_fractions)
@@ -188,7 +220,7 @@ def draw_majority_category_phase_overlay(
     category_labels: list[str],
     *,
     linewidth: float = 1.0,
-    label_fontsize: float = 7,
+    label_fontsize: float = ANNOTATION_FONTSIZE,
 ) -> None:
     """Phase boundaries + labels for the population-majority category at each region."""
     idx = majority_category_index(pop_fractions)
@@ -205,7 +237,7 @@ def add_global_minimum_phase_labels(
     phase_index: np.ndarray,
     structure_labels: list[str],
     *,
-    fontsize: float = 7,
+    fontsize: float = ANNOTATION_FONTSIZE,
 ) -> None:
     """Label each global-minimum phase region (one label per structure index)."""
     phase_index = np.asarray(phase_index)
@@ -236,7 +268,7 @@ def draw_global_minimum_phase_overlay(
     structure_labels: list[str],
     *,
     linewidth: float = 1.0,
-    label_fontsize: float = 7,
+    label_fontsize: float = ANNOTATION_FONTSIZE,
 ) -> None:
     """Phase boundaries + labels for the global-minimum structure at each region."""
     draw_phase_boundaries(ax, Ts, Ps, phase_index, linewidth=linewidth)
@@ -251,7 +283,7 @@ def draw_global_minimum_population_panel(
     overlay_labels: list[str],
     *,
     title: str = "",
-    title_fontsize: float = 7,
+    title_fontsize: float = TITLE_FONTSIZE,
 ):
     """PuBu map of global-minimum structure population (%) with phase overlay."""
     Ts, Ps = gc["Ts"], gc["Ps"]
@@ -312,7 +344,7 @@ def draw_population_mixed_phase_panel(
         draw_global_minimum_phase_overlay(ax, Ts, Ps, phase_index, overlay_labels)
     style_phase_ax(ax)
     if title:
-        ax.set_title(title, fontsize=7)
+        ax.set_title(title, fontsize=TITLE_FONTSIZE)
     return mesh
 
 
@@ -333,7 +365,7 @@ def draw_shape_extent_rgb_phase_panel(
         draw_global_minimum_phase_overlay(ax, Ts, Ps, phase_index, overlay_labels)
     style_phase_ax(ax)
     if title:
-        ax.set_title(title, fontsize=7)
+        ax.set_title(title, fontsize=TITLE_FONTSIZE)
     return mesh
 
 
@@ -386,14 +418,14 @@ def draw_population_stack(
     ax.set_xlim(float(x_grid[0]), float(x_grid[-1]))
     ax.set_ylim(0, 100)
     if xlabel:
-        ax.set_xlabel(xlabel, fontsize=7)
+        ax.set_xlabel(xlabel, fontsize=AXIS_LABEL_FONTSIZE)
     if ylabel:
-        ax.set_ylabel(ylabel, fontsize=7)
+        ax.set_ylabel(ylabel, fontsize=AXIS_LABEL_FONTSIZE)
     if title:
-        ax.set_title(title, fontsize=7)
-    ax.tick_params(axis="both", labelsize=6)
+        ax.set_title(title, fontsize=TITLE_FONTSIZE)
+    ax.tick_params(axis="both", labelsize=TICK_FONTSIZE)
     if labels is not None:
-        ax.legend(fontsize=5, frameon=False, ncol=legend_ncol, loc="upper left")
+        ax.legend(fontsize=LEGEND_FONTSIZE, frameon=False, ncol=legend_ncol, loc="upper left")
 
 def cluster_colors(k: int):
     """tab10/tab20 colours for structure clusters."""
@@ -443,8 +475,8 @@ def discrete_category_colorbar(
         )
     else:
         return None
-    cb.ax.set_yticklabels(labels, fontsize=6)
-    cb.ax.tick_params(labelsize=6)
+    cb.ax.set_yticklabels(labels, fontsize=TICK_FONTSIZE)
+    cb.ax.tick_params(labelsize=TICK_FONTSIZE)
     if cbar_label:
         cb.set_label(cbar_label, fontsize=label_fontsize)
     return cb

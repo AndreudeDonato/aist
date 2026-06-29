@@ -1,7 +1,7 @@
 """Figure 2 – Combined motif clustering (figures 2 + 4 + 3).
 
 Layout (180 × 164 mm, fixed canvas):
-  Top — UMAP/PCA | PBE/PBE0 populations | Nagai inertia (3×1 3D, as supp_moments_of_inertia)
+  Top — UMAP/PCA | PBE/PBE0 populations | principal moment ratios (3×1 3D, as supp_moments_of_inertia)
   Bottom — ASE centroid strip
 
 Output: ``figures/outputs/fig02_motif_clustering_panel.svg``
@@ -39,15 +39,22 @@ from figures.config import (
 )
 from figures.fig01_minima import MM, ROTATION, _half_span
 from figures.supp_moments_of_inertia import (
-    ATOM_ALPHA as NAGAI_ATOM_ALPHA,
-    NAGAI_EMBED_AZIM,
-    draw_nagai_inertia_column,
-    load_pooled as load_nagai_inertia_data,
+    ATOM_ALPHA as MOMENT_RATIO_ATOM_ALPHA,
+    MOMENT_RATIO_EMBED_AZIM,
+    draw_moment_ratio_inertia_column,
+    load_pooled as load_moment_ratio_inertia_data,
 )
 from figures.utils.cache import ensure_for_figures
 from figures.utils.io import ensure_dirs, load_npz
-from figures.utils.plotting import draw_population_stack
-from figures.utils.inertia_triangle import NAGAI_EXTENT_BOX_SCALE
+from figures.utils.plotting import (
+    ANNOTATION_FONTSIZE,
+    AXIS_LABEL_FONTSIZE,
+    LEGEND_FONTSIZE,
+    TICK_FONTSIZE,
+    TITLE_FONTSIZE,
+    draw_population_stack,
+)
+from figures.utils.inertia_triangle import MOMENT_RATIO_EXTENT_BOX_SCALE
 
 OUTPUT_PATH = os.path.join(OUTPUT_DIR, "fig02_motif_clustering_panel.svg")
 
@@ -69,7 +76,7 @@ TOP_ROW_HSPACE = 0.12
 TOP_COL_WSPACE = 0.02
 GROUP_COL_GAP = 0.03
 
-# --- Scatter / pop square panels (Nagai size is independent) ---
+# --- Scatter / pop square panels (moment-ratio panel size is independent) ---
 SCATTER_LEFT_SHIFT = 0.0085
 SCATTER_PBE_EDGE_GAP = 0.082
 PBE_PBE0_EDGE_GAP = 0.028
@@ -78,20 +85,20 @@ PANEL_SIDE_SCALE = 0.78
 POP_AXES_LEFT_PAD = 0.035
 POP_YLABEL_COORDS = (-0.22, 0.5)
 
-# --- Nagai column ---
-NAGAI_POP_GAP = 0.002
-NAGAI_RIGHT_ANCHOR = SUBPLOT_RIGHT
-NAGAI_HEIGHT_FRAC = 0.95
-NAGAI_TRIANGLE_WIDTH_ASPECT = 1.42
-NAGAI_LEFT_OVERLAP = 0.065
-NAGAI_FLOOR_X_STRETCH = 1.55
-NAGAI_FLOOR_Y_STRETCH = 1.55
-NAGAI_MARKER_SCALE = 0.092
-NAGAI_MARKER_S = 7.0
-NAGAI_ZOOM_LEFT = 0.58
-NAGAI_ZOOM_RIGHT = 0.26
-NAGAI_ZOOM_TOP = 0.42
-NAGAI_ZOOM_BOT = 0.42
+# --- Moment-ratio column ---
+MOMENT_RATIO_POP_GAP = 0.002
+MOMENT_RATIO_RIGHT_ANCHOR = SUBPLOT_RIGHT
+MOMENT_RATIO_HEIGHT_FRAC = 0.95
+MOMENT_RATIO_TRIANGLE_WIDTH_ASPECT = 1.42
+MOMENT_RATIO_LEFT_OVERLAP = 0.065
+MOMENT_RATIO_FLOOR_X_STRETCH = 1.55
+MOMENT_RATIO_FLOOR_Y_STRETCH = 1.55
+MOMENT_RATIO_MARKER_SCALE = 0.092
+MOMENT_RATIO_MARKER_S = 7.0
+MOMENT_RATIO_ZOOM_LEFT = 0.58
+MOMENT_RATIO_ZOOM_RIGHT = 0.26
+MOMENT_RATIO_ZOOM_TOP = 0.42
+MOMENT_RATIO_ZOOM_BOT = 0.42
 
 # --- Bottom centroid strip ---
 BOTTOM_STRIP_IMG_FRAC = 0.92
@@ -109,12 +116,10 @@ TAG_SQ_PT = 5
 N_BINS = 100
 SMOOTH_SIGMA = 1.0
 POP_YLABEL = "pop %"
+POP_OX_XMAX = 3.3  # n_O/n_Ir upper limit on O | Ir | struct population stacks
 SCATTER_ROW_YLABELS = ("O atoms", "Ir atoms", "Structures")
 SCATTER_COL_TITLE = "UMAP/PCA"
-FONT = 7
-LABEL_FONTSIZE = 7
 UMAP_LEGEND_PAD_FRAC = 0.04
-UMAP_LEGEND_FONTSIZE = 6
 UMAP_LEGEND_MARKERSIZE = 3
 UMAP_LEGEND_MARKERSCALE = 1.05
 
@@ -190,7 +195,7 @@ def _draw_cluster_tag(ax, cluster: int, struct_cmap) -> None:
     square.add_artist(
         Rectangle((0, 0), sq, sq, facecolor=color, edgecolor="black", linewidth=0.4),
     )
-    label = TextArea(f"C{cluster}", textprops={"fontsize": LABEL_FONTSIZE, "color": "black"})
+    label = TextArea(f"C{cluster}", textprops={"fontsize": AXIS_LABEL_FONTSIZE, "color": "black"})
     box = HPacker(children=[square, label], align="center", pad=0, sep=TAG_PAD_PT)
     ax.set_axis_off()
     ax.add_artist(
@@ -226,38 +231,38 @@ def _layout_square_clustering_panels(axes: np.ndarray) -> None:
         pbe0_ax.set_position([pbe0_left, y0, side, side])
 
 
-def _layout_nagai_in_rows(
+def _layout_moment_ratio_in_rows(
     axes: np.ndarray,
     *,
     row_heights: list[float] | None = None,
-    right: float = NAGAI_RIGHT_ANCHOR,
-    gap: float = NAGAI_POP_GAP,
+    right: float = MOMENT_RATIO_RIGHT_ANCHOR,
+    gap: float = MOMENT_RATIO_POP_GAP,
 ) -> None:
-    """Place Nagai panels in the Nagai column, anchored to the right edge."""
+    """Place moment-ratio panels in the right column, anchored to the right edge."""
     right = min(right, SUBPLOT_RIGHT)
     for row in range(3):
         pbe0 = axes[row, 2]
-        nagai_ax = axes[row, 3]
+        moment_ratio_ax = axes[row, 3]
         p0 = pbe0.get_position()
         row_h = row_heights[row] if row_heights is not None else p0.height
-        h = row_h * NAGAI_HEIGHT_FRAC
-        x_left_limit = p0.x1 + gap - NAGAI_LEFT_OVERLAP
-        w = min(h * NAGAI_TRIANGLE_WIDTH_ASPECT, right - x_left_limit)
+        h = row_h * MOMENT_RATIO_HEIGHT_FRAC
+        x_left_limit = p0.x1 + gap - MOMENT_RATIO_LEFT_OVERLAP
+        w = min(h * MOMENT_RATIO_TRIANGLE_WIDTH_ASPECT, right - x_left_limit)
         w = max(w, 0.01)
         x0 = right - w
         cy = p0.y0 + 0.5 * p0.height
-        nagai_ax.set_position([x0, cy - 0.5 * h, w, h])
+        moment_ratio_ax.set_position([x0, cy - 0.5 * h, w, h])
 
 
-def _zoom_nagai_panels(
+def _zoom_moment_ratio_panels(
     axes: np.ndarray,
     *,
-    left: float = NAGAI_ZOOM_LEFT,
-    right: float = NAGAI_ZOOM_RIGHT,
-    top: float = NAGAI_ZOOM_TOP,
-    bot: float = NAGAI_ZOOM_BOT,
+    left: float = MOMENT_RATIO_ZOOM_LEFT,
+    right: float = MOMENT_RATIO_ZOOM_RIGHT,
+    top: float = MOMENT_RATIO_ZOOM_TOP,
+    bot: float = MOMENT_RATIO_ZOOM_BOT,
 ) -> None:
-    """Expand Nagai 3D axes beyond their cell on all sides.
+    """Expand moment-ratio 3D axes beyond their cell on all sides.
 
     Because the 3D renderer reserves internal padding, making the *axes box*
     larger than the visible cell effectively zooms the projection in on the
@@ -278,12 +283,12 @@ def _zoom_nagai_panels(
         ])
 
 
-def _anchor_nagai_right(
+def _anchor_moment_ratio_right(
     axes: np.ndarray,
     *,
-    right: float = NAGAI_RIGHT_ANCHOR,
+    right: float = MOMENT_RATIO_RIGHT_ANCHOR,
 ) -> None:
-    """Keep Nagai right edge fixed after zoom expansion (panels sit further right)."""
+    """Keep moment-ratio right edge fixed fixed after zoom expansion (panels sit further right)."""
     right = min(right, SUBPLOT_RIGHT)
     for row in range(3):
         ax = axes[row, 3]
@@ -291,8 +296,8 @@ def _anchor_nagai_right(
         ax.set_position([right - pos.width, pos.y0, pos.width, pos.height])
 
 
-def _stack_axes_above_nagai(axes: np.ndarray) -> None:
-    """Keep Nagai under scatter/pop so overlap hides Nagai, not the other panels."""
+def _stack_axes_above_moment_ratio(axes: np.ndarray) -> None:
+    """Keep moment-ratio panels under scatter/pop so overlap hides them, not the other panels."""
     for row in range(3):
         axes[row, 3].set_zorder(0)
         axes[row, 3].patch.set_visible(False)
@@ -300,10 +305,10 @@ def _stack_axes_above_nagai(axes: np.ndarray) -> None:
             axes[row, col].set_zorder(2)
 
 
-def _stretch_nagai_floor_aspect(axes: np.ndarray) -> None:
-    """Tune Nagai floor triangle aspect in 3D (x / y stretch via set_box_aspect)."""
-    x_st = NAGAI_FLOOR_X_STRETCH
-    y_st = NAGAI_FLOOR_Y_STRETCH
+def _stretch_moment_ratio_floor_aspect(axes: np.ndarray) -> None:
+    """Tune moment-ratio floor triangle aspect in 3D (x / y stretch via set_box_aspect)."""
+    x_st = MOMENT_RATIO_FLOOR_X_STRETCH
+    y_st = MOMENT_RATIO_FLOOR_Y_STRETCH
     if x_st == 1.0 and y_st == 1.0:
         return
     for row in range(3):
@@ -318,25 +323,25 @@ def _stretch_nagai_floor_aspect(axes: np.ndarray) -> None:
             ax.set_box_aspect((
                 x_span * x_st,
                 y_span * y_st,
-                NAGAI_EXTENT_BOX_SCALE * z_span,
+                MOMENT_RATIO_EXTENT_BOX_SCALE * z_span,
             ))
         except AttributeError:
             pass
 
 
-def _draw_nagai_column(
-    fig, nagai_gs, nagai_data: dict, axes: np.ndarray,
+def _draw_moment_ratio_column(
+    fig, moment_ratio_gs, moment_ratio_data: dict, axes: np.ndarray,
 ) -> None:
-    """Draw Nagai column after scatter/pop layout (last draw, lowest z-order)."""
-    nagai_axes, _ = draw_nagai_inertia_column(
-        fig, nagai_gs, nagai_data,
-        marker_scale=NAGAI_MARKER_SCALE,
-        atom_marker_s=NAGAI_MARKER_S,
-        struct_marker_s=NAGAI_MARKER_S,
-        atom_alpha=NAGAI_ATOM_ALPHA,
-        azim=NAGAI_EMBED_AZIM,
+    """Draw moment-ratio column after scatter/pop layout (last draw, lowest z-order)."""
+    moment_ratio_axes, _ = draw_moment_ratio_inertia_column(
+        fig, moment_ratio_gs, moment_ratio_data,
+        marker_scale=MOMENT_RATIO_MARKER_SCALE,
+        atom_marker_s=MOMENT_RATIO_MARKER_S,
+        struct_marker_s=MOMENT_RATIO_MARKER_S,
+        atom_alpha=MOMENT_RATIO_ATOM_ALPHA,
+        azim=MOMENT_RATIO_EMBED_AZIM,
     )
-    for row, ax in enumerate(nagai_axes):
+    for row, ax in enumerate(moment_ratio_axes):
         axes[row, 3] = ax
 
     for row in range(3):
@@ -359,7 +364,7 @@ def _nudge_pop_axes_right(axes: np.ndarray, pad_frac: float) -> None:
 def _layout_pop_ylabel(axes: np.ndarray) -> None:
     for row in range(3):
         ax = axes[row, 1]
-        ax.set_ylabel(POP_YLABEL, fontsize=FONT)
+        ax.set_ylabel(POP_YLABEL, fontsize=AXIS_LABEL_FONTSIZE)
         ax.yaxis.set_label_coords(*POP_YLABEL_COORDS)
 
 
@@ -448,7 +453,7 @@ def _draw_compact_atom_scatter(ax, fit, species: str, cmap_name: str) -> None:
             c=[colors[c]], s=5, alpha=0.65, edgecolors="none",
             label=ace_atom_display_label(species, c),
         )
-    ax.tick_params(axis="both", labelsize=FONT - 1)
+    ax.tick_params(axis="both", labelsize=TICK_FONTSIZE)
 
 
 def _finalize_atom_umap_legends(fig, axes: np.ndarray, ir_fit, o_fit) -> None:
@@ -476,7 +481,7 @@ def _finalize_atom_umap_legends(fig, axes: np.ndarray, ir_fit, o_fit) -> None:
         pad_y = UMAP_LEGEND_PAD_FRAC * pos.height
         leg = ax.legend(
             handles=handles,
-            fontsize=UMAP_LEGEND_FONTSIZE,
+            fontsize=LEGEND_FONTSIZE,
             frameon=False,
             loc="lower left",
             bbox_to_anchor=(pos.x0 + pad_x, pos.y0 + pad_y),
@@ -519,14 +524,14 @@ def _draw_compact_struct_pca(ax, struct_cache: dict) -> None:
 
     ax.set_xlabel("")
     ax.set_ylabel("")
-    ax.tick_params(axis="both", labelsize=FONT - 1)
+    ax.tick_params(axis="both", labelsize=TICK_FONTSIZE)
 
 
 def _style_scatter_column(axes: np.ndarray) -> None:
-    axes[0, 0].set_title(SCATTER_COL_TITLE, fontsize=FONT)
+    axes[0, 0].set_title(SCATTER_COL_TITLE, fontsize=TITLE_FONTSIZE)
     for row in range(3):
         ax = axes[row, 0]
-        ax.set_ylabel(SCATTER_ROW_YLABELS[row], fontsize=FONT)
+        ax.set_ylabel(SCATTER_ROW_YLABELS[row], fontsize=AXIS_LABEL_FONTSIZE)
         ax.tick_params(labelbottom=False, labelleft=False)
         ax.set_xlabel("")
         if row > 0:
@@ -577,19 +582,29 @@ def _style_pop_pair_axes(axes: np.ndarray, row: int) -> None:
         ax_pbe0.set_xlabel("")
     else:
         # bottom row: show x ticks and label on PBE0 too
-        ax_pbe0.set_xlabel(r"$n_O / n_{Ir}$", fontsize=FONT)
+        ax_pbe0.set_xlabel(r"$n_O / n_{Ir}$", fontsize=AXIS_LABEL_FONTSIZE)
         ax_pbe0.tick_params(labelbottom=True)
+
+
+def _set_pop_oxidation_xlim(axes: np.ndarray, xmax: float = POP_OX_XMAX) -> None:
+    """Cap population-vs-oxidation stacks at ``xmax`` (shared-x pairs per row)."""
+    for row in range(3):
+        ax = axes[row, 1]
+        xmin = float(ax.get_xlim()[0])
+        ax.set_xlim(xmin, xmax)
 
 
 def _style_top_grid_axes(axes: np.ndarray) -> None:
     _style_scatter_column(axes)
 
     for row in range(3):
-        axes[row, 1].set_title("PBE" if row == 0 else "", fontsize=FONT)
-        axes[row, 2].set_title("PBE0" if row == 0 else "", fontsize=FONT)
+        axes[row, 1].set_title("PBE" if row == 0 else "", fontsize=TITLE_FONTSIZE)
+        axes[row, 2].set_title("PBE0" if row == 0 else "", fontsize=TITLE_FONTSIZE)
 
     for row in range(3):
         _style_pop_pair_axes(axes, row)
+
+    _set_pop_oxidation_xlim(axes)
 
 
 def _hide_pop_legends(axes: np.ndarray) -> None:
@@ -666,40 +681,40 @@ def _draw_top_grid(
             title="",
             legend_ncol=2,
         )
-        axes[2, col].tick_params(axis="both", labelsize=6)
+        axes[2, col].tick_params(axis="both", labelsize=TICK_FONTSIZE)
 
     _style_top_grid_axes(axes)
     _hide_pop_legends(axes)
     return axes
 
 
-def _layout_nagai_panels(
+def _layout_moment_ratio_panels(
     fig,
-    nagai_gs,
-    nagai_data: dict,
+    moment_ratio_gs,
+    moment_ratio_data: dict,
     axes: np.ndarray,
     pop_row_heights: list[float],
 ) -> None:
-    """Draw Nagai column and run post-draw layout (size uses pop_row_heights, not square panels)."""
-    _draw_nagai_column(fig, nagai_gs, nagai_data, axes)
-    _layout_nagai_in_rows(axes, row_heights=pop_row_heights)
-    _zoom_nagai_panels(axes)
-    _anchor_nagai_right(axes)
-    _stretch_nagai_floor_aspect(axes)
-    _stack_axes_above_nagai(axes)
+    """Draw moment-ratio column and run post-draw layout (size uses pop_row_heights, not square panels)."""
+    _draw_moment_ratio_column(fig, moment_ratio_gs, moment_ratio_data, axes)
+    _layout_moment_ratio_in_rows(axes, row_heights=pop_row_heights)
+    _zoom_moment_ratio_panels(axes)
+    _anchor_moment_ratio_right(axes)
+    _stretch_moment_ratio_floor_aspect(axes)
+    _stack_axes_above_moment_ratio(axes)
 
 
 def _apply_panel_layout(
     fig,
     top_axes: np.ndarray,
-    nagai_gs,
-    nagai_data: dict,
+    moment_ratio_gs,
+    moment_ratio_data: dict,
     struct_axes: list,
     label_axes: list,
     ir_fit,
     o_fit,
 ) -> None:
-    """Post-draw geometry: square top panels, Nagai, centroid labels, UMAP legends."""
+    """Post-draw geometry: square top panels, moment-ratio column, centroid labels, UMAP legends."""
     fig.subplots_adjust(
         left=SUBPLOT_LEFT, right=SUBPLOT_RIGHT,
         top=SUBPLOT_TOP, bottom=SUBPLOT_BOTTOM,
@@ -709,7 +724,7 @@ def _apply_panel_layout(
     pop_row_heights = [top_axes[r, 1].get_position().height for r in range(3)]
     _layout_square_clustering_panels(top_axes)
     _layout_pop_ylabel(top_axes)
-    _layout_nagai_panels(fig, nagai_gs, nagai_data, top_axes, pop_row_heights)
+    _layout_moment_ratio_panels(fig, moment_ratio_gs, moment_ratio_data, top_axes, pop_row_heights)
     fig.canvas.draw()
     _scale_tile_axes(np.array(struct_axes, dtype=object), CENTROID_TILE_SCALE)
     _layout_centroid_labels_below_images(label_axes, struct_axes)
@@ -724,7 +739,7 @@ def main() -> None:
     ir_fit = atom_fit_from_npz(ACE_ATOM_IR_NPZ)
     o_fit = atom_fit_from_npz(ACE_ATOM_O_NPZ)
     struct_cache = load_npz(ACE_STRUCT_NPZ)
-    nagai_data = load_nagai_inertia_data()
+    moment_ratio_data = load_moment_ratio_inertia_data()
 
     datasets = []
     for label, traj_path, csv_path in [
@@ -768,7 +783,7 @@ def main() -> None:
     )
     scatter_gs = top_outer[0].subgridspec(3, 1, hspace=TOP_ROW_HSPACE)
     pop_gs = top_outer[1].subgridspec(3, 2, wspace=TOP_COL_WSPACE, hspace=TOP_ROW_HSPACE)
-    nagai_gs = top_outer[2].subgridspec(3, 1, hspace=TOP_ROW_HSPACE)
+    moment_ratio_gs = top_outer[2].subgridspec(3, 1, hspace=TOP_ROW_HSPACE)
     bottom_gs = main_gs[1].subgridspec(
         2, n_tiles,
         wspace=BOTTOM_STRIP_WSPACE,
@@ -786,17 +801,17 @@ def main() -> None:
     )
 
     _apply_panel_layout(
-        fig, top_axes, nagai_gs, nagai_data,
+        fig, top_axes, moment_ratio_gs, moment_ratio_data,
         struct_axes, label_axes, ir_fit, o_fit,
     )
 
-    # Fixed canvas: never use bbox_inches='tight' (Nagai zoom must not resize output).
+    # Fixed canvas: never use bbox_inches='tight' (moment-ratio zoom must not resize output).
     fig.savefig(OUTPUT_PATH, format="svg", dpi=DPI, bbox_inches=None, pad_inches=0)
     plt.close(fig)
     print(f"[save] {OUTPUT_PATH}")
     print(
         f"\n[fig02] {OUTPUT_PATH}  "
-        f"({FIG_W_MM}×{FIG_H_MM} mm: 3×4 clustering + Nagai + {n_tiles} horizontal centroids)"
+        f"({FIG_W_MM}×{FIG_H_MM} mm: 3×4 clustering + moment ratios + {n_tiles} horizontal centroids)"
     )
 
 

@@ -31,6 +31,10 @@ from figures.utils.join import (
     structure_populations_at_fixed_point,
 )
 from figures.utils.plotting import (
+    TITLE_FONTSIZE,
+    AXIS_LABEL_FONTSIZE,
+    TICK_FONTSIZE,
+    LEGEND_FONTSIZE,
     CBAR_LABEL_FONTSIZE,
     draw_global_minimum_population_panel,
     save_fig,
@@ -47,7 +51,7 @@ def _global_min_pop_panel(ax, gc, overlay_labels: list[str]) -> None:
     return draw_global_minimum_population_panel(
         ax, gc, overlay_labels,
         title="Global-minimum population",
-        title_fontsize=8,
+        title_fontsize=TITLE_FONTSIZE,
     )
 
 
@@ -87,7 +91,7 @@ def _cumulative_population_panel(
     n_show = int(lines["indices"].size)
     if n_show == 0:
         ax.text(0.5, 0.5, "No population data", ha="center", va="center",
-                fontsize=7, transform=ax.transAxes)
+                fontsize=AXIS_LABEL_FONTSIZE, transform=ax.transAxes)
         return
 
     x = _edge_to_edge_x(n_show)
@@ -96,16 +100,16 @@ def _cumulative_population_panel(
     ax.plot(x, lines["y_overlay"], color="steelblue", linewidth=1.0,
             label="With vib", alpha=0.9, solid_capstyle="butt")
 
-    ax.set_xlabel("Lowest energy structures", fontsize=8)
-    ax.set_ylabel("Population (%)", fontsize=8)
+    ax.set_xlabel("Lowest energy structures", fontsize=AXIS_LABEL_FONTSIZE)
+    ax.set_ylabel("Population (%)", fontsize=AXIS_LABEL_FONTSIZE)
     cov = 100.0 * float(lines["cumulative_fraction"])
     ax.set_title(
         rf"$T={T:.0f}$ K, $p_{{\mathrm{{O_2}}}}={P:.3g}$ Pa — "
         rf"{n_show} structures ({cov:.0f}% of novib pop.)",
-        fontsize=7,
+        fontsize=TITLE_FONTSIZE,
     )
-    ax.tick_params(axis="both", labelsize=7)
-    ax.legend(fontsize=7, frameon=False, loc="upper right")
+    ax.tick_params(axis="both", labelsize=TICK_FONTSIZE)
+    ax.legend(fontsize=LEGEND_FONTSIZE, frameon=False, loc="upper right")
     ymax = max(float(lines["y_order"].max()), float(lines["y_overlay"].max()), 0.5)
     ax.set_ylim(0, ymax * 1.1)
     _pin_xlim_edge_to_edge(ax)
@@ -113,7 +117,7 @@ def _cumulative_population_panel(
     ax.set_xticks(x)
     ax.set_xticklabels(
         _structure_tick_labels(n_show, primed=primed_ticks),
-        fontsize=5 if n_show > 16 else 6,
+        fontsize=TICK_FONTSIZE,
         rotation=45 if n_show > 12 else 0,
         ha="right" if n_show > 12 else "center",
     )
@@ -150,7 +154,7 @@ def main() -> None:
     if mesh0 is not None:
         cbar = fig.colorbar(mesh0, cax=cax)
         cbar.set_label("Population (%)", fontsize=CBAR_LABEL_FONTSIZE)
-        cbar.ax.tick_params(labelsize=7)
+        cbar.ax.tick_params(labelsize=TICK_FONTSIZE)
 
     for i, fp in enumerate(FIXED_POINTS[:2]):
         T, P = fp["T"], fp["P"]

@@ -109,7 +109,7 @@ o_atom_k = 3    # fixed O motif count  (None -> silhouette over k_atom_range)
 use_inertia_struct_features = True
 shape_extent_alpha = 1.0        # strength of extent-weighted shape block
 extent_blend = 0.1              # blend fraction for shape correction (0=sphere, 1=full)
-shape_corner_purity_beta = 0.5  # extra (1 + beta*purity^2) boost near S/L/P Nagai corners
+shape_corner_purity_beta = 0.5  # extra (1 + beta*purity^2) boost near S/L/P shape corners
 
 # --- Structure clustering granularity + targeted feature emphasis.
 # struct_k: None -> silhouette-selected k over k_struct_range; int -> fixed k.

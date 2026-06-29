@@ -1,20 +1,17 @@
 """Figure 3 – Grand-canonical phase diagrams with ACE motif overlays.
 
-Layout: 7 rows × 2 columns
+Layout: 5 rows × 2 columns
   Row 1: Ensemble-averaged oxidation ⟨n_O/n_Ir⟩
   Row 2: Structure-cluster population (RGB mix of cluster colours)
   Row 3: Ir atom-motif population (RGB mix of Ir motif colours)
   Row 4: O atom-motif population (RGB mix of O motif colours)
   Row 5: Inertia shape × extent (R=L, G=P, B=S; lightness = extent)
-  Row 6: Ensemble ⟨HOMO–LUMO gap⟩
-  Row 7: Global-minimum structure population (%)
 
-Each row: PBE | PBE0 with independent axes and one shared colorbar per row.
+Each row: PBE | PBE0 with shared T and pO₂ axes and one colorbar per row.
 
 Row 1 (PBE | PBE0): global-minimum boundaries + stoichiometry labels.
 Row 2: majority-cluster boundaries + ``C*`` label of the dominant cluster.
-Row 7: global-minimum population + stoichiometry overlay (as Figure 9).
-Rows 3–6: no stoichiometry overlay (row 6: ⟨HOMO–LUMO⟩ only).
+Rows 3–5: no stoichiometry overlay.
 
 Output: ``figures/outputs/fig03_gc_clustering_maps.svg``
 """
@@ -49,7 +46,6 @@ from figures.utils.io import (
     load_gc_pbe_novib_view,
 )
 from figures.utils.cache import ensure_for_figures
-from figures.utils.homo_lumo import HOMO_LUMO_CMAP, homo_lumo_gap_map, homo_lumo_gaps
 from figures.utils.join import (
     build_joined_table,
     cluster_population_fractions,
@@ -58,10 +54,11 @@ from figures.utils.join import (
     o_motif_population_fractions,
 )
 from figures.utils.plotting import (
+    TITLE_FONTSIZE,
+    AXIS_LABEL_FONTSIZE,
     add_phase_colorbar,
     cluster_colors,
     discrete_category_colorbar,
-    draw_global_minimum_population_panel,
     draw_global_minimum_phase_overlay,
     draw_population_mixed_phase_panel,
     draw_shape_extent_rgb_phase_panel,
@@ -70,11 +67,13 @@ from figures.utils.plotting import (
     o_motif_colors,
     stoichiometry_overlay_labels,
     style_phase_ax,
+    style_shared_gc_panel_ax,
 )
 
 OUTPUT_PATH = os.path.join(OUTPUT_DIR, "fig03_gc_clustering_maps.svg")
+N_ROWS = 5
 FIG_W_MM = 180
-FIG_H_MM = 399  # 7 rows
+FIG_H_MM = 210
 ACE_EXTENT_NORMALIZATION = "partial"
 
 DATASETS = [
@@ -95,8 +94,8 @@ DATASETS = [
 ]
 
 PHASE_CMAP = "coolwarm"
-FIG03_LAYOUT_RECT = [0, 0, 0.945, 1]
-FIG03_CBAR_GAP = 0.01
+FIG03_LAYOUT_RECT = [0.04, 0, 0.91, 1]
+FIG03_CBAR_GAP = 0.008
 FIG03_CBAR_WIDTH = 0.012
 
 
@@ -116,7 +115,7 @@ def _scalar_ensemble_panel(
     Z = np.asarray(field, dtype=float)
     if not np.isfinite(Z).any():
         ax.text(0.5, 0.5, "No data", ha="center", va="center",
-                fontsize=7, transform=ax.transAxes)
+                fontsize=AXIS_LABEL_FONTSIZE, transform=ax.transAxes)
         return None
 
     if vmin is None:
@@ -138,7 +137,7 @@ def _scalar_ensemble_panel(
         )
     style_phase_ax(ax)
     if title:
-        ax.set_title(title, fontsize=7)
+        ax.set_title(title, fontsize=TITLE_FONTSIZE)
     return mesh
 
 
@@ -161,8 +160,6 @@ def _load_column(ds: dict) -> dict | None:
         extent_blend=ACE_EXTENT_BLEND,
     )
     inertia_field = ensemble_weighted_rgb_map(jt["Pgi"], inertia_rgb)
-    gaps = homo_lumo_gaps(structures)
-    gap_field = homo_lumo_gap_map(jt["Pgi"], gaps)
     return {
         "label": ds["label"],
         "gc": gc,
@@ -171,7 +168,6 @@ def _load_column(ds: dict) -> dict | None:
         "ir_pop": ir_motif_population_fractions(jt),
         "o_pop": o_motif_population_fractions(jt),
         "inertia_rgb": inertia_field,
-        "gap_field": gap_field,
         "stoich_labels": stoichiometry_overlay_labels(gc["formulas"][:jt["n"]]),
         "Ts": gc["Ts"],
         "Ps": gc["Ps"],
@@ -201,6 +197,18 @@ def _scalar_limits(columns: list[dict | None], field_key: str) -> tuple[float, f
     return vmin, vmax
 
 
+def _apply_shared_axis_style(axes: np.ndarray) -> None:
+    last_row = axes.shape[0] - 1
+    col_titles = ("PBE", "PBE0")
+    for row in range(axes.shape[0]):
+        for col in range(axes.shape[1]):
+            ax = axes[row, col]
+            if not ax.axison:
+                continue
+            title = col_titles[col] if row == 0 else ""
+            style_shared_gc_panel_ax(ax, row, col, last_row, title=title)
+
+
 def main() -> None:
     ensure_for_figures([3])
     ensure_dirs(OUTPUT_DIR)
@@ -208,35 +216,33 @@ def main() -> None:
     columns = [_load_column(ds) for ds in DATASETS]
 
     fig, axes = plt.subplots(
-        7, 2,
+        N_ROWS, 2,
         figsize=(FIG_W_MM / 25.4, FIG_H_MM / 25.4),
         dpi=DPI,
+        sharex=True,
+        sharey=True,
     )
 
     ox_vmin, ox_vmax = _scalar_limits(columns, "oxidation")
-    gap_vmin, gap_vmax = _scalar_limits(columns, "gap_field")
-    mesh_min_ref = None
     mesh0_ref = None
-    mesh_gap_ref = None
 
     for col, data in enumerate(columns):
         if data is None:
-            for row in range(7):
+            for row in range(N_ROWS):
                 axes[row, col].text(
                     0.5, 0.5, "GC data missing",
-                    ha="center", va="center", fontsize=7,
+                    ha="center", va="center", fontsize=AXIS_LABEL_FONTSIZE,
                     transform=axes[row, col].transAxes,
                 )
                 axes[row, col].set_axis_off()
             continue
 
         gc = data["gc"]
-        label = data["label"]
         Ts, Ps = data["Ts"], data["Ps"]
 
         mesh0 = _scalar_ensemble_panel(
             axes[0, col], gc, gc["x_per_non_o"],
-            label,
+            "",
             PHASE_CMAP, ox_vmin, ox_vmax,
             overlay_labels=data["stoich_labels"],
         )
@@ -268,19 +274,7 @@ def main() -> None:
             "",
         )
 
-        mesh_gap = _scalar_ensemble_panel(
-            axes[5, col], gc, data["gap_field"],
-            "",
-            HOMO_LUMO_CMAP, gap_vmin, gap_vmax,
-        )
-        if mesh_gap is not None:
-            mesh_gap_ref = mesh_gap
-
-        mesh_min = draw_global_minimum_population_panel(
-            axes[6, col], gc, data["stoich_labels"],
-        )
-        if mesh_min is not None:
-            mesh_min_ref = mesh_min
+    _apply_shared_axis_style(axes)
 
     fig.tight_layout(pad=6 / 25.4, rect=FIG03_LAYOUT_RECT)
 
@@ -317,22 +311,10 @@ def main() -> None:
     )
     discrete_category_colorbar(
         ["#e85c5c", "#5ce85c", "#5c5ce8"],
-        ["L (R)", "P (G)", "S (B)"],
+        ["L", "P", "S"],
         cax=margin_colorbar_cax(fig, axes[4, 0], axes[4, 1], **cbar_kw),
         cbar_label="Shape",
     )
-    if mesh_gap_ref is not None:
-        add_phase_colorbar(
-            fig, mesh_gap_ref,
-            cax=margin_colorbar_cax(fig, axes[5, 0], axes[5, 1], **cbar_kw),
-            label="HOMO–LUMO gap (eV)",
-        )
-    if mesh_min_ref is not None:
-        add_phase_colorbar(
-            fig, mesh_min_ref,
-            cax=margin_colorbar_cax(fig, axes[6, 0], axes[6, 1], **cbar_kw),
-            label="Population (%)",
-        )
 
     fig.savefig(OUTPUT_PATH, format="svg", dpi=DPI, bbox_inches=None, pad_inches=0)
     plt.close(fig)

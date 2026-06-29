@@ -56,11 +56,12 @@ from figures.utils.join import (
     o_motif_population_fractions,
 )
 from figures.utils.plotting import (
+    AXIS_LABEL_FONTSIZE,
     add_phase_colorbar,
     cluster_colors,
     discrete_category_colorbar,
-    draw_global_minimum_population_panel,
     draw_global_minimum_phase_overlay,
+    draw_global_minimum_population_panel,
     draw_population_mixed_phase_panel,
     draw_shape_extent_rgb_phase_panel,
     ir_motif_colors,
@@ -319,7 +320,7 @@ def _render_map(spec: MapSpec, bundles: dict[str, DatasetBundle]) -> None:
                 panel = grid.get((n_ir, label))
                 if panel is None:
                     ax.text(0.5, 0.5, "No data", ha="center", va="center",
-                            fontsize=7, transform=ax.transAxes)
+                            fontsize=AXIS_LABEL_FONTSIZE, transform=ax.transAxes)
                     ax.set_axis_off()
                     continue
                 title = label if row == 0 else ""
@@ -370,7 +371,7 @@ def _render_map(spec: MapSpec, bundles: dict[str, DatasetBundle]) -> None:
                 panel = grid.get((n_ir, label))
                 if panel is None:
                     ax.text(0.5, 0.5, "No data", ha="center", va="center",
-                            fontsize=7, transform=ax.transAxes)
+                            fontsize=AXIS_LABEL_FONTSIZE, transform=ax.transAxes)
                     ax.set_axis_off()
                     continue
 
@@ -414,7 +415,7 @@ def _render_map(spec: MapSpec, bundles: dict[str, DatasetBundle]) -> None:
             _add_discrete_cbar(
                 fig, axes,
                 ["#e85c5c", "#5ce85c", "#5c5ce8"],
-                ["L (R)", "P (G)", "S (B)"],
+                ["L", "P", "S"],
                 spec.cbar_label,
             )
 

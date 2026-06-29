@@ -29,6 +29,7 @@ from figures.config import GC_NPZ, GC_VARIANTS_NPZ, OUTPUT_DIR, DPI
 from figures.utils.io import ensure_dirs, load_gc_npz
 from figures.utils.cache import ensure_for_figures
 from figures.utils.plotting import (
+    TITLE_FONTSIZE,
     add_phase_colorbar,
     draw_global_minimum_phase_overlay,
     margin_colorbar_cax,
@@ -68,7 +69,7 @@ def _phase_map_panel(
         ax, Ts, Ps, phase_index, overlay_labels,
     )
     style_phase_ax(ax)
-    ax.set_title(title, fontsize=7)
+    ax.set_title(title, fontsize=TITLE_FONTSIZE)
     return mesh
 
 

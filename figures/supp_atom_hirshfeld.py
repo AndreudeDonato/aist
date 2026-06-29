@@ -20,7 +20,10 @@ from figures.utils.hirshfeld import (
     pin_limits,
 )
 from figures.utils.io import ensure_dirs
-from figures.utils.plotting import save_fig
+from figures.utils.plotting import (
+    save_fig,
+    AXIS_LABEL_FONTSIZE,
+)
 
 OUTPUT_PATH = os.path.join(OUTPUT_DIR, "supp_atom_hirshfeld.svg")
 FIG_W_MM = 180
@@ -50,12 +53,12 @@ def main() -> None:
     for ax, ds in zip(axes, DATASETS):
         if not os.path.exists(ds["traj"]):
             ax.text(0.5, 0.5, "Trajectory missing", ha="center", va="center",
-                    fontsize=7, transform=ax.transAxes)
+                    fontsize=AXIS_LABEL_FONTSIZE, transform=ax.transAxes)
             ax.set_axis_off()
             continue
         if not os.path.exists(ds["motif_json"]):
             ax.text(0.5, 0.5, "Motif JSON missing", ha="center", va="center",
-                    fontsize=7, transform=ax.transAxes)
+                    fontsize=AXIS_LABEL_FONTSIZE, transform=ax.transAxes)
             ax.set_axis_off()
             continue
 

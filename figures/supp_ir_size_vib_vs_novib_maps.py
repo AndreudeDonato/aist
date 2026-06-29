@@ -25,6 +25,7 @@ from figures.utils.cache import ensure_for_supplementary
 from figures.utils.gc_subset import oxidation_map_by_n_ir
 from figures.utils.io import ensure_dirs, load_ace_features, load_gc_npz, load_npz
 from figures.utils.plotting import (
+    AXIS_LABEL_FONTSIZE,
     add_phase_colorbar,
     draw_global_minimum_phase_overlay,
     margin_colorbar_cax,
@@ -115,7 +116,7 @@ def main() -> None:
             panel = grid.get((n_ir_target, col_label))
             if panel is None:
                 ax.text(0.5, 0.5, "No data", ha="center", va="center",
-                        fontsize=7, transform=ax.transAxes)
+                        fontsize=AXIS_LABEL_FONTSIZE, transform=ax.transAxes)
                 ax.set_axis_off()
                 continue
 

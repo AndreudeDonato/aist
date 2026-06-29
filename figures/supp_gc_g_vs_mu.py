@@ -37,7 +37,14 @@ from figures.utils.io import (
     load_gc_pbe_novib_g_tensor,
     load_npz,
 )
-from figures.utils.plotting import save_fig, stoichiometry_overlay_labels
+from figures.utils.plotting import (
+    save_fig,
+    stoichiometry_overlay_labels,
+    TITLE_FONTSIZE,
+    AXIS_LABEL_FONTSIZE,
+    TICK_FONTSIZE,
+    CBAR_LABEL_FONTSIZE,
+)
 
 FIG_W_MM = 180
 ROW_H_MM = 32
@@ -46,7 +53,6 @@ IR_COUNTS = list(range(3, 10))
 TEMPERATURES_K = (273.0, 500.0)
 LINE_WIDTH = 0.7
 ENVELOPE_LINE_WIDTH = 0.35
-LABEL_FONTSIZE = 7
 
 Panel = tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]
 
@@ -157,7 +163,7 @@ def _draw_envelope_overlay(
             y_label,
             labels[winner],
             color="black",
-            fontsize=LABEL_FONTSIZE,
+            fontsize=AXIS_LABEL_FONTSIZE,
             ha="center",
             va="center",
             zorder=4,
@@ -286,7 +292,7 @@ def _build_figure(
             panel = panels.get(n_ir)
             if panel is None:
                 ax.text(0.5, 0.5, "No data", ha="center", va="center",
-                        fontsize=7, transform=ax.transAxes)
+                        fontsize=AXIS_LABEL_FONTSIZE, transform=ax.transAxes)
                 ax.set_axis_off()
                 continue
 
@@ -298,17 +304,17 @@ def _build_figure(
                 lc_ref = lc
 
             if row == 0:
-                ax.set_title(label, fontsize=8, pad=3)
+                ax.set_title(label, fontsize=TITLE_FONTSIZE, pad=3)
             if col == 0:
-                ax.set_ylabel(f"Ir$_{{{n_ir}}}$\n$G$ (eV)", fontsize=8)
+                ax.set_ylabel(f"Ir$_{{{n_ir}}}$\n$G$ (eV)", fontsize=AXIS_LABEL_FONTSIZE)
             else:
                 ax.set_ylabel("")
                 ax.tick_params(labelleft=False)
             if row < last_row:
                 ax.tick_params(labelbottom=False)
             else:
-                ax.set_xlabel(r"$\mu_{\mathrm{O_2}}$ (eV)", fontsize=8)
-            ax.tick_params(axis="both", labelsize=7)
+                ax.set_xlabel(r"$\mu_{\mathrm{O_2}}$ (eV)", fontsize=AXIS_LABEL_FONTSIZE)
+            ax.tick_params(axis="both", labelsize=TICK_FONTSIZE)
 
     for row in range(len(IR_COUNTS)):
         for col, xlim in enumerate(col_xlims):
@@ -317,13 +323,13 @@ def _build_figure(
                 ax.set_xlim(xlim)
                 ax.margins(x=0)
 
-    fig.suptitle(f"$T = {t_used:.0f}$ K", fontsize=9, y=1.01)
+    fig.suptitle(f"$T = {t_used:.0f}$ K", fontsize=TITLE_FONTSIZE, y=1.01)
 
     fig.tight_layout(pad=6 / 25.4, rect=[0, 0, 0.88, 1])
     if lc_ref is not None:
         cbar = fig.colorbar(lc_ref, ax=axes.ravel().tolist(), fraction=0.02, pad=0.02)
-        cbar.set_label(r"$n_O/n_{\mathrm{Ir}}$", fontsize=8)
-        cbar.ax.tick_params(labelsize=7)
+        cbar.set_label(r"$n_O/n_{\mathrm{Ir}}$", fontsize=CBAR_LABEL_FONTSIZE)
+        cbar.ax.tick_params(labelsize=TICK_FONTSIZE)
 
     out = _output_path(temperature_k)
     save_fig(fig, out, dpi=DPI)

@@ -40,8 +40,8 @@ from figures.config import (
 )
 from figures.utils.cache import ensure_for_supplementary
 from figures.utils.inertia_triangle import (
-    NAGAI_ZORDER_DATA,
-    overlay_nagai_corner_guides_3d,
+    MOMENT_RATIO_ZORDER_DATA,
+    overlay_moment_ratio_corner_guides_3d,
     style_inertia_shape_extent_3d,
 )
 from figures.utils.io import ensure_dirs
@@ -56,15 +56,15 @@ PANEL_HSPACE = -0.18  # overlap 3D panel gaps (matplotlib leaves empty rows othe
 PANEL_GRID_LEFT = -0.12  # extend axes left to trim SVG margin
 PANEL_GRID_RIGHT = 1.02
 # Expand axes box into margins after layout (embedded multipanel figures).
-NAGAI_AXES_LEFT_EXPAND = 0.20
-NAGAI_AXES_RIGHT_EXPAND = 0.05
+MOMENT_RATIO_AXES_LEFT_EXPAND = 0.20
+MOMENT_RATIO_AXES_RIGHT_EXPAND = 0.05
 # Fig02 embed: larger markers, wider column, stronger margin trim, tweaked view.
-NAGAI_EMBED_MARKER_SCALE = 0.13
-NAGAI_EMBED_MARKER_S = 11.0
-NAGAI_EMBED_AXES_SCALE = 1.18
-NAGAI_EMBED_LEFT_EXPAND = 0.40
-NAGAI_EMBED_RIGHT_EXPAND = 0.06
-NAGAI_EMBED_AZIM = -50.0
+MOMENT_RATIO_EMBED_MARKER_SCALE = 0.13
+MOMENT_RATIO_EMBED_MARKER_S = 11.0
+MOMENT_RATIO_EMBED_AXES_SCALE = 1.18
+MOMENT_RATIO_EMBED_LEFT_EXPAND = 0.40
+MOMENT_RATIO_EMBED_RIGHT_EXPAND = 0.06
+MOMENT_RATIO_EMBED_AZIM = -50.0
 SAVE_PAD_INCHES = 0.01
 MARKER_SCALE = 0.10
 MARKER_S = 8.0
@@ -127,7 +127,7 @@ def _scatter_rgb_by_dataset_3d(
         ax.scatter(
             x[mask], y[mask], z[mask], c=rgb[mask], s=sizes, alpha=alpha,
             marker=DATASET_MARKERS[name],
-            edgecolors="none", depthshade=False, zorder=NAGAI_ZORDER_DATA,
+            edgecolors="none", depthshade=False, zorder=MOMENT_RATIO_ZORDER_DATA,
         )
 
 
@@ -158,7 +158,7 @@ def _scatter_clusters_by_dataset_3d(
             ax.scatter(
                 x[mask], y[mask], z[mask], c=[col], s=sizes, alpha=alpha,
                 marker=mk, edgecolors="none", depthshade=False,
-                zorder=NAGAI_ZORDER_DATA,
+                zorder=MOMENT_RATIO_ZORDER_DATA,
             )
 
 
@@ -285,7 +285,7 @@ def _attach_interactive_viewer(fig, axes: list, titles: tuple[str, ...]) -> None
     _print_views()
 
 
-def draw_nagai_inertia_column(
+def draw_moment_ratio_inertia_column(
     fig,
     gs,
     data: dict,
@@ -299,7 +299,7 @@ def draw_nagai_inertia_column(
     elev: float = 28.0,
     azim: float = -67.0,
 ) -> tuple[list, tuple[float, float]]:
-    """Draw O / Ir / structure Nagai 3D panels on a 3-row gridspec slice."""
+    """Draw O / Ir / structure moment-ratio 3D panels on a 3-row gridspec slice."""
     sx, sy, sz, sc, sd = data["struct"]
     ox, oy, oz, o_rgb, od = data["o"]
     ix, iy, iz, ir_rgb, id_ = data["ir"]
@@ -316,7 +316,7 @@ def draw_nagai_inertia_column(
             ax, z_lim, marker_scale=marker_scale, bare=True, elev=elev, azim=azim,
         )
         scatter_fn(ax, x, y, z, *scatter_args, **scatter_kw)
-        overlay_nagai_corner_guides_3d(
+        overlay_moment_ratio_corner_guides_3d(
             ax, z_lim, pillars=True, corner_markers=False, labels=True, extent_label=True,
         )
         z0, z1 = z_lim
@@ -344,13 +344,13 @@ def draw_nagai_inertia_column(
     return [ax0, ax1, ax2], z_lim
 
 
-def adjust_nagai_panel_positions(
+def adjust_moment_ratio_panel_positions(
     axes,
     *,
-    left_expand: float = NAGAI_AXES_LEFT_EXPAND,
-    right_expand: float = NAGAI_AXES_RIGHT_EXPAND,
+    left_expand: float = MOMENT_RATIO_AXES_LEFT_EXPAND,
+    right_expand: float = MOMENT_RATIO_AXES_RIGHT_EXPAND,
 ) -> None:
-    """Expand Nagai 3D axes into side margins to trim in-panel whitespace."""
+    """Expand moment-ratio 3D axes into side margins to trim in-panel whitespace."""
     for ax in axes:
         pos = ax.get_position()
         dl = pos.width * left_expand
@@ -400,7 +400,7 @@ def build_figure(data, *, interactive: bool = False):
         hspace=PANEL_HSPACE if not interactive else 0.04,
     )
 
-    axes, z_lim = draw_nagai_inertia_column(
+    axes, z_lim = draw_moment_ratio_inertia_column(
         fig, gs, data,
         marker_scale=INTERACTIVE_MARKER_SCALE if interactive else MARKER_SCALE,
         atom_marker_s=atom_marker_s,

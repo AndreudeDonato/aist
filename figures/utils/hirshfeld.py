@@ -11,6 +11,13 @@ from aist.ace.io import load_motif_atoms_json
 
 from figures.utils.io import load_traj
 
+from figures.utils.plotting import (
+    AXIS_LABEL_FONTSIZE,
+    LEGEND_FONTSIZE,
+    TICK_FONTSIZE,
+    TITLE_FONTSIZE,
+)
+
 XLABEL = "Hirshfeld charge (e)"
 YLABEL = "|Hirshfeld spin| (e)"
 
@@ -25,6 +32,10 @@ def motif_order(motif: dict) -> list[str]:
 
 def o_motif_tags(motif: dict) -> list[str]:
     return list(motif.get("o_motifs", []))
+
+
+def ir_motif_tags(motif: dict) -> list[str]:
+    return list(motif.get("ir_motifs", []))
 
 
 def hirshfeld_by_motif(
@@ -141,8 +152,8 @@ def charge_spin_panel(
     n_total = sum(len(points[t][0]) for t in order)
     if n_total == 0:
         ax.text(0.5, 0.5, "No Hirshfeld / motif data", ha="center", va="center",
-                fontsize=7, transform=ax.transAxes)
-        ax.set_title(title, fontsize=8)
+                fontsize=AXIS_LABEL_FONTSIZE, transform=ax.transAxes)
+        ax.set_title(title, fontsize=TITLE_FONTSIZE)
         return
 
     for tag in order:
@@ -160,20 +171,21 @@ def charge_spin_panel(
             rasterized=True,
         )
 
-    ax.set_xlabel(XLABEL, fontsize=8)
-    ax.set_ylabel(YLABEL, fontsize=8)
-    ax.set_title(title, fontsize=8)
-    ax.tick_params(axis="both", labelsize=7, colors="black")
+    ax.set_xlabel(XLABEL, fontsize=AXIS_LABEL_FONTSIZE)
+    ax.set_ylabel(YLABEL, fontsize=AXIS_LABEL_FONTSIZE)
+    ax.set_title(title, fontsize=TITLE_FONTSIZE)
+    ax.tick_params(axis="both", labelsize=TICK_FONTSIZE, colors="black")
     for spine in ax.spines.values():
         spine.set_color("black")
-    ax.legend(fontsize=5, frameon=False, ncol=2, loc="best", markerscale=2)
+    ax.legend(fontsize=LEGEND_FONTSIZE, frameon=False, ncol=2, loc="best", markerscale=2)
     pin_limits(ax, xlim=xlim, ylim=ylim)
 
 
-def o_spin_kde_panel(
+def motif_spin_kde_panel(
     ax,
     points: dict[str, tuple[np.ndarray, np.ndarray]],
     motif: dict,
+    tags: list[str],
     title: str,
     *,
     eval_xlim: tuple[float, float] | None = None,
@@ -181,11 +193,9 @@ def o_spin_kde_panel(
     show_xlabel: bool = True,
     show_ylabel: bool = True,
     corner_label: str | None = None,
-) -> None:
+) -> float:
+    """|Hirshfeld spin| KDE for the given motif tags. Returns peak density (0 if empty)."""
     palette = motif.get("colors", {})
-    tags = o_motif_tags(motif)
-    # O-A2 omitted in paper figures (sparse motif); uncomment next line to restore
-    tags = [t for t in tags if t != "O-A2"]
     ymax = 0.0
     plotted = 0
 
@@ -201,22 +211,22 @@ def o_spin_kde_panel(
         plotted += 1
 
     if plotted == 0:
-        ax.text(0.5, 0.5, "No O Hirshfeld spin data", ha="center", va="center",
-                fontsize=7, transform=ax.transAxes)
+        ax.text(0.5, 0.5, "No Hirshfeld spin data", ha="center", va="center",
+                fontsize=AXIS_LABEL_FONTSIZE, transform=ax.transAxes)
     if show_xlabel:
-        ax.set_xlabel("|Hirshfeld spin| (e)", fontsize=8)
+        ax.set_xlabel("|Hirshfeld spin| (e)", fontsize=AXIS_LABEL_FONTSIZE)
     if show_ylabel:
-        ax.set_ylabel("Density", fontsize=8)
+        ax.set_ylabel("Density", fontsize=AXIS_LABEL_FONTSIZE)
     if title:
-        ax.set_title(title, fontsize=8)
-    ax.tick_params(axis="both", labelsize=7, colors="black")
+        ax.set_title(title, fontsize=TITLE_FONTSIZE)
+    ax.tick_params(axis="both", labelsize=TICK_FONTSIZE, colors="black")
     for spine in ax.spines.values():
         spine.set_color("black")
     ylim = (0.0, ymax * 1.05) if ymax > 0 else None
     pin_limits(ax, xlim=display_xlim, ylim=ylim)
     if plotted:
         ax.legend(
-            fontsize=5, frameon=False,
+            fontsize=LEGEND_FONTSIZE, frameon=False,
             ncol=1 if corner_label else 2,
             loc="upper right",
         )
@@ -224,5 +234,30 @@ def o_spin_kde_panel(
             ax.text(
                 0.98, 0.58, corner_label,
                 transform=ax.transAxes,
-                ha="right", va="top", fontsize=7, color="black",
+                ha="right", va="top", fontsize=AXIS_LABEL_FONTSIZE, color="black",
             )
+    return ymax
+
+
+def o_spin_kde_panel(
+    ax,
+    points: dict[str, tuple[np.ndarray, np.ndarray]],
+    motif: dict,
+    title: str,
+    *,
+    eval_xlim: tuple[float, float] | None = None,
+    display_xlim: tuple[float, float] | None = None,
+    show_xlabel: bool = True,
+    show_ylabel: bool = True,
+    corner_label: str | None = None,
+) -> None:
+    # O-A2 omitted in paper figures (sparse motif); uncomment next line to restore
+    tags = [t for t in o_motif_tags(motif) if t != "O-A2"]
+    motif_spin_kde_panel(
+        ax, points, motif, tags, title,
+        eval_xlim=eval_xlim,
+        display_xlim=display_xlim,
+        show_xlabel=show_xlabel,
+        show_ylabel=show_ylabel,
+        corner_label=corner_label,
+    )

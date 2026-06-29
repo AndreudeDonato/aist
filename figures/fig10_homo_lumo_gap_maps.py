@@ -44,6 +44,10 @@ from figures.utils.io import (
     load_traj,
 )
 from figures.utils.plotting import (
+    TITLE_FONTSIZE,
+    AXIS_LABEL_FONTSIZE,
+    TICK_FONTSIZE,
+    LEGEND_FONTSIZE,
     add_phase_colorbar,
     draw_global_minimum_phase_overlay,
     margin_colorbar_cax,
@@ -75,9 +79,9 @@ def _gap_panel(ax, gc, gaps, overlay_labels, title, vmin, vmax):
     Z = homo_lumo_gap_map(gc["Pgi"], gaps)
     if not np.isfinite(Z).any():
         ax.text(0.5, 0.5, "No HOMO–LUMO data", ha="center", va="center",
-                fontsize=7, transform=ax.transAxes)
+                fontsize=AXIS_LABEL_FONTSIZE, transform=ax.transAxes)
         style_phase_ax(ax)
-        ax.set_title(title, fontsize=7)
+        ax.set_title(title, fontsize=TITLE_FONTSIZE)
         return None
 
     mesh = ax.pcolormesh(
@@ -89,7 +93,7 @@ def _gap_panel(ax, gc, gaps, overlay_labels, title, vmin, vmax):
         ax, Ts, Ps, gc["phase_index"], overlay_labels,
     )
     style_phase_ax(ax)
-    ax.set_title(title, fontsize=7)
+    ax.set_title(title, fontsize=TITLE_FONTSIZE)
     return mesh
 
 
@@ -100,11 +104,11 @@ def _envelope_panel(ax, envelope_data: list[tuple[str, np.ndarray, np.ndarray, n
         ax.plot(xs, ymin, color=color, linewidth=1.0, linestyle="-")
         ax.plot(xs, ymax, color=color, linewidth=1.0, linestyle="-", label=label)
 
-    ax.set_xlabel("O fraction (n_O / n_Ir)", fontsize=7)
-    ax.set_ylabel("HOMO–LUMO gap (eV)", fontsize=7)
-    ax.set_title("HOMO–LUMO range vs O fraction", fontsize=7)
-    ax.tick_params(axis="both", labelsize=6)
-    leg = ax.legend(fontsize=5, frameon=False, loc="best", ncol=2)
+    ax.set_xlabel("O fraction (n_O / n_Ir)", fontsize=AXIS_LABEL_FONTSIZE)
+    ax.set_ylabel("HOMO–LUMO gap (eV)", fontsize=AXIS_LABEL_FONTSIZE)
+    ax.set_title("HOMO–LUMO range vs O fraction", fontsize=TITLE_FONTSIZE)
+    ax.tick_params(axis="both", labelsize=TICK_FONTSIZE)
+    leg = ax.legend(fontsize=LEGEND_FONTSIZE, frameon=False, loc="best", ncol=2)
     for handle in leg.legend_handles:
         handle.set_alpha(1.0)
 

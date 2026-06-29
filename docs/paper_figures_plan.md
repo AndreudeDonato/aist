@@ -41,9 +41,9 @@ python3 figures/build_all.py --rebuild-cache  # refresh figures/cache/ from data
 |---|---|
 | **Script** | `figures/fig02_motif_clustering_panel.py` |
 | **Output** | `fig02_motif_clustering_panel.svg` |
-| **Layout** | 180 × 164 mm: 3×4 top (scatter \| PBE \| PBE0; Ir/O rows + Nagai) + horizontal centroid strip |
+| **Layout** | 180 × 164 mm: 3×4 top (scatter \| PBE \| PBE0; Ir/O rows + moment ratios) + horizontal centroid strip |
 | **Data** | `ace_atom_ir.npz`, `ace_atom_o.npz`, `ace_struct_embeddings.npz`, `ace_features_{PBE,PBE0}.csv`, `ace_centroids_pooled.traj`, `motif_atoms_pooled.json` |
-| **What it shows** | Combined atom-motif UMAP + population stacks, structure-cluster PCA + stacks, Nagai inertia triangles, pooled centroid tiles. |
+| **What it shows** | Combined atom-motif UMAP + population stacks, structure-cluster PCA + stacks, principal moment-ratio triangles, pooled centroid tiles. |
 | **Purpose** | Single integrated view linking atom motifs, structure clusters, inertia shape, and representative geometries. Structure PCA/stacks and pooled centroid tiles are not duplicated as separate figures. |
 
 ---
@@ -70,24 +70,25 @@ python3 figures/build_all.py --rebuild-cache  # refresh figures/cache/ from data
 
 ---
 
-### Figure 6 — Ambient-\(p_{\mathrm{O_2}}\) motifs, O interface, and O spin
+### Figure 4 — Low-\(p_{\mathrm{O_2}}\) motifs and O per-Ir maps
 
 | | |
 |---|---|
-| **Script** | `figures/fig06_gc_pressure_slices.py` |
-| **Output** | `fig06_gc_pressure_slices.svg` |
-| **Layout** | 2 × 2 (180 × 140 mm) |
-| **Data** | `grandcanonical_results.npz` / `grandcanonical_PBE0.npz`, ACE CSVs, raw traj Hirshfeld data |
-| **Fixed pressure** | \(p_{\mathrm{O_2}} = 101325\) Pa (`FIG06_PRESSURE_PA`) |
-| **Dataset** | PBE GC includes vib/ZPE; PBE0 electronic-only. Hirshfeld KDE uses **dataset** histograms (not GC-weighted). |
+| **Script** | `figures/fig04_gc_pressure_slices.py` |
+| **Output** | `fig04_gc_pressure_slices.svg` |
+| **Layout** | 3 × 2 (180 × 160 mm); columns PBE \| PBE0 |
+| **Data** | `grandcanonical_results.npz` / `grandcanonical_PBE0.npz`, ACE CSVs |
+| **Fixed pressure** | Motif stacks at \(p_{\mathrm{O_2}} = 10^{-5}\) Pa (`FIG04_LOW_PRESSURE_PA`) |
 
-| Panel | Content |
-|-------|---------|
-| Top row | Atom motif population (%) vs **T** at ambient \(p_{\mathrm{O_2}}\) — Ir motifs stacked below O motifs (PBE left, PBE0 right) |
-| Bottom left | **Bridging vs terminal O** interface: O-A0 (bridging) vs O-A1 (terminal) motif fraction along T; PBE and PBE0 overlaid |
-| Bottom right | **O atom \|Hirshfeld spin\|** KDE (PBE above PBE0), dataset-weighted, x-axis to 1.0 |
+| Row | Panel content |
+|-----|----------------|
+| 1 | ⟨terminal O / \(n_{\mathrm{Ir}}\)⟩ phase map |
+| 2 | ⟨bridging O / \(n_{\mathrm{Ir}}\)⟩ phase map |
+| 3 | Atom motif population (%) vs **T** at low \(p_{\mathrm{O_2}}\) — O motifs below Ir motifs |
 
-**Purpose** | How local motifs and O electronic structure evolve with temperature at atmospheric oxygen pressure.
+**Purpose** | Terminal/bridging O motif enrichment across \((T,p)\) and atom-level motif evolution at low oxygen pressure.
+
+**Supplementary** | O and Ir \|Hirshfeld spin\| KDE by motif: `supp_motif_spin_kde.svg`.
 
 ---
 

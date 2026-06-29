@@ -118,14 +118,15 @@ FIXED_POINTS = [
     {"label": "500K_ambient_pO2", "T": 500.0, "P": AMBIENT_PO2_PA},
 ]
 
-# Figure 6: motif populations vs T at ambient pO₂ (Pa), vertical 88 mm
-FIG06_PRESSURE_PA = AMBIENT_PO2_PA
-FIG06_SMOOTH_SIGMA = 1.0
-FIG06_POP_ZOOM_MIN = 60.0   # O terminal/bridging panel: y from 60% to 100%
+# Figure 4: motif populations vs T at fixed pO₂ (Pa)
+FIG04_PRESSURE_PA = AMBIENT_PO2_PA
+FIG04_LOW_PRESSURE_PA = 1.0e-5
+FIG04_SMOOTH_SIGMA = 1.0
+FIG04_POP_ZOOM_MIN = 60.0   # O terminal/bridging panel: y from 60% to 100%
 # O motif indices (SOAP–UMAP clustering): O-A1 ≈ terminal, O-A0 ≈ bridging
-FIG06_O_TERMINAL_IDX = 1
-FIG06_O_BRIDGING_IDX = 0
-FIG06_SPIN_XMAX = 1.0   # |Hirshfeld spin| display limit for O-spin KDE panels
+FIG04_O_TERMINAL_IDX = 1
+FIG04_O_BRIDGING_IDX = 0
+FIG04_SPIN_XMAX = 1.0   # |Hirshfeld spin| display limit for O-spin KDE panels
 
 # Figure 8: 1D ΔG-contribution cut at this pO₂ (Pa)
 FIG08_PRESSURE_PA = AMBIENT_PO2_PA

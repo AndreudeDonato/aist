@@ -166,8 +166,8 @@ def ensure_gc_variants(*, force: bool = False) -> None:
     )
 
 
-_FIG_NEEDS_ACE = {2, 3, 6}
-_FIG_NEEDS_GC = {3, 6, 7, 8, 9, 10, 12}
+_FIG_NEEDS_ACE = {2, 3, 4}
+_FIG_NEEDS_GC = {3, 4, 7, 8, 9, 10, 12}
 _FIG_NEEDS_GC_VARIANTS = {3, 7, 9, 10, 12}
 _SUPPLEMENTARY_NEEDS_ACE = {
     "supp_atom_hirshfeld",
@@ -177,7 +177,6 @@ _SUPPLEMENTARY_NEEDS_ACE = {
     "supp_ir_size_vib_vs_novib_maps",
 }
 _SUPPLEMENTARY_NEEDS_GC = {
-    "fig06_gc_pressure_slices_alt",
     "supp_ir_size_gc_maps",
     "supp_ir_size_o_motif_ratio_maps",
     "supp_ir_size_vib_vs_novib_maps",

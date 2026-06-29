@@ -42,7 +42,13 @@ from figures.utils.io import (
     load_gc_pbe_novib_view,
     load_npz,
 )
-from figures.utils.plotting import save_fig
+from figures.utils.plotting import (
+    save_fig,
+    TITLE_FONTSIZE,
+    AXIS_LABEL_FONTSIZE,
+    TICK_FONTSIZE,
+    LEGEND_FONTSIZE,
+)
 
 OUTPUT_PATH = os.path.join(OUTPUT_DIR, "fig12_ir_size_oxidation_at_po2.svg")
 FIG_W_MM = 180
@@ -111,10 +117,10 @@ def _plot_ir_lines(
             label=f"Ir{n_ir}",
             zorder=2,
         )
-    ax.set_xlabel("T (K)" if show_xlabel else "", fontsize=8)
-    ax.set_ylabel(ylabel if show_ylabel else "", fontsize=8)
-    ax.set_title(title, fontsize=8)
-    ax.tick_params(axis="both", labelsize=7)
+    ax.set_xlabel("T (K)" if show_xlabel else "", fontsize=AXIS_LABEL_FONTSIZE)
+    ax.set_ylabel(ylabel if show_ylabel else "", fontsize=AXIS_LABEL_FONTSIZE)
+    ax.set_title(title, fontsize=TITLE_FONTSIZE)
+    ax.tick_params(axis="both", labelsize=TICK_FONTSIZE)
     ax.margins(x=0)
 
 
@@ -142,10 +148,10 @@ def _plot_diff_panel(
             label=f"Ir{n_ir}",
             zorder=2,
         )
-    ax.set_xlabel("T (K)" if show_xlabel else "", fontsize=8)
-    ax.set_ylabel(ylabel if show_ylabel else "", fontsize=8)
-    ax.set_title("PBE0 − PBE", fontsize=8)
-    ax.tick_params(axis="both", labelsize=7)
+    ax.set_xlabel("T (K)" if show_xlabel else "", fontsize=AXIS_LABEL_FONTSIZE)
+    ax.set_ylabel(ylabel if show_ylabel else "", fontsize=AXIS_LABEL_FONTSIZE)
+    ax.set_title("PBE0 − PBE", fontsize=TITLE_FONTSIZE)
+    ax.tick_params(axis="both", labelsize=TICK_FONTSIZE)
     ax.margins(x=0)
 
 
@@ -235,7 +241,7 @@ def main() -> None:
         for ax in axes[row, :]:
             ax.set_ylim(ylim)
 
-    axes[0, 0].legend(fontsize=5, frameon=False, ncol=2, loc="best")
+    axes[0, 0].legend(fontsize=LEGEND_FONTSIZE, frameon=False, ncol=2, loc="best")
 
     fig.tight_layout(pad=6 / 25.4)
     save_fig(fig, OUTPUT_PATH, dpi=DPI)

@@ -1,6 +1,6 @@
 """Supplementary – Terminal / bridging O per Ir phase maps (PBE | PBE0).
 
-Two outputs (7 rows × 2 columns, Ir₃…Ir₉ × PBE | PBE0), matching fig06 alt but
+Two outputs (7 rows × 2 columns, Ir₃…Ir₉ × PBE | PBE0), matching fig04 phase-map layout but
 restricted to one ``n_Ir`` bucket per row:
 
   ``supp_ir_size_terminal_o_maps.svg``  — ⟨n_O^{terminal} / n_Ir⟩
@@ -20,8 +20,8 @@ from matplotlib.colors import Normalize
 from figures.config import (
     ACE_FEATURES,
     DPI,
-    FIG06_O_BRIDGING_IDX,
-    FIG06_O_TERMINAL_IDX,
+    FIG04_O_BRIDGING_IDX,
+    FIG04_O_TERMINAL_IDX,
     GC_NPZ,
     GC_NPZ_PBE0,
     OUTPUT_DIR,
@@ -32,6 +32,7 @@ from figures.utils.gc_subset import subset_joined_table_by_n_ir
 from figures.utils.io import ensure_dirs, load_ace_features, load_gc_npz
 from figures.utils.join import build_joined_table, ensemble_o_motif_per_ir_map
 from figures.utils.plotting import (
+    AXIS_LABEL_FONTSIZE,
     add_phase_colorbar,
     margin_colorbar_cax,
     save_fig,
@@ -52,8 +53,8 @@ DATASETS = [
 ]
 
 MAP_SPECS = (
-    (FIG06_O_TERMINAL_IDX, "supp_ir_size_terminal_o_maps.svg"),
-    (FIG06_O_BRIDGING_IDX, "supp_ir_size_bridging_o_maps.svg"),
+    (FIG04_O_TERMINAL_IDX, "supp_ir_size_terminal_o_maps.svg"),
+    (FIG04_O_BRIDGING_IDX, "supp_ir_size_bridging_o_maps.svg"),
 )
 
 
@@ -130,7 +131,7 @@ def _render_map(
             panel = grid.get((n_ir, label))
             if panel is None:
                 ax.text(0.5, 0.5, "No data", ha="center", va="center",
-                        fontsize=7, transform=ax.transAxes)
+                        fontsize=AXIS_LABEL_FONTSIZE, transform=ax.transAxes)
                 ax.set_axis_off()
                 continue
 
