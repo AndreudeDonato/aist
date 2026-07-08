@@ -53,6 +53,7 @@ def run_gc_variants(
         save_outputs=False,
     )
     stoich = full["stoich"]
+    full_g_tensor = full["G_tensor"]
     full_out = {
         "Ts": full["Ts"],
         "Ps": full["Ps"],
@@ -60,6 +61,7 @@ def run_gc_variants(
         "full_x_per_non_o": full["x_per_non_o"],
         "full_stoich_map": stoich[full["phase_index"]],
         "full_Pgi": full["Pgi"],
+        "full_G_tensor": full_g_tensor,
     }
     del full
 

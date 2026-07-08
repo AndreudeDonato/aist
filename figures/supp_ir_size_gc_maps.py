@@ -22,7 +22,6 @@ import numpy as np
 from ase.io import read
 from matplotlib.colors import Normalize
 
-from aist.ace.common import ace_atom_display_label
 from aist.ace.pipeline import extent_blend as ACE_EXTENT_BLEND
 from aist.core.grandcanonical import global_minimum_population_map
 from aist.inertia import per_structure_shape_extent_rgb
@@ -31,42 +30,44 @@ from aist.thermo import ThermoPartitionFunctions
 from figures.config import (
     ACE_FEATURES,
     DPI,
-    GC_NPZ,
-    GC_NPZ_PBE0,
-    GC_VARIANTS_NPZ,
     OUTPUT_DIR,
     PHASE_CMAP,
+    SUPP_IR_COUNTS,
     TRAJ_PBE,
     TRAJ_PBE0,
 )
 from figures.utils.cache import ensure_for_supplementary
-from figures.utils.gc_subset import subset_joined_table_by_n_ir
-from figures.utils.homo_lumo import HOMO_LUMO_CMAP, homo_lumo_gap_map, homo_lumo_gaps
+from figures.utils.comparison import (
+    atom_motif_colors_labels,
+    build_comparison_joined_table,
+    ensemble_shape_rgb_map_with_gas,
+    gas_population_fraction,
+    gas_structure_mask,
+    homo_lumo_gaps_for_comparison,
+    load_gc_comparison_view,
+    scalar_field_rgb_with_gas,
+    structure_cluster_colors_labels,
+)
+from figures.utils.gc_subset import ir_size_reservoir_mask, subset_joined_table_by_n_ir
+from figures.utils.homo_lumo import HOMO_LUMO_CMAP, homo_lumo_gap_map, homo_lumo_gaps, ir_size_homo_lumo_panel
 from figures.utils.io import (
     ensure_dirs,
     load_ace_features,
-    load_gc_npz,
-    load_gc_pbe_novib_view,
 )
 from figures.utils.join import (
-    build_joined_table,
     cluster_population_fractions,
-    ensemble_weighted_rgb_map,
     ir_motif_population_fractions,
     o_motif_population_fractions,
 )
 from figures.utils.plotting import (
     AXIS_LABEL_FONTSIZE,
     add_phase_colorbar,
-    cluster_colors,
     discrete_category_colorbar,
     draw_global_minimum_phase_overlay,
     draw_global_minimum_population_panel,
     draw_population_mixed_phase_panel,
     draw_shape_extent_rgb_phase_panel,
-    ir_motif_colors,
     margin_colorbar_cax,
-    o_motif_colors,
     save_fig,
     stoichiometry_overlay_labels,
     style_ir_size_panel_ax,
@@ -74,8 +75,8 @@ from figures.utils.plotting import (
 
 FIG_W_MM = 180
 ROW_H_MM = 32
-FIG_H_MM = 7 * ROW_H_MM
-IR_COUNTS = list(range(3, 10))
+FIG_H_MM = len(SUPP_IR_COUNTS) * ROW_H_MM
+IR_COUNTS = SUPP_IR_COUNTS
 ACE_EXTENT_NORMALIZATION = "partial"
 LAYOUT_RECT = [0, 0, 0.84, 1]
 CBAR_GAP = 0.01
@@ -88,14 +89,14 @@ MapKind = Literal[
 DATASETS = [
     {
         "label": "PBE",
-        "load_gc": lambda: load_gc_pbe_novib_view(GC_VARIANTS_NPZ, GC_NPZ),
+        "load_gc": lambda: load_gc_comparison_view("PBE"),
         "ace_csv": ACE_FEATURES["PBE"],
         "traj": TRAJ_PBE,
         "join_tag": "PBE",
     },
     {
         "label": "PBE0",
-        "load_gc": lambda: load_gc_npz(GC_NPZ_PBE0),
+        "load_gc": lambda: load_gc_comparison_view("PBE0"),
         "ace_csv": ACE_FEATURES["PBE0"],
         "traj": TRAJ_PBE0,
         "join_tag": "PBE0",
@@ -127,9 +128,12 @@ class DatasetBundle:
     jt: dict
     inertia_rgb: np.ndarray
     gaps: np.ndarray
-    k_struct: int
-    k_Ir: int
-    k_O: int
+    struct_colors: list[str]
+    cluster_labels: list[str]
+    ir_motif_colors: list[str]
+    ir_motif_labels: list[str]
+    o_motif_colors: list[str]
+    o_motif_labels: list[str]
 
 
 def _load_dataset(ds: dict) -> DatasetBundle | None:
@@ -141,23 +145,33 @@ def _load_dataset(ds: dict) -> DatasetBundle | None:
     if not os.path.exists(traj_path):
         return None
     rows = load_ace_features(ds["ace_csv"])
-    jt = build_joined_table(gc, rows, ds.get("join_tag", "PBE"))
+    jt = build_comparison_joined_table(gc, rows, ds.get("join_tag", "PBE"))
     n = jt["n"]
-    structures = list(read(traj_path, ":"))[:n]
     tp = ThermoPartitionFunctions()
+    structures = list(read(traj_path, ":"))
+    n_traj = len(structures)
     inertia_rgb = per_structure_shape_extent_rgb(
         structures, tp,
         extent_normalization=ACE_EXTENT_NORMALIZATION,
         extent_blend=ACE_EXTENT_BLEND,
     )
+    if n > n_traj:
+        pad = np.full((n - n_traj, 3), np.nan, dtype=float)
+        inertia_rgb = np.vstack([inertia_rgb, pad])
+    struct_colors, cluster_labels = structure_cluster_colors_labels(jt)
+    ir_colors, ir_labels = atom_motif_colors_labels(jt, "Ir")
+    o_colors, o_labels = atom_motif_colors_labels(jt, "O")
     return DatasetBundle(
         label=ds["label"],
         jt=jt,
         inertia_rgb=inertia_rgb,
-        gaps=homo_lumo_gaps(structures),
-        k_struct=int(jt["cluster"].max()) + 1,
-        k_Ir=jt["ir_frac"].shape[1],
-        k_O=jt["o_frac"].shape[1],
+        gaps=homo_lumo_gaps_for_comparison(ds["label"], traj_path, n),
+        struct_colors=struct_colors,
+        cluster_labels=cluster_labels,
+        ir_motif_colors=ir_colors,
+        ir_motif_labels=ir_labels,
+        o_motif_colors=o_colors,
+        o_motif_labels=o_labels,
     )
 
 
@@ -185,7 +199,10 @@ def _panel_payload(
     if jt_sub is None:
         return None
 
-    mask_idx = np.where(bundle.jt["n_Ir"] == n_ir)[0]
+    reservoir_mask = ir_size_reservoir_mask(
+        bundle.jt["n_Ir"], n_ir, bundle.jt["formulas_gc"],
+    )
+    mask_idx = np.where(reservoir_mask)[0]
     inertia_sub = bundle.inertia_rgb[mask_idx]
 
     base = {
@@ -209,6 +226,9 @@ def _panel_payload(
 
     if kind == "cluster":
         base["pop"] = cluster_population_fractions(jt_sub)
+        base["cluster_colors"], base["cluster_labels"] = structure_cluster_colors_labels(
+            bundle.jt, n_pop=base["pop"].shape[0],
+        )
         return base
 
     if kind == "ir_motif":
@@ -220,13 +240,14 @@ def _panel_payload(
         return base
 
     if kind == "inertia":
-        base["rgb"] = ensemble_weighted_rgb_map(jt_sub["Pgi"], inertia_sub)
+        gas_sub = gas_structure_mask(jt_sub["formulas_gc"])
+        base["rgb"] = ensemble_shape_rgb_map_with_gas(
+            jt_sub["Pgi"], inertia_sub, gas_sub,
+        )
         return base
 
     if kind == "homo_lumo":
-        gaps_sub = bundle.gaps[mask_idx]
-        base["gap_field"] = homo_lumo_gap_map(jt_sub["Pgi"], gaps_sub)
-        return base
+        return ir_size_homo_lumo_panel(bundle.jt, bundle.gaps, n_ir)
 
     raise ValueError(f"Unknown map kind: {kind}")
 
@@ -338,7 +359,7 @@ def _render_map(spec: MapSpec, bundles: dict[str, DatasetBundle]) -> None:
                 else:
                     mesh = _draw_scalar_panel(
                         ax, panel, field_key, cmap, vmin, vmax,
-                        overlay=(spec.kind == "oxidation"),
+                        overlay=(spec.kind in ("oxidation", "homo_lumo")),
                     )
                 style_ir_size_panel_ax(ax, n_ir, col, row, last_row, title=title)
                 if mesh_ref is None and mesh is not None:
@@ -355,15 +376,13 @@ def _render_map(spec: MapSpec, bundles: dict[str, DatasetBundle]) -> None:
                 label=spec.cbar_label,
             )
     else:
-        struct_colors = cluster_colors(ref_bundle.k_struct)
-        ir_colors = ir_motif_colors(ref_bundle.k_Ir)
-        o_colors = o_motif_colors(ref_bundle.k_O)
+        struct_colors = ref_bundle.struct_colors
+        ir_colors = ref_bundle.ir_motif_colors
+        o_colors = ref_bundle.o_motif_colors
         color_lookup = {
-            "cluster": struct_colors,
             "ir_motif": ir_colors,
             "o_motif": o_colors,
         }
-        cluster_majority_labels = [f"C{c}" for c in range(ref_bundle.k_struct)]
 
         for row, n_ir in enumerate(IR_COUNTS):
             for col, label in enumerate(("PBE", "PBE0")):
@@ -382,10 +401,15 @@ def _render_map(spec: MapSpec, bundles: dict[str, DatasetBundle]) -> None:
                         ax, panel["Ts"], panel["Ps"], panel["rgb"], "",
                     )
                 else:
-                    majority_labels = cluster_majority_labels if spec.kind == "cluster" else None
+                    if spec.kind == "cluster":
+                        colors = panel["cluster_colors"]
+                        majority_labels = panel["cluster_labels"]
+                    else:
+                        colors = color_lookup[spec.kind]
+                        majority_labels = None
                     draw_population_mixed_phase_panel(
                         ax, panel["Ts"], panel["Ps"], panel["pop"],
-                        color_lookup[spec.kind], "",
+                        colors, "",
                         majority_labels=majority_labels,
                     )
 
@@ -396,19 +420,19 @@ def _render_map(spec: MapSpec, bundles: dict[str, DatasetBundle]) -> None:
         if spec.kind == "cluster":
             _add_discrete_cbar(
                 fig, axes, struct_colors,
-                [f"C{c}" for c in range(ref_bundle.k_struct)],
+                ref_bundle.cluster_labels,
                 spec.cbar_label,
             )
         elif spec.kind == "ir_motif":
             _add_discrete_cbar(
                 fig, axes, ir_colors,
-                [ace_atom_display_label("Ir", c) for c in range(ref_bundle.k_Ir)],
+                ref_bundle.ir_motif_labels,
                 spec.cbar_label,
             )
         elif spec.kind == "o_motif":
             _add_discrete_cbar(
                 fig, axes, o_colors,
-                [ace_atom_display_label("O", c) for c in range(ref_bundle.k_O)],
+                ref_bundle.o_motif_labels,
                 spec.cbar_label,
             )
         elif spec.kind == "inertia":

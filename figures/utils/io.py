@@ -51,7 +51,7 @@ def load_gc_npz(path: str, *, light: bool = False) -> dict:
         return load_npz(path)
     return load_npz(
         path,
-        keys=("Ts", "Ps", "Pgi", "stoich", "formulas"),
+        keys=("Ts", "Ps", "Pgi", "stoich", "formulas", "phase_index", "x_per_non_o"),
     )
 
 
@@ -116,6 +116,22 @@ def load_traj(path: str):
     if not os.path.exists(path):
         raise FileNotFoundError(f"Trajectory not found: {path}")
     return read(path, ":")
+
+
+def load_pbe_gc_structures(*, include_gas: bool | None = None) -> list:
+    """PBE structures in GC order (traj + optional gas oxides)."""
+    from figures.config import GC_INCLUDE_GAS_RESERVOIR, GC_STRUCTURES, gc_gas_reservoir_specs
+
+    if include_gas is None:
+        include_gas = GC_INCLUDE_GAS_RESERVOIR
+    structures = list(read(GC_STRUCTURES, index=":"))
+    if include_gas:
+        for path, _ in gc_gas_reservoir_specs("PBE"):
+            if not os.path.exists(path):
+                continue
+            mol = read(path)
+            structures.append(mol[0] if isinstance(mol, list) else mol)
+    return structures
 
 
 def ensure_dirs(*dirs: str) -> None:

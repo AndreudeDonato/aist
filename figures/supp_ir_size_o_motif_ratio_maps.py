@@ -16,21 +16,27 @@ from dataclasses import dataclass
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.colors import Normalize
+from matplotlib.cm import ScalarMappable
 
 from figures.config import (
     ACE_FEATURES,
     DPI,
     FIG04_O_BRIDGING_IDX,
     FIG04_O_TERMINAL_IDX,
-    GC_NPZ,
-    GC_NPZ_PBE0,
     OUTPUT_DIR,
     PHASE_CMAP,
+    SUPP_IR_COUNTS,
 )
 from figures.utils.cache import ensure_for_supplementary
+from figures.utils.comparison import (
+    gas_population_fraction,
+    gas_structure_mask,
+    load_comparison_joined,
+    scalar_field_rgb_with_gas,
+)
 from figures.utils.gc_subset import subset_joined_table_by_n_ir
-from figures.utils.io import ensure_dirs, load_ace_features, load_gc_npz
-from figures.utils.join import build_joined_table, ensemble_o_motif_per_ir_map
+from figures.utils.io import ensure_dirs
+from figures.utils.join import ensemble_o_motif_per_ir_map
 from figures.utils.plotting import (
     AXIS_LABEL_FONTSIZE,
     add_phase_colorbar,
@@ -41,15 +47,15 @@ from figures.utils.plotting import (
 
 FIG_W_MM = 180
 ROW_H_MM = 32
-FIG_H_MM = 7 * ROW_H_MM
-IR_COUNTS = list(range(3, 10))
+FIG_H_MM = len(SUPP_IR_COUNTS) * ROW_H_MM
+IR_COUNTS = SUPP_IR_COUNTS
 LAYOUT_RECT = [0, 0, 0.84, 1]
 CBAR_GAP = 0.01
 CBAR_WIDTH = 0.012
 
 DATASETS = [
-    {"label": "PBE", "npz": GC_NPZ, "ace_csv": ACE_FEATURES["PBE"]},
-    {"label": "PBE0", "npz": GC_NPZ_PBE0, "ace_csv": ACE_FEATURES["PBE0"]},
+    {"label": "PBE", "ace_csv": ACE_FEATURES["PBE"]},
+    {"label": "PBE0", "ace_csv": ACE_FEATURES["PBE0"]},
 ]
 
 MAP_SPECS = (
@@ -65,11 +71,11 @@ class DatasetBundle:
 
 
 def _load_dataset(ds: dict) -> DatasetBundle | None:
-    if not os.path.exists(ds["npz"]):
+    try:
+        jt = load_comparison_joined(ds["label"], ds["ace_csv"])
+    except FileNotFoundError:
         return None
-    gc = load_gc_npz(ds["npz"])
-    rows = load_ace_features(ds["ace_csv"])
-    return DatasetBundle(label=ds["label"], jt=build_joined_table(gc, rows, ds["label"]))
+    return DatasetBundle(label=ds["label"], jt=jt)
 
 
 def _field_limits(panels: list[dict]) -> tuple[float, float]:
@@ -91,10 +97,12 @@ def _panel_payload(bundle: DatasetBundle, n_ir: int, o_idx: int) -> dict | None:
     jt_sub = subset_joined_table_by_n_ir(bundle.jt, n_ir)
     if jt_sub is None:
         return None
+    gas_mask = gas_structure_mask(jt_sub["formulas_gc"])
     return {
         "Ts": jt_sub["Ts"],
         "Ps": jt_sub["Ps"],
         "field": ensemble_o_motif_per_ir_map(jt_sub, o_idx),
+        "f_gas": gas_population_fraction(jt_sub["Pgi"], gas_mask),
     }
 
 
@@ -124,6 +132,7 @@ def _render_map(
     )
 
     mesh_ref = None
+    cbar_norm = Normalize(vmin=vmin, vmax=vmax)
     last_row = len(IR_COUNTS) - 1
     for row, n_ir in enumerate(IR_COUNTS):
         for col, label in enumerate(("PBE", "PBE0")):
@@ -137,14 +146,16 @@ def _render_map(
 
             Ts, Ps = panel["Ts"], panel["Ps"]
             Z = np.asarray(panel["field"], dtype=float)
+            rgb = scalar_field_rgb_with_gas(
+                Z, panel["f_gas"], cmap=PHASE_CMAP, vmin=vmin, vmax=vmax,
+            )
             mesh = ax.pcolormesh(
-                Ts, Ps, Z, shading="auto",
-                cmap=PHASE_CMAP,
-                norm=Normalize(vmin=vmin, vmax=vmax),
+                Ts, Ps, rgb, shading="auto",
                 rasterized=True,
             )
             if mesh_ref is None:
-                mesh_ref = mesh
+                mesh_ref = ScalarMappable(norm=cbar_norm, cmap=PHASE_CMAP)
+                mesh_ref.set_array([])
 
             title = label if row == 0 else ""
             style_ir_size_panel_ax(ax, n_ir, col, row, last_row, title=title)

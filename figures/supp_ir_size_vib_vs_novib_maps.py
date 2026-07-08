@@ -16,14 +16,15 @@ from matplotlib.colors import Normalize
 from figures.config import (
     ACE_FEATURES,
     DPI,
-    GC_NPZ,
     GC_VARIANTS_NPZ,
     OUTPUT_DIR,
     PHASE_CMAP,
+    SUPP_IR_COUNTS,
 )
+from figures.utils.comparison import build_comparison_joined_table, load_gc_comparison_view
 from figures.utils.cache import ensure_for_supplementary
 from figures.utils.gc_subset import oxidation_map_by_n_ir
-from figures.utils.io import ensure_dirs, load_ace_features, load_gc_npz, load_npz
+from figures.utils.io import ensure_dirs, load_ace_features, load_npz
 from figures.utils.plotting import (
     AXIS_LABEL_FONTSIZE,
     add_phase_colorbar,
@@ -37,8 +38,8 @@ from figures.utils.plotting import (
 OUTPUT_PATH = os.path.join(OUTPUT_DIR, "supp_ir_size_vib_vs_novib_maps.svg")
 FIG_W_MM = 180
 ROW_H_MM = 32
-FIG_H_MM = 7 * ROW_H_MM
-IR_COUNTS = list(range(3, 10))
+FIG_H_MM = len(SUPP_IR_COUNTS) * ROW_H_MM
+IR_COUNTS = SUPP_IR_COUNTS
 LAYOUT_RECT = [0, 0, 0.84, 1]
 CBAR_GAP = 0.01
 CBAR_WIDTH = 0.012
@@ -75,18 +76,26 @@ def main() -> None:
     Ts, Ps = vd["Ts"], vd["Ps"]
     stoich = np.asarray(vd["stoich"], dtype=float)
 
-    gc = load_gc_npz(GC_NPZ, light=True)
-    formulas = np.asarray(gc["formulas"], dtype=object)
+    gc_ref = load_gc_comparison_view("PBE", light=True)
     rows = load_ace_features(ACE_FEATURES["PBE"])
-    n = min(formulas.size, vd["full_Pgi"].shape[0], len(rows))
-    formulas = formulas[:n]
-    n_ir = np.array([r["n_Ir"] for r in rows[:n]], dtype=int)
+    n_gc = min(
+        len(gc_ref["formulas"]),
+        vd["full_Pgi"].shape[0],
+        vd["novib_Pgi"].shape[0],
+    )
+    jt = build_comparison_joined_table(
+        {**gc_ref, "Pgi": gc_ref["Pgi"][:n_gc]},
+        rows,
+        "PBE",
+    )
+    n_ir = np.asarray(jt["n_Ir"], dtype=int)
+    formulas = np.asarray(jt["formulas_gc"], dtype=object)
 
     grid: dict[tuple[int, str], dict] = {}
     for n_ir_target in IR_COUNTS:
         for pgi_key, col_label in COLUMN_SPECS:
             panel = oxidation_map_by_n_ir(
-                Ts, Ps, vd[pgi_key][:n], stoich[:n], n_ir, n_ir_target,
+                Ts, Ps, vd[pgi_key][:n_gc], stoich[:n_gc], n_ir, n_ir_target,
                 formulas=formulas,
             )
             if panel is not None:

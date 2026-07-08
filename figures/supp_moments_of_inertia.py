@@ -1,18 +1,16 @@
-"""Supplementary – moments of inertia shape + extent (3×1 3D).
+"""Supplementary – moments of inertia shape + extent (3×2).
 
-Each panel plots parent-structure inertia descriptors
-``(I_1/I_3, I_2/I_3, log_extent)`` with mass-weighted principal moments.
-Extent on the **E** axis uses ``EXTENT_NORMALIZATION`` with ``EXTENT_BLEND``
-(partial correction toward shape-aware mass exponent).
+Column 1 — 3D shape × extent panels (same view/markers as fig. 2 moment-ratio column).
+Column 2 — S/L/P floor triangle only (perpendicular to extent), same colouring.
 
 Rows:
-  1. O atoms — colour = parent-structure O motif composition (RGB mix, as in fig03)
-  2. Ir atoms — colour = parent-structure Ir motif composition (RGB mix, as in fig03)
-  3. Structures — coloured by pooled structure cluster (C*)
+  1. O atoms — parent-structure O motif composition (RGB mix)
+  2. Ir atoms — parent-structure Ir motif composition (RGB mix)
+  3. Structures — pooled structure cluster (C*)
 
 Output: ``figures/outputs/supp_momentsofinertia.svg``
 
-Interactive viewer (rotate panels, synced; press ``p`` to print elev/azim):
+Interactive viewer (rotate 3D panels, synced; press ``p`` to print elev/azim):
 
     python figures/supp_moments_of_inertia.py --interactive
 """
@@ -42,38 +40,41 @@ from figures.utils.cache import ensure_for_supplementary
 from figures.utils.inertia_triangle import (
     MOMENT_RATIO_ZORDER_DATA,
     overlay_moment_ratio_corner_guides_3d,
+    style_bare_inertia_triangle,
     style_inertia_shape_extent_3d,
 )
 from figures.utils.io import ensure_dirs
 from figures.utils.plotting import ir_motif_colors, o_motif_colors, save_fig
 
 OUTPUT_PATH = os.path.join(OUTPUT_DIR, "supp_momentsofinertia.svg")
-FIG_W_MM = 80
-FIG_H_MM = 300  # three 3D panels (taller → more extent-axis separation)
+FIG_W_MM = 160
+FIG_H_MM = 300  # three rows (taller → more extent-axis separation)
+COL_WSPACE = 0.06
 EXTENT_NORMALIZATION = "partial"
 EXTENT_BLEND = 0.1
 PANEL_HSPACE = -0.18  # overlap 3D panel gaps (matplotlib leaves empty rows otherwise)
+PANEL_HSPACE_2D = 0.04
 PANEL_GRID_LEFT = -0.12  # extend axes left to trim SVG margin
 PANEL_GRID_RIGHT = 1.02
 # Expand axes box into margins after layout (embedded multipanel figures).
 MOMENT_RATIO_AXES_LEFT_EXPAND = 0.20
 MOMENT_RATIO_AXES_RIGHT_EXPAND = 0.05
-# Fig02 embed: larger markers, wider column, stronger margin trim, tweaked view.
+# Fig. 2 moment-ratio column (shared with ``fig02_motif_clustering_panel``).
 MOMENT_RATIO_EMBED_MARKER_SCALE = 0.13
 MOMENT_RATIO_EMBED_MARKER_S = 11.0
-MOMENT_RATIO_EMBED_AXES_SCALE = 1.18
 MOMENT_RATIO_EMBED_LEFT_EXPAND = 0.40
 MOMENT_RATIO_EMBED_RIGHT_EXPAND = 0.06
 MOMENT_RATIO_EMBED_AZIM = -50.0
+FLOOR_MARKER_SCALE = 0.10
 SAVE_PAD_INCHES = 0.01
-MARKER_SCALE = 0.10
-MARKER_S = 8.0
+MARKER_SCALE = MOMENT_RATIO_EMBED_MARKER_SCALE
+MARKER_S = MOMENT_RATIO_EMBED_MARKER_S
 ATOM_ALPHA = 0.35
 INTERACTIVE_MAX_POINTS = 5000
 INTERACTIVE_MARKER_S = 6.0
 INTERACTIVE_STRUCT_MARKER_S = 10.0
 INTERACTIVE_DPI = 100
-INTERACTIVE_FIG_W_MM = 120
+INTERACTIVE_FIG_W_MM = 240
 INTERACTIVE_FIG_H_MM = 400
 INTERACTIVE_MARKER_SCALE = 0.09
 PANEL_TITLES = ("O atoms", "Ir atoms", "Structures")
@@ -159,6 +160,57 @@ def _scatter_clusters_by_dataset_3d(
                 x[mask], y[mask], z[mask], c=[col], s=sizes, alpha=alpha,
                 marker=mk, edgecolors="none", depthshade=False,
                 zorder=MOMENT_RATIO_ZORDER_DATA,
+            )
+
+
+def _scatter_rgb_by_dataset_2d(
+    ax,
+    x: np.ndarray,
+    y: np.ndarray,
+    rgb: np.ndarray,
+    ds: np.ndarray,
+    *,
+    sizes: float,
+    alpha: float,
+) -> None:
+    ds = np.asarray(ds, dtype=int)
+    for di, name in enumerate(DATASET_NAMES):
+        mask = ds == di
+        if not mask.any():
+            continue
+        ax.scatter(
+            x[mask], y[mask], c=rgb[mask], s=sizes, alpha=alpha,
+            marker=DATASET_MARKERS[name],
+            edgecolors="none", zorder=MOMENT_RATIO_ZORDER_DATA,
+        )
+
+
+def _scatter_clusters_by_dataset_2d(
+    ax,
+    x: np.ndarray,
+    y: np.ndarray,
+    labels: np.ndarray,
+    colors: list,
+    ds: np.ndarray,
+    *,
+    sizes: float,
+    alpha: float,
+) -> None:
+    labels = np.asarray(labels, dtype=int)
+    ds = np.asarray(ds, dtype=int)
+    for di, name in enumerate(DATASET_NAMES):
+        ds_mask = ds == di
+        if not ds_mask.any():
+            continue
+        mk = DATASET_MARKERS[name]
+        for c in np.unique(labels[ds_mask]):
+            mask = ds_mask & (labels == c)
+            if not mask.any():
+                continue
+            col = colors[int(c) % len(colors)]
+            ax.scatter(
+                x[mask], y[mask], c=[col], s=sizes, alpha=alpha,
+                marker=mk, edgecolors="none", zorder=MOMENT_RATIO_ZORDER_DATA,
             )
 
 
@@ -344,6 +396,50 @@ def draw_moment_ratio_inertia_column(
     return [ax0, ax1, ax2], z_lim
 
 
+def draw_moment_ratio_floor_column(
+    fig,
+    gs,
+    data: dict,
+    *,
+    marker_scale: float = FLOOR_MARKER_SCALE,
+    atom_marker_s: float = MARKER_S,
+    struct_marker_s: float = MARKER_S,
+    atom_alpha: float = ATOM_ALPHA,
+) -> list:
+    """Draw O / Ir / structure floor-triangle panels (S/L/P only, no extent axis)."""
+    sx, sy, _, sc, sd = data["struct"]
+    ox, oy, _, o_rgb, od = data["o"]
+    ix, iy, _, ir_rgb, id_ = data["ir"]
+    k_c = int(sc.max()) + 1 if sc.size else 1
+    struct_colors = [
+        struct_cluster_palette(k_c)(c % struct_cluster_palette(k_c).N) for c in range(k_c)
+    ]
+
+    def _draw_panel(ax, x, y, scatter_fn, *scatter_args, **scatter_kw) -> None:
+        style_bare_inertia_triangle(ax, marker_scale=marker_scale)
+        scatter_fn(ax, x, y, *scatter_args, **scatter_kw)
+
+    ax0 = fig.add_subplot(gs[0])
+    _draw_panel(
+        ax0, ox, oy, _scatter_rgb_by_dataset_2d, o_rgb, od,
+        sizes=atom_marker_s, alpha=atom_alpha,
+    )
+
+    ax1 = fig.add_subplot(gs[1])
+    _draw_panel(
+        ax1, ix, iy, _scatter_rgb_by_dataset_2d, ir_rgb, id_,
+        sizes=atom_marker_s, alpha=atom_alpha,
+    )
+
+    ax2 = fig.add_subplot(gs[2])
+    _draw_panel(
+        ax2, sx, sy, _scatter_clusters_by_dataset_2d, sc, struct_colors, sd,
+        sizes=struct_marker_s, alpha=0.85,
+    )
+
+    return [ax0, ax1, ax2]
+
+
 def adjust_moment_ratio_panel_positions(
     axes,
     *,
@@ -388,25 +484,54 @@ def build_figure(data, *, interactive: bool = False):
     fig_dpi = INTERACTIVE_DPI if interactive else DPI
     atom_marker_s = INTERACTIVE_MARKER_S if interactive else MARKER_S
     struct_marker_s = INTERACTIVE_STRUCT_MARKER_S if interactive else MARKER_S
+    marker_scale = INTERACTIVE_MARKER_SCALE if interactive else MARKER_SCALE
 
     fig = plt.figure(figsize=(fig_w / 25.4, fig_h / 25.4), dpi=fig_dpi)
     plt.rcParams["svg.fonttype"] = "none"
 
-    gs = fig.add_gridspec(
-        3, 1,
+    outer = fig.add_gridspec(
+        3, 2,
         left=PANEL_GRID_LEFT if not interactive else 0.0,
         right=PANEL_GRID_RIGHT if not interactive else 1.0,
         top=1.0, bottom=0.0,
+        wspace=COL_WSPACE if not interactive else 0.08,
+    )
+    gs_3d = outer[:, 0].subgridspec(
+        3, 1,
         hspace=PANEL_HSPACE if not interactive else 0.04,
     )
+    gs_2d = outer[:, 1].subgridspec(
+        3, 1,
+        hspace=PANEL_HSPACE_2D if not interactive else 0.04,
+    )
 
-    axes, z_lim = draw_moment_ratio_inertia_column(
-        fig, gs, data,
-        marker_scale=INTERACTIVE_MARKER_SCALE if interactive else MARKER_SCALE,
+    axes_3d, z_lim = draw_moment_ratio_inertia_column(
+        fig, gs_3d, data,
+        marker_scale=marker_scale,
+        atom_marker_s=atom_marker_s,
+        struct_marker_s=struct_marker_s,
+        azim=MOMENT_RATIO_EMBED_AZIM,
+    )
+    axes_2d = draw_moment_ratio_floor_column(
+        fig, gs_2d, data,
+        marker_scale=FLOOR_MARKER_SCALE,
         atom_marker_s=atom_marker_s,
         struct_marker_s=struct_marker_s,
     )
-    return fig, axes, z_lim, (sx.size, ox.size, ix.size, k_c)
+
+    if not interactive:
+        adjust_moment_ratio_panel_positions(
+            axes_3d,
+            left_expand=MOMENT_RATIO_EMBED_LEFT_EXPAND,
+            right_expand=MOMENT_RATIO_EMBED_RIGHT_EXPAND,
+        )
+        adjust_moment_ratio_panel_positions(
+            axes_2d,
+            left_expand=MOMENT_RATIO_AXES_LEFT_EXPAND,
+            right_expand=MOMENT_RATIO_AXES_RIGHT_EXPAND,
+        )
+
+    return fig, axes_3d, axes_2d, z_lim, (sx.size, ox.size, ix.size, k_c)
 
 
 def _use_interactive_backend() -> str:
@@ -434,11 +559,11 @@ def main(*, interactive: bool = False) -> None:
     ensure_dirs(OUTPUT_DIR)
 
     data = load_pooled()
-    fig, axes, z_lim, counts = build_figure(data, interactive=interactive)
+    fig, axes_3d, axes_2d, z_lim, counts = build_figure(data, interactive=interactive)
     n_struct, n_o, n_ir, k_c = counts
 
     if interactive:
-        _attach_interactive_viewer(fig, axes, PANEL_TITLES)
+        _attach_interactive_viewer(fig, axes_3d, PANEL_TITLES)
         plt.show()
         return
 

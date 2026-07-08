@@ -246,6 +246,21 @@ def style_inertia_triangle(ax: Axes, *, marker_scale: float = 0.10) -> float:
     return _draw_moment_ratio_guides_2d(ax, marker_scale=marker_scale)
 
 
+def style_bare_inertia_triangle(ax: Axes, *, marker_scale: float = 0.10) -> None:
+    """S/L/P triangle guides only — no axis box or tick labels (fig. 2 floor view)."""
+    xlim, ylim = _moment_ratio_tight_xy_limits()
+    ax.set_xlim(xlim)
+    ax.set_ylim(ylim)
+    ax.set_aspect("equal", "box")
+    _draw_moment_ratio_guides_2d(ax, marker_scale=marker_scale)
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.set_xlabel("")
+    ax.set_ylabel("")
+    for spine in ax.spines.values():
+        spine.set_visible(False)
+
+
 def _hide_3d_axes_ui(ax) -> None:
     """Hide ticks, labels, grid, and box panes (data + collections remain)."""
     ax.set_xticks([])

@@ -20,20 +20,22 @@ from matplotlib.colors import Normalize
 from figures.config import (
     ACE_FEATURES,
     DPI,
-    GC_NPZ,
     GC_NPZ_PBE0,
     GC_VARIANTS_NPZ,
     O2_REF_PBE,
     O2_REF_PBE0,
     OUTPUT_DIR,
     PHASE_CMAP,
+    SUPP_IR_COUNTS,
 )
+from figures.utils.comparison import build_comparison_joined_table, load_gc_comparison_view
 from figures.utils.cache import ensure_for_supplementary
-from figures.utils.gc_subset import structure_g_curves_by_ir_at_temperature
+from figures.utils.gc_subset import ir_size_reservoir_mask, structure_g_curves_by_ir_at_temperature
 from figures.utils.gc_thermo import o2_chemical_potential_grid
 from figures.utils.io import (
     ensure_dirs,
     load_ace_features,
+    load_gc_npz,
     load_gc_pbe_novib_g_tensor,
     load_npz,
 )
@@ -48,8 +50,8 @@ from figures.utils.plotting import (
 
 FIG_W_MM = 180
 ROW_H_MM = 32
-FIG_H_MM = 7 * ROW_H_MM
-IR_COUNTS = list(range(3, 10))
+FIG_H_MM = len(SUPP_IR_COUNTS) * ROW_H_MM
+IR_COUNTS = SUPP_IR_COUNTS
 TEMPERATURES_K = (273.0, 500.0)
 LINE_WIDTH = 0.7
 ENVELOPE_LINE_WIDTH = 0.35
@@ -61,10 +63,10 @@ def _output_path(temperature_k: float) -> str:
     return os.path.join(OUTPUT_DIR, f"supp_gc_g_vs_mu_{int(temperature_k)}K.svg")
 
 
-def _stoich_limits(stoich: np.ndarray, n_ir: np.ndarray) -> tuple[float, float]:
-    vals: list[float] = []
+def _stoich_limits(stoich: np.ndarray, n_ir: np.ndarray, formulas: np.ndarray) -> tuple[float, float]:
+    vals: list[float] = [2.0, 3.0]
     for n in IR_COUNTS:
-        mask = n_ir == n
+        mask = ir_size_reservoir_mask(n_ir, n, formulas)
         if np.any(mask):
             vals.extend(np.asarray(stoich[mask], dtype=float).tolist())
     if not vals:
@@ -348,24 +350,24 @@ def main() -> None:
 
     G_pbe, gc_pbe = load_gc_pbe_novib_g_tensor(GC_VARIANTS_NPZ)
     stoich_pbe = np.asarray(load_npz(GC_VARIANTS_NPZ, keys=("stoich",))["stoich"], dtype=float)
-    formulas_pbe = load_npz(GC_NPZ, keys=("formulas",))["formulas"]
     rows_pbe = load_ace_features(ACE_FEATURES["PBE"])
-    n_ir_pbe = np.array([r["n_Ir"] for r in rows_pbe[: gc_pbe["Pgi"].shape[0]]], dtype=int)
-
-    gc0_data = load_npz(
-        GC_NPZ_PBE0,
-        keys=("Ts", "Ps", "G_tensor", "stoich", "formulas"),
+    jt_pbe = build_comparison_joined_table(
+        load_gc_comparison_view("PBE"), rows_pbe, "PBE",
     )
+    n_ir_pbe = np.asarray(jt_pbe["n_Ir"], dtype=int)
+
+    gc0_data = load_gc_npz(GC_NPZ_PBE0)
     mu_pbe0 = o2_chemical_potential_grid(
         O2_REF_PBE0, gc0_data["Ts"], gc0_data["Ps"],
         novib=True, relative_to_molecule=True,
     )
     stoich_pbe0 = np.asarray(gc0_data["stoich"], dtype=float)
     rows_pbe0 = load_ace_features(ACE_FEATURES["PBE0"])
-    n_ir_pbe0 = np.array([r["n_Ir"] for r in rows_pbe0[: gc0_data["G_tensor"].shape[0]]], dtype=int)
+    jt_pbe0 = build_comparison_joined_table(gc0_data, rows_pbe0, "PBE0")
+    n_ir_pbe0 = np.asarray(jt_pbe0["n_Ir"], dtype=int)
 
-    vmin, vmax = _stoich_limits(stoich_pbe, n_ir_pbe)
-    vmin0, vmax0 = _stoich_limits(stoich_pbe0, n_ir_pbe0)
+    vmin, vmax = _stoich_limits(stoich_pbe, n_ir_pbe, jt_pbe["formulas_gc"])
+    vmin0, vmax0 = _stoich_limits(stoich_pbe0, n_ir_pbe0, jt_pbe0["formulas_gc"])
     norm = Normalize(vmin=min(vmin, vmin0), vmax=max(vmax, vmax0))
     cmap = plt.get_cmap(PHASE_CMAP)
 
@@ -375,14 +377,14 @@ def main() -> None:
         t_idx_pbe, t_used = temperature_grid_index(Ts, temperature_k)
         mu = np.asarray(mu_pbe[:, t_idx_pbe], dtype=float)
         pbe_panels = _panel_data(
-            G_pbe, stoich_pbe, n_ir_pbe, mu, t_idx_pbe, formulas_pbe,
+            G_pbe, stoich_pbe, n_ir_pbe, mu, t_idx_pbe, jt_pbe["formulas_gc"],
         )
 
         t_idx_pbe0, _ = temperature_grid_index(gc0_data["Ts"], temperature_k)
         mu0 = np.asarray(mu_pbe0[:, t_idx_pbe0], dtype=float)
         pbe0_panels = _panel_data(
             gc0_data["G_tensor"], stoich_pbe0, n_ir_pbe0, mu0, t_idx_pbe0,
-            gc0_data["formulas"],
+            jt_pbe0["formulas_gc"],
         )
         _build_figure(
             temperature_k,

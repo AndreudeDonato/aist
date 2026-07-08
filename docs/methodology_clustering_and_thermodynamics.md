@@ -16,6 +16,8 @@ This document describes the computational methodology implemented in the `aist` 
 
 **Derived cache**: `figures/cache/` (ACE CSV/NPZ/JSON, grand-canonical NPZ, GC variants).
 
+For support-stabilization proxy, IrO₂/IrO₃ gas reservoir, and literature framing (Reichenbach / Kempen), see [gc_support_gas_reservoir.md](gc_support_gas_reservoir.md).
+
 ---
 
 ## 1. Datasets and scope

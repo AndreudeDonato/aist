@@ -31,12 +31,12 @@ def check_gc_grid(path: str, n_t: int, n_p: int) -> None:
 
 
 def check_gc_variants_npz(path: str) -> None:
-    """Ensure variant NPZ includes full ``Pgi`` tensors for Figures 3 and 8."""
+    """Ensure variant NPZ includes full ``Pgi`` tensors for GC variant figures."""
     check_file(path, "gc_variants")
     data = np.load(path)
     required = (
         "Ts", "Ps", "full_Pgi", "novib_Pgi", "full_phase_index",
-        "novib_phase_index", "novib_G_tensor",
+        "novib_phase_index", "novib_G_tensor", "full_G_tensor",
     )
     missing = [k for k in required if k not in data]
     if missing:
@@ -59,13 +59,19 @@ def validate_cache_for_figures(fig_nums: set[int]) -> None:
         GC_VARIANTS_NPZ,
         TRAJ_PBE0,
     )
+    from figures.utils.comparison import count_gas_structures
     from figures.utils.io import load_ace_features, load_gc_npz, load_traj
 
     needs_ace = bool(fig_nums & {2, 3, 6})
-    needs_gc = bool(fig_nums & {3, 6, 7, 8, 9, 10, 12})
-    needs_variants = bool(fig_nums & {3, 7, 9, 10, 12})
-    needs_gc_join = bool(fig_nums & {9})
-    needs_pbe0_gc = bool(fig_nums & {3, 6, 10})
+    needs_gc = bool(fig_nums & {3, 4, 5, 6, 7, 8, 9})
+    needs_variants = bool(fig_nums & {3, 4, 5, 7, 8})
+    needs_gc_join = False
+    needs_pbe0_gc = bool(fig_nums & {3, 4, 5, 6})
+
+    n_gas_pbe = count_gas_structures("PBE")
+    n_gas_pbe0 = count_gas_structures("PBE0")
+    n_expected_pbe = len(list(load_traj(GC_STRUCTURES))) + n_gas_pbe
+    n_expected_pbe0 = len(list(load_traj(TRAJ_PBE0))) + n_gas_pbe0
 
     if needs_ace:
         from figures.config import ACE_ATOM_IR_NPZ, ACE_ATOM_O_NPZ, ACE_STRUCT_NPZ, MOTIF_JSON
@@ -84,13 +90,12 @@ def validate_cache_for_figures(fig_nums: set[int]) -> None:
         check_file(GC_NPZ, "grand-canonical")
         check_gc_grid(GC_NPZ, GC_N_T, GC_N_P)
         gc = load_gc_npz(GC_NPZ)
-        n_traj = len(list(load_traj(GC_STRUCTURES)))
-        if gc["Pgi"].shape[0] != n_traj:
+        if gc["Pgi"].shape[0] != n_expected_pbe:
             raise ValueError(
-                f"GC NPZ has {gc['Pgi'].shape[0]} structures but "
-                f"{GC_STRUCTURES} has {n_traj}. Rebuild cache."
+                f"GC NPZ has {gc['Pgi'].shape[0]} structures, expected {n_expected_pbe}. "
+                "Rebuild cache."
             )
-        if needs_gc_join:
+        if needs_gc_join and n_gas_pbe == 0:
             rows = load_ace_features(GC_ACE_FEATURES)
             check_gc_ace_alignment(gc, rows, "PBE")
 
@@ -98,20 +103,27 @@ def validate_cache_for_figures(fig_nums: set[int]) -> None:
         check_file(GC_NPZ_PBE0, "grand-canonical PBE0")
         check_gc_grid(GC_NPZ_PBE0, GC_N_T, GC_N_P)
         gc0 = load_gc_npz(GC_NPZ_PBE0)
-        n_traj0 = len(list(load_traj(TRAJ_PBE0)))
-        if gc0["Pgi"].shape[0] != n_traj0:
+        if gc0["Pgi"].shape[0] != n_expected_pbe0:
             raise ValueError(
-                f"PBE0 GC NPZ has {gc0['Pgi'].shape[0]} structures but "
-                f"{TRAJ_PBE0} has {n_traj0}. Rebuild cache."
+                f"PBE0 GC NPZ has {gc0['Pgi'].shape[0]} structures, "
+                f"expected {n_expected_pbe0}. Rebuild cache."
             )
-        rows_pbe = load_ace_features(ACE_FEATURES["PBE"])
-        rows_pbe0 = load_ace_features(ACE_FEATURES["PBE0"])
-        check_gc_ace_alignment(gc, rows_pbe, "PBE")
-        check_gc_ace_alignment(gc0, rows_pbe0, "PBE0")
+        if n_gas_pbe == 0:
+            check_gc_ace_alignment(
+                load_gc_npz(GC_NPZ), load_ace_features(ACE_FEATURES["PBE"]), "PBE",
+            )
+        if n_gas_pbe0 == 0:
+            check_gc_ace_alignment(gc0, load_ace_features(ACE_FEATURES["PBE0"]), "PBE0")
 
     if needs_variants:
         check_gc_variants_npz(GC_VARIANTS_NPZ)
         check_gc_grid(GC_VARIANTS_NPZ, GC_N_T, GC_N_P)
+        vd = np.load(GC_VARIANTS_NPZ)
+        if int(vd["novib_Pgi"].shape[0]) != n_expected_pbe:
+            raise ValueError(
+                f"gc_variants novib has {vd['novib_Pgi'].shape[0]} structures, "
+                f"expected {n_expected_pbe}. Rebuild cache."
+            )
 
 
 def check_vib_availability(structures, dataset: str, required: bool = True) -> int:

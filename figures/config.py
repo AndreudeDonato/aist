@@ -28,8 +28,79 @@ TRAJ_PBE = os.path.join(RAW_DATA_DIR, "IryOxPBE.traj")
 TRAJ_PBE0 = os.path.join(RAW_DATA_DIR, "IryOxPBE0.traj")
 O2_REF_PBE = os.path.join(RAW_DATA_DIR, "O2_PBE.xyz")
 O2_REF_PBE0 = os.path.join(RAW_DATA_DIR, "O2_PBE0.xyz")
+O2_RUTILE_PBE = os.path.join(RAW_DATA_DIR, "O2_PBE_corrected.xyz")
+O2_RUTILE_PBE0 = os.path.join(RAW_DATA_DIR, "O2_PBE0_corrected.xyz")
 IR_REF_PBE = os.path.join(RAW_DATA_DIR, "IrPBE.xyz")
 IR_REF_PBE0 = os.path.join(RAW_DATA_DIR, "IrPBE0.xyz")
+IRO2_REF_PBE = os.path.join(RAW_DATA_DIR, "IrO2_PBE.traj")
+IRO3_REF_PBE = os.path.join(RAW_DATA_DIR, "IrO3_PBE.traj")
+IRO2_REF_PBE0 = os.path.join(RAW_DATA_DIR, "IrO2_PBE0.traj")
+IRO3_REF_PBE0 = os.path.join(RAW_DATA_DIR, "IrO3_PBE0.traj")
+
+IRO2_RUTILE_PBE = os.path.join(RAW_DATA_DIR, "IrO2_rutile_PBE.xyz")
+IRO2_RUTILE_PBE0 = os.path.join(RAW_DATA_DIR, "IrO2_rutile_PBE0.xyz")
+
+# Main-cluster GC gas pressures (Pa): fixed trace pressure, identical for both functionals.
+GC_GAS_P = {
+    "PBE": 1.0,
+    "PBE0": 1.0,
+}
+
+# Gas-reservoir thermo on IrO₂(g) / IrO₃(g) rows (figures patch after ``run_gc``).
+GC_GAS_INCLUDE_VIB = True
+GC_GAS_INCLUDE_ROT_TRANS = True
+
+# Support-stabilization proxy for the (approximately supported) clusters: every
+# cluster row is shifted by G -= EV_PER_IR + EV_PER_O * (n_O/n_Ir) per Ir atom,
+# i.e. -(EV_PER_IR*n_Ir + EV_PER_O*n_O) per cluster. Gas-reservoir rows are
+# unaffected. Per-Ir correction spans ~0.65–0.95 eV for typical n_O/n_Ir.
+GC_APPLY_SUPPORT_STAB = True
+GC_SUPPORT_STAB_EV_PER_IR = 0.65
+GC_SUPPORT_STAB_EV_PER_O = 0.1
+
+# Rutile supplementary GC: same fixed trace gas pressure as main-cluster GC.
+RUTILE_GC_GAS_P = 1.0
+
+# Anchor (T, pO₂) marked on ``supp_rutile_gc_phase_maps``; ΔG at ``RUTILE_GC_GAS_P`` is stored.
+RUTILE_GC_CALIBRATION_T_K = 1150.0
+
+GC_GAS_OXIDES = {
+    "PBE": [(IRO2_REF_PBE, GC_GAS_P["PBE"]), (IRO3_REF_PBE, GC_GAS_P["PBE"])],
+    "PBE0": [(IRO2_REF_PBE0, GC_GAS_P["PBE0"]), (IRO3_REF_PBE0, GC_GAS_P["PBE0"])],
+}
+
+# Rutile supplementary GC: separate T–p grid (see also ``gc_rutile_grid_config``).
+RUTILE_GC_T_MIN = 100.0
+RUTILE_GC_T_MAX = 1500.0
+RUTILE_GC_N_T = 500
+RUTILE_GC_P_MIN = 1.0e-10
+RUTILE_GC_P_MAX = 1.0e10
+RUTILE_GC_N_P = 500
+# Rutile supplementary GC is fully novib (rutile, O₂ μ, and gas reservoir).
+RUTILE_GC_GAS_USE_VIB = False
+RUTILE_GC_GAS_INCLUDE_ROT_TRANS = True
+
+# Master switch: IrO₂ / IrO₃ trace-gas reservoir in the **main-cluster** GC cache
+# and cluster figure joins (figs 3–4, 7–12, supp_ir_size_*, supp_gc_g_vs_mu).
+# Set to False and run ``python3 figures/build_all.py --rebuild-cache`` to omit them.
+# The rutile supplementary GC (``supp_rutile_gc_phase_maps``) always keeps gas oxides.
+GC_INCLUDE_GAS_RESERVOIR = False
+
+
+def gc_gas_reservoir_specs(dataset: str) -> list[tuple[str, float]]:
+    """IrO₂ / IrO₃ file + partial-pressure pairs when the reservoir is enabled."""
+    if not GC_INCLUDE_GAS_RESERVOIR:
+        return []
+    return list(GC_GAS_OXIDES.get(dataset, ()))
+
+
+def gc_rutile_gas_specs(dataset: str) -> list[tuple[str, float]]:
+    """IrO₂ / IrO₃ paths for the rutile supplementary GC (always enabled)."""
+    p = RUTILE_GC_GAS_P
+    if dataset == "PBE":
+        return [(IRO2_REF_PBE, p), (IRO3_REF_PBE, p)]
+    return [(IRO2_REF_PBE0, p), (IRO3_REF_PBE0, p)]
+
 
 REQUIRED_RAW_FILES = (
     TRAJ_PBE,
@@ -42,6 +113,9 @@ REQUIRED_RAW_FILES = (
 
 # Grand-canonical / thermo figures: full PBE structures
 GC_STRUCTURES = TRAJ_PBE
+GC_T_MIN = 100.0
+GC_T_MAX = 1000.0
+GC_T_TICKS = (200, 400, 600, 800, 1000)
 GC_N_T = 150
 GC_N_P = 150
 
@@ -85,10 +159,21 @@ GC_NPZ_PBE0 = os.path.join(CACHE_DIR, "grandcanonical_PBE0.npz")
 GC_NPZ_BY_DATASET = {"PBE": GC_NPZ, "PBE0": GC_NPZ_PBE0}
 GC_VARIANTS_NPZ = os.path.join(CACHE_DIR, "gc_variants.npz")
 
+# Rutile + gas reservoir supplementary GC (3-species: IrO₂ rutile, IrO₂(g), IrO₃(g))
+RUTILE_GC_CACHE_DIR = os.path.join(CACHE_DIR, "rutile_gc")
+RUTILE_GC_NPZ = {
+    "PBE": os.path.join(RUTILE_GC_CACHE_DIR, "grandcanonical_rutile_PBE.npz"),
+    "PBE0": os.path.join(RUTILE_GC_CACHE_DIR, "grandcanonical_rutile_PBE0.npz"),
+}
+RUTILE_GC_STRUCTURES = {
+    "PBE": os.path.join(RUTILE_GC_CACHE_DIR, "structures_PBE.traj"),
+    "PBE0": os.path.join(RUTILE_GC_CACHE_DIR, "structures_PBE0.traj"),
+}
+
 # Grand-canonical vib/ZPE on product and μ terms (per dataset NPZ cache).
-# PBE NPZ (grandcanonical_results.npz) includes vib for Figures 7–8, 10, etc.
-# Figure 5 PBE column uses novib tensors from gc_variants.npz (fair vs PBE0).
-# PBE0 frequencies unfinished → electronic-only GC until traj is complete.
+# PBE full NPZ (grandcanonical_results.npz) includes vib for PBE-only figures (7–9).
+# PBE | PBE0 comparisons use novib PBE (gc_variants) and electronic PBE0.
+# Gas oxides: rot/trans at trace P; vib only on PBE full NPZ, not in comparison views.
 GC_USE_VIB_ZPE_BY_DATASET = {"PBE": True, "PBE0": False}
 
 MINIMA_TRAJ = {
@@ -118,18 +203,39 @@ FIXED_POINTS = [
     {"label": "500K_ambient_pO2", "T": 500.0, "P": AMBIENT_PO2_PA},
 ]
 
+# Per-Ir supplementary rows: Ir₃…Ir₉ cluster buckets (gas oxides appear in every row)
+SUPP_IR_COUNTS = list(range(3, 10))
+
 # Figure 4: motif populations vs T at fixed pO₂ (Pa)
 FIG04_PRESSURE_PA = AMBIENT_PO2_PA
 FIG04_LOW_PRESSURE_PA = 1.0e-5
+FIG04_HIGH_PRESSURE_PA = AMBIENT_PO2_PA
 FIG04_SMOOTH_SIGMA = 1.0
+FIG04_IR_COUNTS = (3, 6, 9)   # main Fig. 4 atom-motif rows
 FIG04_POP_ZOOM_MIN = 60.0   # O terminal/bridging panel: y from 60% to 100%
 # O motif indices (SOAP–UMAP clustering): O-A1 ≈ terminal, O-A0 ≈ bridging
 FIG04_O_TERMINAL_IDX = 1
 FIG04_O_BRIDGING_IDX = 0
 FIG04_SPIN_XMAX = 1.0   # |Hirshfeld spin| display limit for O-spin KDE panels
 
+# Figure 6 (sublimation): PBE0 GC with gas + support variants
+FIG06_CACHE_DIR = os.path.join(CACHE_DIR, "fig06")
+FIG06_GC_NPZ_PBE0 = os.path.join(FIG06_CACHE_DIR, "grandcanonical_PBE0_with_gas_base.npz")
+FIG06_T_MIN = 100.0
+FIG06_T_MAX = 1400.0
+FIG06_N_T = 200
+FIG06_N_P = 150
+FIG06_PRESSURE_PA = AMBIENT_PO2_PA
+FIG06_SUPPORT_VARIANTS = (
+    {"label": "No support", "ev_per_ir": 0.0, "ev_per_o": 0.0},
+    {"label": r"0.5 eV/Ir, 0.05 eV/O", "ev_per_ir": 0.5, "ev_per_o": 0.05},
+    {"label": r"0.75 eV/Ir, 0.1 eV/O", "ev_per_ir": 0.75, "ev_per_o": 0.1},
+)
+
 # Figure 8: 1D ΔG-contribution cut at this pO₂ (Pa)
 FIG08_PRESSURE_PA = AMBIENT_PO2_PA
+# Stoichiometry panels: G_vib/n_Ir evaluated at this T (K); ZPE panels use T → 0 limit
+FIG08_VIB_G_TEMP_K = 273.0
 
 # ---------------------------------------------------------------------------
 # Plot style
@@ -146,15 +252,76 @@ ACE_SILHOUETTE_SAMPLE = 5000
 
 
 def gc_grid_config(**overrides):
-    """``GCConfig`` with the figure-pipeline T–p grid (default 400×400).
+    """``GCConfig`` with the figure-pipeline T–p grid (default 150×150, 1–1000 K).
 
     Override per-term flags, e.g. ``include_v_product``, ``include_zpe_mu``, etc.
     """
     from aist.core.grandcanonical import GCConfig
 
-    params = {"n_T": GC_N_T, "n_P": GC_N_P}
+    params = {
+        "T_min": GC_T_MIN,
+        "T_max": GC_T_MAX,
+        "n_T": GC_N_T,
+        "n_P": GC_N_P,
+    }
     params.update(overrides)
     return GCConfig(**params)
+
+
+def gc_rutile_grid_config(**overrides):
+    """T–p grid for the rutile + gas supplementary GC cache."""
+    from aist.core.grandcanonical import GCConfig
+
+    params = {
+        "T_min": RUTILE_GC_T_MIN,
+        "T_max": RUTILE_GC_T_MAX,
+        "n_T": RUTILE_GC_N_T,
+        "P_min": RUTILE_GC_P_MIN,
+        "P_max": RUTILE_GC_P_MAX,
+        "n_P": RUTILE_GC_N_P,
+    }
+    params.update(overrides)
+    return GCConfig(**params)
+
+
+def gc_rutile_cache_config(**overrides):
+    """Novib GC config for the 3-species rutile supplementary diagrams."""
+    use_vib = overrides.pop("use_vib_zpe", False)
+    thermo = {
+        "include_v_product": use_vib,
+        "include_zpe_product": use_vib,
+        "include_v_mu": use_vib,
+        "include_zpe_mu": use_vib,
+    }
+    thermo.update(overrides)
+    return gc_rutile_grid_config(include_decomposition=False, **thermo)
+
+
+def gc_fig06_grid_config(**overrides):
+    """T–p grid for the Fig. 6 sublimation GC cache (T up to 1400 K)."""
+    from aist.core.grandcanonical import GCConfig
+
+    params = {
+        "T_min": FIG06_T_MIN,
+        "T_max": FIG06_T_MAX,
+        "n_T": FIG06_N_T,
+        "n_P": FIG06_N_P,
+    }
+    params.update(overrides)
+    return GCConfig(**params)
+
+
+def gc_fig06_cache_config(**overrides):
+    """GC config for the Fig. 6 sublimation cache (T up to 1400 K)."""
+    use_vib = overrides.pop("use_vib_zpe", False)
+    thermo = {
+        "include_v_product": use_vib,
+        "include_zpe_product": use_vib,
+        "include_v_mu": use_vib,
+        "include_zpe_mu": use_vib,
+    }
+    thermo.update(overrides)
+    return gc_fig06_grid_config(include_decomposition=True, **thermo)
 
 
 def gc_cache_config(**overrides):

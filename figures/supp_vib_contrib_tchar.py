@@ -1,6 +1,6 @@
-"""Figure 8 – Vibrational contributions and characteristic temperature maps (PBE).
+"""Supplementary – Vibrational contributions and characteristic temperature maps (PBE).
 
-PBE structures carry ``atoms.info['frequencies']``; PBE0 vib data are not used.
+Former Figure 8. PBE structures carry ``atoms.info['frequencies']``; PBE0 vib data are not used.
 
 2×2 layout:
   (0,0): ΔG contributions vs T at fixed pO₂ (1D cut from G_contributions_3x2)
@@ -8,7 +8,7 @@ PBE structures carry ``atoms.info['frequencies']``; PBE0 vib data are not used.
   (1,0): ZPE vs oxygen content
   (1,1): Ensemble energy-weighted cluster Θ_eff(T) map (no O₂)
 
-Output: ``figures/outputs/fig08_vib_contrib_tchar.svg``
+Output: ``figures/outputs/supp_vib_contrib_tchar.svg``
 """
 from __future__ import annotations
 
@@ -25,10 +25,9 @@ from figures.config import (
     FIG08_PRESSURE_PA,
     OUTPUT_DIR,
     VIB_GC_NPZ,
-    VIB_TRAJ,
 )
-from figures.utils.cache import ensure_for_figures
-from figures.utils.io import ensure_dirs, load_gc_npz, load_traj
+from figures.utils.cache import ensure_for_supplementary
+from figures.utils.io import ensure_dirs, load_gc_npz, load_pbe_gc_structures
 from figures.utils.plotting import (
     TITLE_FONTSIZE,
     AXIS_LABEL_FONTSIZE,
@@ -36,7 +35,7 @@ from figures.utils.plotting import (
     LEGEND_FONTSIZE,
     CBAR_LABEL_FONTSIZE,
     draw_global_minimum_phase_overlay,
-    draw_tchar_boundary,
+    draw_vib_reference_contours,
     save_fig,
     stoichiometry_overlay_labels,
     style_phase_ax,
@@ -44,7 +43,7 @@ from figures.utils.plotting import (
 from figures.utils.validation import check_vib_availability
 from figures.utils.vib_metrics import tchar_energy_weighted_ensemble_map
 
-OUTPUT_PATH = os.path.join(OUTPUT_DIR, "fig08_vib_contrib_tchar.svg")
+OUTPUT_PATH = os.path.join(OUTPUT_DIR, "supp_vib_contrib_tchar.svg")
 
 
 def _pin_line_xlim(ax, xmin: float, xmax: float) -> None:
@@ -73,7 +72,9 @@ def _contributions_at_p_panel(ax, gc, pressure_pa: float) -> tuple[float, float]
         return None
 
 
-def _gcontrib_map_panel(ax, gc, key: str, title: str, cmap: str = "BrBG"):
+def _gcontrib_map_panel(
+    ax, gc, key: str, title: str, *, tchar_map=None, cmap: str = "BrBG",
+):
     Ts, Ps = gc["Ts"], gc["Ps"]
     Z = gc[key].astype(float)
     vmax = float(np.nanpercentile(np.abs(Z), 97))
@@ -84,6 +85,7 @@ def _gcontrib_map_panel(ax, gc, key: str, title: str, cmap: str = "BrBG"):
     draw_global_minimum_phase_overlay(
         ax, Ts, Ps, gc["phase_index"], overlay_labels,
     )
+    draw_vib_reference_contours(ax, Ts, Ps, tchar_map=tchar_map, gvib_map=Z)
     style_phase_ax(ax)
     ax.set_title(title, fontsize=TITLE_FONTSIZE)
     return mesh
@@ -119,9 +121,10 @@ def _zpe_panel(ax, structures) -> tuple[float, float] | None:
     return float(min(all_o)), float(max(all_o))
 
 
-def _tchar_panel(ax, gc, structures) -> None:
+def _tchar_panel(ax, gc, structures, *, tc_map=None) -> None:
     Ts, Ps = gc["Ts"], gc["Ps"]
-    tc_map = tchar_energy_weighted_ensemble_map(structures, gc["Pgi"], Ts)
+    if tc_map is None:
+        tc_map = tchar_energy_weighted_ensemble_map(structures, gc["Pgi"], Ts)
 
     if np.all(np.isnan(tc_map)):
         ax.text(0.5, 0.5, "No vib data — Θ_eff unavailable",
@@ -134,7 +137,8 @@ def _tchar_panel(ax, gc, structures) -> None:
     mesh = ax.pcolormesh(Ts, Ps, tc_map, shading="auto",
                          cmap="plasma", norm=Normalize(vmin=vmin, vmax=vmax),
                          rasterized=True)
-    draw_tchar_boundary(ax, Ts, Ps, tc_map)
+    gvib_map = gc.get("E_vib_avg")
+    draw_vib_reference_contours(ax, Ts, Ps, tchar_map=tc_map, gvib_map=gvib_map)
     style_phase_ax(ax)
     ax.set_title(r"Cluster $\langle\Theta_{\mathrm{eff}}(T)\rangle$", fontsize=TITLE_FONTSIZE)
     cbar = plt.colorbar(mesh, ax=ax, pad=0.02, fraction=0.046)
@@ -143,12 +147,18 @@ def _tchar_panel(ax, gc, structures) -> None:
 
 
 def main() -> None:
-    ensure_for_figures([8])
+    ensure_for_supplementary(["supp_vib_contrib_tchar"])
     ensure_dirs(OUTPUT_DIR)
 
     gc = load_gc_npz(VIB_GC_NPZ)
-    structures = list(load_traj(VIB_TRAJ))
+    structures = load_pbe_gc_structures()
+    if len(structures) != gc["Pgi"].shape[0]:
+        raise ValueError(
+            f"PBE structure count {len(structures)} != GC Pgi rows {gc['Pgi'].shape[0]}"
+        )
     check_vib_availability(structures, "PBE", required=False)
+
+    tc_map = tchar_energy_weighted_ensemble_map(structures, gc["Pgi"], gc["Ts"])
 
     fig, axes = plt.subplots(2, 2, figsize=(180 / 25.4, 130 / 25.4), dpi=DPI)
 
@@ -160,6 +170,7 @@ def main() -> None:
         m2 = _gcontrib_map_panel(
             axes[0, 1], gc, "E_vib_avg",
             r"Vibrational $\langle G_{vib}\rangle$ (eV)",
+            tchar_map=tc_map,
         )
         cbar = plt.colorbar(m2, ax=axes[0, 1], pad=0.02, fraction=0.046)
         cbar.set_label("eV", fontsize=CBAR_LABEL_FONTSIZE)
@@ -173,7 +184,7 @@ def main() -> None:
     zpe_xlim = _zpe_panel(axes[1, 0], structures)
 
     # (1,1): Tchar
-    _tchar_panel(axes[1, 1], gc, structures)
+    _tchar_panel(axes[1, 1], gc, structures, tc_map=tc_map)
 
     fig.tight_layout(pad=6 / 25.4)
     if dg_xlim is not None:
@@ -181,7 +192,7 @@ def main() -> None:
     if zpe_xlim is not None:
         _pin_line_xlim(axes[1, 0], *zpe_xlim)
     save_fig(fig, OUTPUT_PATH, dpi=DPI)
-    print(f"\n[fig08] {OUTPUT_PATH}")
+    print(f"[supp] {OUTPUT_PATH}")
 
 
 if __name__ == "__main__":

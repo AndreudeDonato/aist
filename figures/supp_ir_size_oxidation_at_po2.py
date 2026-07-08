@@ -1,13 +1,13 @@
-"""Figure 12 – Per-Ir curves vs T at ambient pO₂ (PBE | PBE0 | Δ).
+"""Supplementary – Per-Ir curves vs T at ambient pO₂ (PBE | PBE0 | Δ).
 
-2×3 layout at ``AMBIENT_PO2_PA``:
+Former Figure 12. 2×3 layout at ``AMBIENT_PO2_PA``:
   Row 1 — ensemble ``⟨n_O/n_Ir⟩`` vs T
   Row 2 — ensemble ``⟨HOMO–LUMO⟩`` vs T (same pressure)
   Columns: PBE, PBE0, PBE0 − PBE (dotted y = 0 behind curves).
 
-Ir₃…Ir₉ curves use the ``winter`` colormap (as the ZPE panel in fig08).
+Ir₃…Ir₉ curves use the ``winter`` colormap (as the ZPE panel in supp_vib_contrib_tchar).
 
-Output: ``figures/outputs/fig12_ir_size_oxidation_at_po2.svg``
+Output: ``figures/outputs/supp_ir_size_oxidation_at_po2.svg``
 """
 from __future__ import annotations
 
@@ -15,31 +15,30 @@ import os
 
 import matplotlib.pyplot as plt
 import numpy as np
-from ase.io import read
 from matplotlib.colors import Normalize
 
 from figures.config import (
     ACE_FEATURES,
     AMBIENT_PO2_PA,
     DPI,
-    GC_NPZ,
-    GC_NPZ_PBE0,
     GC_VARIANTS_NPZ,
     OUTPUT_DIR,
     TRAJ_PBE,
     TRAJ_PBE0,
 )
-from figures.utils.cache import ensure_for_figures
+from figures.utils.comparison import (
+    build_comparison_joined_table,
+    homo_lumo_gaps_for_comparison,
+    load_gc_comparison_view,
+)
+from figures.utils.cache import ensure_for_supplementary
 from figures.utils.gc_subset import (
     homo_lumo_vs_t_by_ir_at_pressure,
     oxidation_vs_t_by_ir_at_pressure,
 )
-from figures.utils.homo_lumo import homo_lumo_gaps
 from figures.utils.io import (
     ensure_dirs,
     load_ace_features,
-    load_gc_npz,
-    load_gc_pbe_novib_view,
     load_npz,
 )
 from figures.utils.plotting import (
@@ -50,7 +49,7 @@ from figures.utils.plotting import (
     LEGEND_FONTSIZE,
 )
 
-OUTPUT_PATH = os.path.join(OUTPUT_DIR, "fig12_ir_size_oxidation_at_po2.svg")
+OUTPUT_PATH = os.path.join(OUTPUT_DIR, "supp_ir_size_oxidation_at_po2.svg")
 FIG_W_MM = 180
 ROW_H_MM = 60
 FIG_H_MM = 2 * ROW_H_MM
@@ -65,16 +64,15 @@ ROW_SPECS = (
 
 def _load_dataset(label: str) -> tuple[dict, np.ndarray, np.ndarray, np.ndarray]:
     traj = TRAJ_PBE if label == "PBE" else TRAJ_PBE0
+    gc = load_gc_comparison_view(label, light=True)
+    rows = load_ace_features(ACE_FEATURES[label])
+    jt = build_comparison_joined_table(gc, rows, label)
     if label == "PBE":
-        gc = load_gc_pbe_novib_view(GC_VARIANTS_NPZ, GC_NPZ)
         stoich = np.asarray(load_npz(GC_VARIANTS_NPZ, keys=("stoich",))["stoich"], dtype=float)
     else:
-        gc = load_gc_npz(GC_NPZ_PBE0, light=True)
         stoich = np.asarray(gc["stoich"], dtype=float)
-    rows = load_ace_features(ACE_FEATURES[label])
-    n = gc["Pgi"].shape[0]
-    n_ir = np.array([r["n_Ir"] for r in rows[:n]], dtype=int)
-    gaps = homo_lumo_gaps(list(read(traj, ":"))[:n])
+    n_ir = np.asarray(jt["n_Ir"], dtype=int)
+    gaps = homo_lumo_gaps_for_comparison(label, traj, jt["n"])
     return gc, stoich, n_ir, gaps
 
 
@@ -178,7 +176,7 @@ def _y_limits(*line_dicts: dict[int, np.ndarray], include_diff: bool = False) ->
 
 
 def main() -> None:
-    ensure_for_figures([12])
+    ensure_for_supplementary(["supp_ir_size_oxidation_at_po2"])
     ensure_dirs(OUTPUT_DIR)
 
     gc_pbe, stoich_pbe, n_ir_pbe, gaps_pbe = _load_dataset("PBE")
@@ -245,7 +243,7 @@ def main() -> None:
 
     fig.tight_layout(pad=6 / 25.4)
     save_fig(fig, OUTPUT_PATH, dpi=DPI)
-    print(f"\n[fig12] {OUTPUT_PATH}")
+    print(f"[supp] {OUTPUT_PATH}")
 
 
 if __name__ == "__main__":

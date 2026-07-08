@@ -2,7 +2,7 @@
 
 Reference for the **main and supplementary figures** in the Ir/O nanoparticle paper. Each entry states what the figure shows, which data it uses, and how to regenerate it.
 
-For computational methodology (clustering, thermodynamics, joining), see [methodology_clustering_and_thermodynamics.md](methodology_clustering_and_thermodynamics.md).
+For computational methodology (clustering, thermodynamics, joining), see [methodology_clustering_and_thermodynamics.md](methodology_clustering_and_thermodynamics.md). For support proxy, gas reservoir, and Kempen/Reichenbach framing, see [gc_support_gas_reservoir.md](gc_support_gas_reservoir.md).
 
 **Regeneration**
 

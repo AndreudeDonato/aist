@@ -7,7 +7,7 @@ import numpy as np
 from ase import Atoms
 from ase.io import read
 
-from aist.composedthermo import process_frequencies
+from aist.composedthermo import compute_thermo_contributions, process_frequencies
 from aist.thermo import ThermoFromAtoms, ThermoPartitionFunctions
 
 
@@ -289,6 +289,225 @@ def zpe_global_minima_by_ir_content(
                 "n_o": int(r["n_o"]),
                 "zpe": float(r["zpe"]),
                 "zpe_diff": float(r["zpe"]) - zpe_ref,
+            })
+        out[n_ir] = enriched
+
+    return out
+
+
+def compute_vib_gibbs_contribution(atoms: Atoms, temperature_k: float) -> float:
+    """Vibrational Gibbs term G_vib = E_vib + ZPE − T S_vib (eV), cluster modes only.
+
+    Matches the product-side vibrational contribution in ``compute_gc`` decomposition
+    (``E_vib_avg``), excluding reference and μ(O₂) reservoir terms.
+    """
+    if prepare_vibrational_modes(atoms).size == 0:
+        return np.nan
+    T = float(temperature_k)
+    _, contrib = compute_thermo_contributions(
+        atoms,
+        np.array([T]),
+        np.array([1.0]),
+        include_v=True,
+        include_zpe=True,
+        include_r=False,
+        include_t=False,
+    )
+    return float(
+        contrib.get("ev", 0.0)
+        + contrib.get("zpe", 0.0)
+        - T * contrib.get("sv", 0.0)
+    )
+
+
+def g_vib_global_minima_per_ir_by_ir_content(
+    structures: list[Atoms] | str,
+    *,
+    temperature_k: float,
+    ir_symbol: str = "Ir",
+    o_symbol: str = "O",
+) -> dict[int, list[dict[str, Any]]]:
+    """Global-minimum G_vib/n_Ir vs O content, minus the n_O = 0 minimum for each Ir count.
+
+    Same stoichiometry selection as ``zpe_global_minima_by_ir_content``; values are
+    ``(G_vib / n_Ir) − (G_vib / n_Ir)_{n_O=0}`` in eV at fixed ``temperature_k``.
+    """
+    from aist.core.minima import select_stoichiometry_minima
+
+    if isinstance(structures, str):
+        structures = list(read(structures, ":"))
+
+    minima = select_stoichiometry_minima(
+        structures,
+        x_group_formula=ir_symbol,
+        y_group_formula=o_symbol,
+        orient=False,
+    )
+
+    grouped: dict[int, list[dict[str, Any]]] = {}
+    for n_ir, n_o, atoms in minima:
+        if n_ir <= 0:
+            continue
+        g_vib = compute_vib_gibbs_contribution(atoms, temperature_k)
+        if not np.isfinite(g_vib):
+            continue
+        grouped.setdefault(n_ir, []).append({
+            "n_o": n_o,
+            "g_vib": g_vib,
+            "g_vib_per_ir": float(g_vib) / float(n_ir),
+        })
+
+    out: dict[int, list[dict[str, Any]]] = {}
+    for n_ir, rows in grouped.items():
+        ref = next((r for r in rows if int(r["n_o"]) == 0), None)
+        if ref is None:
+            continue
+        g_ref_per_ir = float(ref["g_vib_per_ir"])
+        enriched = []
+        for r in rows:
+            g_per_ir = float(r["g_vib_per_ir"])
+            enriched.append({
+                "n_o": int(r["n_o"]),
+                "g_vib": float(r["g_vib"]),
+                "g_vib_per_ir": g_per_ir,
+                "g_vib_per_ir_diff": g_per_ir - g_ref_per_ir,
+            })
+        out[n_ir] = enriched
+
+    return out
+
+
+def _structure_stoichiometry_groups(
+    structures: list[Atoms],
+    *,
+    ir_symbol: str = "Ir",
+    o_symbol: str = "O",
+) -> dict[tuple[int, int], list[int]]:
+    groups: dict[tuple[int, int], list[int]] = {}
+    for i, atoms in enumerate(structures):
+        syms = atoms.get_chemical_symbols()
+        n_ir = sum(1 for s in syms if s == ir_symbol)
+        n_o = sum(1 for s in syms if s == o_symbol)
+        if n_ir <= 0:
+            continue
+        groups.setdefault((n_ir, n_o), []).append(i)
+    return groups
+
+
+def _renormalized_boltzmann_weights(
+    Pgi: np.ndarray,
+    indices: list[int],
+    p_idx: int,
+    t_idx: int,
+) -> np.ndarray:
+    """GC populations at ``(T, p)``, renormalized over ``indices`` only."""
+    idx = np.asarray(indices, dtype=int)
+    w = np.asarray(Pgi[idx, p_idx, t_idx], dtype=float)
+    if w.size == 0:
+        return w
+    w = np.where(np.isfinite(w) & (w >= 0.0), w, 0.0)
+    s = float(w.sum())
+    if s <= 0.0:
+        return np.full(w.size, 1.0 / w.size)
+    return w / s
+
+
+def _weighted_mean(values: np.ndarray, weights: np.ndarray) -> float:
+    mask = np.isfinite(values)
+    if not np.any(mask):
+        return np.nan
+    v = values[mask]
+    w = weights[mask]
+    s = float(w.sum())
+    if s <= 0.0:
+        return float(np.mean(v))
+    return float(np.dot(w / s, v))
+
+
+def boltzmann_weighted_vib_stoichiometry_by_ir_content(
+    structures: list[Atoms],
+    Pgi: np.ndarray,
+    Ts: np.ndarray,
+    Ps: np.ndarray,
+    *,
+    temperature_k: float,
+    pressure_pa: float,
+    zpe_temperature_k: float = 1.0,
+    ir_symbol: str = "Ir",
+    o_symbol: str = "O",
+) -> dict[int, list[dict[str, Any]]]:
+    """Boltzmann-weighted ZPE and G_vib/n_Ir vs O content, by Ir count.
+
+    At fixed ``(temperature_k, pressure_pa)``, weights within each
+    ``(n_Ir, n_O)`` bucket are ``Pgi`` renormalized over all isomers of that
+    stoichiometry (same Boltzmann rule as the GC ensemble, including
+    degeneracy). ZPE uses ``zpe_temperature_k``; ``G_vib`` uses
+    ``temperature_k``. Differences are referenced to the Boltzmann average at
+    ``n_O = 0`` for each ``n_Ir``.
+    """
+    from aist.core.grandcanonical import pressure_grid_index, temperature_grid_index
+
+    p_idx, _ = pressure_grid_index(Ps, pressure_pa)
+    t_idx, _ = temperature_grid_index(Ts, temperature_k)
+
+    n_s = min(len(structures), Pgi.shape[0])
+    structures = structures[:n_s]
+    Pgi = Pgi[:n_s]
+
+    zpe_all = np.array(
+        [compute_zpe_energy(s, zpe_temperature_k) for s in structures],
+        dtype=float,
+    )
+    g_vib_all = np.array(
+        [compute_vib_gibbs_contribution(s, temperature_k) for s in structures],
+        dtype=float,
+    )
+    n_vib_modes_all = np.array(
+        [float(prepare_vibrational_modes(s).size) for s in structures],
+        dtype=float,
+    )
+
+    groups = _structure_stoichiometry_groups(
+        structures, ir_symbol=ir_symbol, o_symbol=o_symbol,
+    )
+
+    avg: dict[tuple[int, int], dict[str, float]] = {}
+    for (n_ir, n_o), idxs in groups.items():
+        w = _renormalized_boltzmann_weights(Pgi, idxs, p_idx, t_idx)
+        avg[(n_ir, n_o)] = {
+            "zpe": _weighted_mean(zpe_all[idxs], w),
+            "g_vib": _weighted_mean(g_vib_all[idxs], w),
+            "g_vib_per_ir": _weighted_mean(g_vib_all[idxs] / float(n_ir), w),
+            "n_vib_modes": _weighted_mean(n_vib_modes_all[idxs], w),
+        }
+
+    by_ir: dict[int, list[dict[str, Any]]] = {}
+    for (n_ir, n_o), metrics in avg.items():
+        by_ir.setdefault(n_ir, []).append({"n_o": n_o, **metrics})
+
+    out: dict[int, list[dict[str, Any]]] = {}
+    for n_ir, rows in by_ir.items():
+        ref = next((r for r in rows if int(r["n_o"]) == 0), None)
+        if ref is None or not np.isfinite(ref["zpe"]):
+            continue
+        zpe_ref = float(ref["zpe"])
+        g_ref_per_ir = float(ref["g_vib_per_ir"])
+        enriched = []
+        for r in rows:
+            zpe = float(r["zpe"])
+            g_per_ir = float(r["g_vib_per_ir"])
+            enriched.append({
+                "n_o": int(r["n_o"]),
+                "n_vib_modes": float(r["n_vib_modes"]),
+                "zpe": zpe,
+                "zpe_diff": zpe - zpe_ref,
+                "g_vib": float(r["g_vib"]),
+                "g_vib_per_ir": g_per_ir,
+                "g_vib_per_ir_diff": (
+                    g_per_ir - g_ref_per_ir
+                    if np.isfinite(g_per_ir) and np.isfinite(g_ref_per_ir)
+                    else np.nan
+                ),
             })
         out[n_ir] = enriched
 

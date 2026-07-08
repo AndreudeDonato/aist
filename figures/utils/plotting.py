@@ -102,6 +102,39 @@ def add_fig06_interface_pbe_pbe0_diff_axis(
 # Phase-diagram axis helpers
 # ---------------------------------------------------------------------------
 
+def apply_gc_temperature_xticks(ax) -> None:
+    """Fixed ``T`` ticks for the main GC grid (100–1000 K)."""
+    from figures.config import GC_T_TICKS
+
+    ax.set_xticks(GC_T_TICKS)
+
+
+def style_gradient_bar_panel_ax(
+    ax,
+    row: int,
+    col: int,
+    last_row: int,
+    *,
+    title: str = "",
+) -> None:
+    """Shared-axis layout for per-size gradient-bar panels (linear ``n_Ir`` axis)."""
+    ax.set_yscale("linear")
+    if row == 0 and title:
+        ax.set_title(title, fontsize=TITLE_FONTSIZE, pad=3)
+    if col == 0:
+        ax.set_ylabel(r"$n_{\mathrm{Ir}}$", fontsize=AXIS_LABEL_FONTSIZE)
+    else:
+        ax.set_ylabel("")
+        ax.tick_params(labelleft=False)
+    if row < last_row:
+        ax.tick_params(labelbottom=False)
+        ax.set_xlabel("")
+    else:
+        ax.set_xlabel("T (K)", fontsize=AXIS_LABEL_FONTSIZE)
+    apply_gc_temperature_xticks(ax)
+    ax.tick_params(axis="both", labelsize=TICK_FONTSIZE)
+
+
 def style_shared_gc_panel_ax(
     ax,
     row: int,
@@ -124,14 +157,23 @@ def style_shared_gc_panel_ax(
         ax.set_xlabel("")
     else:
         ax.set_xlabel("T (K)", fontsize=AXIS_LABEL_FONTSIZE)
+    apply_gc_temperature_xticks(ax)
     ax.tick_params(axis="both", labelsize=TICK_FONTSIZE)
 
 
-def style_phase_ax(ax, xlabel="T (K)", ylabel=r"$p_{\mathrm{O_2}}$ (Pa)"):
+def style_phase_ax(
+    ax,
+    xlabel="T (K)",
+    ylabel=r"$p_{\mathrm{O_2}}$ (Pa)",
+    *,
+    apply_gc_t_ticks: bool = True,
+):
     ax.set_yscale("log")
     ax.set_xlabel(xlabel, fontsize=AXIS_LABEL_FONTSIZE)
     ax.set_ylabel(ylabel, fontsize=AXIS_LABEL_FONTSIZE)
     ax.tick_params(axis="both", labelsize=TICK_FONTSIZE)
+    if apply_gc_t_ticks:
+        apply_gc_temperature_xticks(ax)
 
 
 def style_ir_size_panel_ax(
@@ -160,6 +202,7 @@ def style_ir_size_panel_ax(
         ax.set_xlabel("")
     else:
         ax.set_xlabel("T (K)", fontsize=AXIS_LABEL_FONTSIZE)
+        apply_gc_temperature_xticks(ax)
     ax.tick_params(axis="both", labelsize=TICK_FONTSIZE)
 
 
@@ -174,15 +217,43 @@ def draw_phase_boundaries(ax, Ts, Ps, phase_index,
                colors=color, linewidths=linewidth, alpha=alpha, linestyles=linestyle)
 
 
+def stoichiometry_ratio_overlay_labels(
+    n_O,
+    n_Ir,
+    *,
+    decimals: int = 1,
+) -> list[str]:
+    """Per-structure ``n_O/n_Ir`` labels for global-minimum phase overlays."""
+    n_o = np.asarray(n_O, dtype=float)
+    n_ir = np.asarray(n_Ir, dtype=float)
+    ratio = np.where(n_ir > 0, n_o / n_ir, np.nan)
+    labels: list[str] = []
+    for r in ratio:
+        if np.isfinite(r):
+            labels.append(f"{float(r):.{decimals}f}")
+        else:
+            labels.append("—")
+    return labels
+
+
 def stoichiometry_overlay_labels(formulas) -> list[str]:
     """Per-structure LaTeX formula labels for global-minimum phase overlays."""
     from aist.utils import to_latex_formula
 
+    gas_labels = {
+        "IrO2": r"IrO$_2$(g)",
+        "IrO3": r"IrO$_3$(g)",
+        "Ir2O4": r"IrO$_2$(rutile)",
+    }
     labels: list[str] = []
     for f in formulas:
         if hasattr(f, "item"):
             f = f.item()
-        labels.append(to_latex_formula(str(f)))
+        s = str(f)
+        if s in gas_labels:
+            labels.append(gas_labels[s])
+        else:
+            labels.append(to_latex_formula(s))
     return labels
 
 
@@ -310,6 +381,41 @@ def draw_tchar_boundary(ax, Ts, Ps, tchar_map,
     ratio  = Tg / tchar_map
     ax.contour(Ts, Ps, ratio, levels=[1.0],
                colors=color, linewidths=linewidth, alpha=alpha, linestyles="solid")
+
+
+def draw_gvib_zero_contour(
+    ax,
+    Ts,
+    Ps,
+    gvib_map,
+    *,
+    linewidth: float = 1.4,
+    color: str = "#ff1a1a",
+    alpha: float = 1.0,
+) -> None:
+    """Draw ⟨G_vib⟩ = 0 contour on vibrational Gibbs contribution maps."""
+    Z = np.asarray(gvib_map, dtype=float)
+    if not np.isfinite(Z).any():
+        return
+    ax.contour(
+        Ts, Ps, Z, levels=[0.0],
+        colors=color, linewidths=linewidth, alpha=alpha, linestyles="solid",
+    )
+
+
+def draw_vib_reference_contours(
+    ax,
+    Ts,
+    Ps,
+    *,
+    tchar_map=None,
+    gvib_map=None,
+) -> None:
+    """Overlay T = ⟨Θ_eff⟩ (black) and ⟨G_vib⟩ = 0 (red) on vib panels."""
+    if tchar_map is not None and np.isfinite(np.asarray(tchar_map)).any():
+        draw_tchar_boundary(ax, Ts, Ps, tchar_map)
+    if gvib_map is not None and np.isfinite(np.asarray(gvib_map)).any():
+        draw_gvib_zero_contour(ax, Ts, Ps, gvib_map)
 
 
 # ---------------------------------------------------------------------------

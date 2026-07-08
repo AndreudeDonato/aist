@@ -1,13 +1,14 @@
-"""Figure 9 – Global-minimum phase map + fixed-point population lines (PBE).
+"""Supplementary – Global-minimum phase map + fixed-point population lines (PBE).
 
-Novib and full (vib+ZPE) populations come from ``gc_variants.npz`` on ``IryOxPBE.traj``.
+Former Figure 9. Novib and full (vib+ZPE) populations come from ``gc_variants.npz``
+on ``IryOxPBE.traj``.
 
 3×1 vertical layout (88 mm width):
   (0): Global-minimum structure population (%) on T × pO₂
   (1): At T=273 K, ambient pO₂ — s1, s2, … (97% novib population)
   (2): Same at T=500 K — s'1, s'2, …
 
-Output: ``figures/outputs/fig09_min_pop_fixedpoints.svg``
+Output: ``figures/outputs/supp_min_pop_fixedpoints.svg``
 """
 from __future__ import annotations
 
@@ -24,7 +25,7 @@ from figures.config import (
     GC_VARIANTS_NPZ,
     OUTPUT_DIR,
 )
-from figures.utils.cache import ensure_for_figures
+from figures.utils.cache import ensure_for_supplementary
 from figures.utils.io import ensure_dirs, load_gc_npz
 from figures.utils.join import (
     ranked_cumulative_population_lines,
@@ -41,7 +42,7 @@ from figures.utils.plotting import (
     stoichiometry_overlay_labels,
 )
 
-OUTPUT_PATH = os.path.join(OUTPUT_DIR, "fig09_min_pop_fixedpoints.svg")
+OUTPUT_PATH = os.path.join(OUTPUT_DIR, "supp_min_pop_fixedpoints.svg")
 FIG_W_MM = 88
 FIG_H_MM = 150
 CUMULATIVE_FRAC = 0.97
@@ -124,7 +125,7 @@ def _cumulative_population_panel(
 
 
 def main() -> None:
-    ensure_for_figures([9])
+    ensure_for_supplementary(["supp_min_pop_fixedpoints"])
     ensure_dirs(OUTPUT_DIR)
 
     gc_full = load_gc_npz(GC_NPZ)
@@ -167,7 +168,7 @@ def main() -> None:
 
     fig.subplots_adjust(left=0.14, right=0.96, top=0.97, bottom=0.08)
     save_fig(fig, OUTPUT_PATH, dpi=DPI)
-    print(f"\n[fig09] {OUTPUT_PATH}")
+    print(f"[supp] {OUTPUT_PATH}")
 
 
 if __name__ == "__main__":
