@@ -49,6 +49,7 @@ from figures.utils.plotting import (
     TICK_FONTSIZE,
     TITLE_FONTSIZE,
     add_phase_colorbar,
+    apply_gc_temperature_xticks,
     discrete_category_colorbar,
     draw_global_minimum_phase_overlay,
     margin_colorbar_cax,
@@ -196,8 +197,6 @@ def _draw_oxidation_map(
         zorder=9,
     )
     style_phase_ax(ax)
-    ax.tick_params(labelbottom=False)
-    ax.set_xlabel("")
     return mesh
 
 
@@ -263,6 +262,9 @@ def main() -> None:
         style_shared_gc_panel_ax(
             ax, 0, col_idx, last_row, title=col_titles[col_idx],
         )
+        apply_gc_temperature_xticks(ax)
+        ax.tick_params(labelbottom=True)
+        ax.set_xlabel("")
         if mesh_ref is None and mesh is not None:
             mesh_ref = mesh
 

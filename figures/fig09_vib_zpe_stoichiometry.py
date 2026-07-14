@@ -1,10 +1,9 @@
-"""Figure 9 – Boltzmann-weighted vib/ZPE stoichiometry + per-Ir ΔG terms (PBE).
+"""Figure 9 – Boltzmann ΔZPE vs N_vib + reaction ⟨ΔG_vib⟩(T) by stoichiometry (PBE).
 
-Single column (88 mm wide, 3 rows):
+Single column (88 mm wide, 4 rows):
 
-  1. Boltzmann ⟨ΔZPE⟩ vs vibrational DOF ``N_vib`` (by Ir).
-  2. Boltzmann ⟨Δ(G_vib/n_Ir)⟩ vs ``N_vib`` (by Ir).
-  3. Vibrational ΔG contribution vs ``T`` at fixed ``pO₂``, one line per Ir.
+  1. Boltzmann ⟨ΔZPE⟩ vs vibrational DOF ``N_vib`` (by Ir, 273 K).
+  2–4. Boltzmann reaction ⟨ΔG_vib⟩(T) for Ir₃, Ir₆, Ir₉ (stoichiometry colour).
 
 Output: ``figures/outputs/fig09_vib_zpe_stoichiometry.svg``
 """
@@ -15,6 +14,7 @@ from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.cm import ScalarMappable
 from matplotlib.colors import Normalize
 
 from aist.core.vibrational import boltzmann_weighted_vib_stoichiometry_by_ir_content
@@ -24,7 +24,7 @@ from figures.config import (
     FIG08_PRESSURE_PA,
     FIG08_VIB_G_TEMP_K,
     OUTPUT_DIR,
-    SUPP_IR_COUNTS,
+    PHASE_CMAP,
     VIB_GC_NPZ,
 )
 from figures.utils.cache import ensure_for_figures
@@ -34,16 +34,28 @@ from figures.utils.plotting import (
     LEGEND_FONTSIZE,
     TICK_FONTSIZE,
     TITLE_FONTSIZE,
+    add_phase_colorbar,
+    margin_colorbar_cax,
     save_fig,
 )
 from figures.utils.validation import check_vib_availability
-from figures.utils.vib_contrib_by_ir import contribution_lines_by_ir_at_pressure
+from figures.utils.vib_contrib_by_ir import boltzmann_reaction_vib_curves_by_stoichiometry
 
 OUTPUT_PATH = os.path.join(OUTPUT_DIR, "fig09_vib_zpe_stoichiometry.svg")
 FIG_W_MM = 88
-FIG_H_MM = 135
-VIB_TERM_LABEL = "Vibrational"
-DOF_XLABEL = r"Vibrational DOF ($N_{\mathrm{vib}}$)"
+ROW_H_MM = 42
+FIG_H_MM = 4 * ROW_H_MM
+IR_TARGETS = (3, 6, 9)
+LAYOUT_RECT = [0, 0, 0.84, 1]
+CBAR_GAP = 0.01
+CBAR_WIDTH = 0.012
+
+
+def _condition_label(temperature_k: float) -> str:
+    return (
+        rf"$T={temperature_k:.0f}$ K, "
+        rf"$p_{{\mathrm{{O_2}}}}={FIG08_PRESSURE_PA:.3g}$ Pa"
+    )
 
 
 def _pin_line_xlim(ax, xmin: float, xmax: float) -> None:
@@ -57,15 +69,11 @@ def _ir_cmap(grouped: dict[int, list]) -> tuple[list[int], Normalize, plt.Colorm
     return ir_vals, norm, plt.get_cmap("winter")
 
 
-def _plot_ir_series_vs_vib_dof(
+def _plot_zpe_vs_vib_dof(
     ax,
     grouped: dict[int, list[dict[str, Any]]],
     *,
-    y_key: str,
-    ylabel: str,
     title: str,
-    zero_at_ref: bool = True,
-    show_zero_line: bool = False,
 ) -> tuple[float, float] | None:
     if not grouped:
         ax.text(
@@ -79,16 +87,15 @@ def _plot_ir_series_vs_vib_dof(
     for n_ir in ir_vals:
         rows = sorted(grouped[n_ir], key=lambda r: (r["n_vib_modes"], r["n_o"]))
         x = np.array([r["n_vib_modes"] for r in rows], dtype=float)
-        y = np.array([r[y_key] for r in rows], dtype=float)
-        if zero_at_ref:
-            ref = next((r for r in rows if int(r["n_o"]) == 0), None)
-            if ref is not None:
-                x0 = float(ref["n_vib_modes"])
-                if x.size == 0 or not np.isclose(x[0], x0):
-                    x = np.concatenate(([x0], x))
-                    y = np.concatenate(([0.0], y))
-                else:
-                    y[0] = 0.0
+        y = np.array([r["zpe_diff"] for r in rows], dtype=float)
+        ref = next((r for r in rows if int(r["n_o"]) == 0), None)
+        if ref is not None:
+            x0 = float(ref["n_vib_modes"])
+            if x.size == 0 or not np.isclose(x[0], x0):
+                x = np.concatenate(([x0], x))
+                y = np.concatenate(([0.0], y))
+            else:
+                y[0] = 0.0
         finite = np.isfinite(x) & np.isfinite(y)
         if not np.any(finite):
             continue
@@ -98,70 +105,83 @@ def _plot_ir_series_vs_vib_dof(
         )
         x_all.extend(x[finite].tolist())
 
-    ax.set_xlabel(DOF_XLABEL, fontsize=AXIS_LABEL_FONTSIZE)
-    ax.set_ylabel(ylabel, fontsize=AXIS_LABEL_FONTSIZE)
+    ax.set_xlabel(r"Vibrational DOF ($N_{\mathrm{vib}}$)", fontsize=AXIS_LABEL_FONTSIZE)
+    ax.set_ylabel(r"$\langle\Delta\mathrm{ZPE}\rangle$ (eV)", fontsize=AXIS_LABEL_FONTSIZE)
     ax.set_title(title, fontsize=TITLE_FONTSIZE)
-    ax.tick_params(axis="both", labelsize=TICK_FONTSIZE)
+    ax.tick_params(axis="both", labelsize=TICK_FONTSIZE, labelbottom=True, labelleft=True)
     ax.legend(fontsize=LEGEND_FONTSIZE, frameon=False, ncol=3, loc="best")
-    if show_zero_line:
-        ax.axhline(0.0, color="0.75", linewidth=0.6, zorder=0)
     if not x_all:
         return None
     return float(min(x_all)), float(max(x_all))
 
 
-def _plot_vib_contrib_by_ir(
+def _stoich_limits(
+    curves_by_ir: dict[int, list[dict]],
+    ir_targets: tuple[int, ...],
+) -> tuple[float, float]:
+    vals: list[float] = []
+    for n_ir in ir_targets:
+        for row in curves_by_ir.get(n_ir, []):
+            vals.append(float(row["stoich"]))
+    if not vals:
+        return 0.0, 1.0
+    vmin, vmax = float(min(vals)), float(max(vals))
+    if vmax <= vmin:
+        vmax = vmin + 1.0
+    return vmin, vmax
+
+
+def _plot_reaction_vib_vs_t(
     ax,
-    ir_lines: dict[int, list[tuple[str, np.ndarray]]],
     Ts: np.ndarray,
+    rows: list[dict],
+    norm: Normalize,
+    cmap,
     *,
-    pressure_pa: float,
-) -> tuple[float, float] | None:
-    if not ir_lines:
+    title: str,
+) -> None:
+    if not rows:
         ax.text(
-            0.5, 0.5, "No ΔG decomposition data", ha="center", va="center",
+            0.5, 0.5, "No data", ha="center", va="center",
             fontsize=AXIS_LABEL_FONTSIZE, transform=ax.transAxes,
         )
-        return None
+        ax.set_title(title, fontsize=TITLE_FONTSIZE)
+        return
 
-    ir_vals = sorted(ir_lines)
-    norm = Normalize(vmin=float(min(ir_vals)), vmax=float(max(ir_vals)))
-    cmap = plt.get_cmap("winter")
-
-    for n_ir in ir_vals:
-        vib_curve = next(
-            ((term, y) for term, y in ir_lines[n_ir] if term == VIB_TERM_LABEL),
-            None,
-        )
-        if vib_curve is None:
+    for row in rows:
+        y = np.asarray(row["dg_vib"], dtype=float)
+        finite = np.isfinite(y)
+        if not np.any(finite):
             continue
-        _, y = vib_curve
         ax.plot(
-            Ts, y,
-            color=cmap(norm(float(n_ir))),
+            Ts[finite], y[finite],
+            color=cmap(norm(float(row["stoich"]))),
             linewidth=1.2,
-            label=f"Ir{n_ir}",
+            zorder=2,
         )
 
-    ax.set_xlabel("T (K)", fontsize=AXIS_LABEL_FONTSIZE)
-    ax.set_ylabel(r"Vibrational $\Delta G$ contribution (eV)", fontsize=AXIS_LABEL_FONTSIZE)
-    ax.set_title(
-        rf"Vibrational $\Delta G$ by Ir$_n$ at $p_{{\mathrm{{O_2}}}}={pressure_pa:.3g}$ Pa",
-        fontsize=TITLE_FONTSIZE,
+    ax.set_title(title, fontsize=TITLE_FONTSIZE)
+    ax.set_ylabel(
+        r"$\langle \Delta G_{\mathrm{vib}}\rangle$ (eV)",
+        fontsize=AXIS_LABEL_FONTSIZE,
     )
-    ax.tick_params(axis="both", labelsize=TICK_FONTSIZE)
-    ax.legend(fontsize=LEGEND_FONTSIZE, frameon=False, ncol=3, loc="best")
-    return float(Ts[0]), float(Ts[-1])
+    ax.set_xlabel("T (K)", fontsize=AXIS_LABEL_FONTSIZE)
+    ax.tick_params(axis="both", labelsize=TICK_FONTSIZE, labelbottom=True, labelleft=True)
 
 
-def _load_grouped() -> dict[int, list[dict[str, Any]]]:
+def main() -> None:
+    ensure_for_figures([9])
+    ensure_dirs(OUTPUT_DIR)
+
     gc = load_gc_npz(VIB_GC_NPZ, light=True)
     structures = load_pbe_gc_structures(include_gas=False)
     if len(structures) != gc["Pgi"].shape[0]:
         raise ValueError(
             f"PBE structure count {len(structures)} != GC Pgi rows {gc['Pgi'].shape[0]}"
         )
-    return boltzmann_weighted_vib_stoichiometry_by_ir_content(
+    check_vib_availability(structures, "PBE", required=False)
+
+    grouped_273 = boltzmann_weighted_vib_stoichiometry_by_ir_content(
         structures,
         gc["Pgi"],
         gc["Ts"],
@@ -169,77 +189,77 @@ def _load_grouped() -> dict[int, list[dict[str, Any]]]:
         temperature_k=FIG08_VIB_G_TEMP_K,
         pressure_pa=FIG08_PRESSURE_PA,
     )
-
-
-def _load_contrib_by_ir() -> tuple[np.ndarray, float, dict[int, list[tuple[str, np.ndarray]]]]:
-    gc = load_gc_npz(VIB_GC_NPZ, light=True)
-    structures = load_pbe_gc_structures(include_gas=False)
-    n_ir = np.array([
-        sum(1 for s in a.get_chemical_symbols() if s == "Ir") for a in structures
-    ], dtype=int)
-    formulas = gc.get("formulas")
-    return contribution_lines_by_ir_at_pressure(
-        gc,
+    Ts, p_used, curves_by_ir = boltzmann_reaction_vib_curves_by_stoichiometry(
         structures,
-        n_ir,
-        FIG08_PRESSURE_PA,
-        ir_counts=SUPP_IR_COUNTS,
-        formulas=formulas,
+        gc["Pgi"],
+        gc["Ts"],
+        gc["Ps"],
+        pressure_pa=FIG08_PRESSURE_PA,
     )
 
-
-def main() -> None:
-    ensure_for_figures([9])
-    ensure_dirs(OUTPUT_DIR)
-
-    structures = load_pbe_gc_structures(include_gas=False)
-    check_vib_availability(structures, "PBE", required=False)
-
-    grouped = _load_grouped()
-    Ts, p_used, ir_lines = _load_contrib_by_ir()
-    cond = (
-        rf"$T={FIG08_VIB_G_TEMP_K:.0f}$ K, "
-        rf"$p_{{\mathrm{{O_2}}}}={FIG08_PRESSURE_PA:.3g}$ Pa"
-    )
+    cond_273 = _condition_label(FIG08_VIB_G_TEMP_K)
+    ox_vmin, ox_vmax = _stoich_limits(curves_by_ir, IR_TARGETS)
+    ox_norm = Normalize(vmin=ox_vmin, vmax=ox_vmax)
+    ox_cmap = plt.get_cmap(PHASE_CMAP)
 
     fig, axes = plt.subplots(
-        3, 1,
+        4, 1,
         figsize=(FIG_W_MM / 25.4, FIG_H_MM / 25.4),
         dpi=DPI,
+        sharex=False,
+        sharey=False,
     )
 
-    zpe_xlim = _plot_ir_series_vs_vib_dof(
+    zpe_xlim = _plot_zpe_vs_vib_dof(
         axes[0],
-        grouped,
-        y_key="zpe_diff",
-        ylabel=r"$\langle\Delta\mathrm{ZPE}\rangle$ (eV)",
+        grouped_273,
         title=rf"Boltzmann $\langle\Delta\mathrm{{ZPE}}\rangle$ vs "
-              rf"$N_{{\mathrm{{vib}}}}$ (by Ir, {cond})",
+              rf"$N_{{\mathrm{{vib}}}}$ (by Ir, {cond_273})",
     )
-    gvib_dof_xlim = _plot_ir_series_vs_vib_dof(
-        axes[1],
-        grouped,
-        y_key="g_vib_per_ir_diff",
-        ylabel=rf"$\langle\Delta G_{{\mathrm{{vib}}}}/n_{{\mathrm{{Ir}}}}\rangle$ (eV)",
-        title=rf"Boltzmann $\langle G_{{\mathrm{{vib}}}}/n_{{\mathrm{{Ir}}}}\rangle$ vs "
-              rf"$N_{{\mathrm{{vib}}}}$ (by Ir, {cond})",
-        show_zero_line=True,
-    )
-    t_xlim = _plot_vib_contrib_by_ir(axes[2], ir_lines, Ts, pressure_pa=p_used)
 
-    axes[2].set_xlabel("T (K)", fontsize=AXIS_LABEL_FONTSIZE)
-    axes[0].tick_params(labelbottom=False)
-    axes[1].tick_params(labelbottom=False)
+    for row, n_ir in enumerate(IR_TARGETS, start=1):
+        _plot_reaction_vib_vs_t(
+            axes[row],
+            Ts,
+            curves_by_ir.get(n_ir, []),
+            ox_norm,
+            ox_cmap,
+            title=rf"Ir$_{{{n_ir}}}$ at $p_{{\mathrm{{O_2}}}}={p_used:.3g}$ Pa",
+        )
 
-    fig.tight_layout(pad=6 / 25.4)
     if zpe_xlim is not None:
         _pin_line_xlim(axes[0], *zpe_xlim)
-    if gvib_dof_xlim is not None:
-        _pin_line_xlim(axes[1], *gvib_dof_xlim)
-    if t_xlim is not None:
-        _pin_line_xlim(axes[2], *t_xlim)
+    for ax in axes[1:]:
+        ax.set_xlim(float(Ts[0]), float(Ts[-1]))
+        ax.set_xmargin(0)
 
-    save_fig(fig, OUTPUT_PATH, dpi=DPI)
+    y_vals = [
+        float(y)
+        for n_ir in IR_TARGETS
+        for row in curves_by_ir.get(n_ir, [])
+        for y in np.asarray(row["dg_vib"], dtype=float)
+        if np.isfinite(y)
+    ]
+    if y_vals:
+        ymin, ymax = float(min(y_vals)), float(max(y_vals))
+        for ax in axes[1:]:
+            ax.set_ylim(ymin, ymax)
+
+    for ax in axes:
+        ax.tick_params(axis="x", labelbottom=True)
+        ax.tick_params(axis="y", labelleft=True)
+
+    fig.tight_layout(pad=6 / 25.4, rect=LAYOUT_RECT)
+    fig.subplots_adjust(hspace=0.42)
+
+    add_phase_colorbar(
+        fig,
+        ScalarMappable(norm=ox_norm, cmap=ox_cmap),
+        cax=margin_colorbar_cax(fig, axes[1], axes[-1], gap=CBAR_GAP, width=CBAR_WIDTH),
+        label=r"$n_O/n_{\mathrm{Ir}}$",
+    )
+
+    save_fig(fig, OUTPUT_PATH, dpi=DPI, bbox_inches=None, pad_inches=0)
     print(f"\n[fig09] {OUTPUT_PATH}")
 
 

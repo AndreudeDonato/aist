@@ -15,7 +15,6 @@ import os
 
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.gridspec import GridSpec
 
 from figures.config import (
     ACE_FEATURES,
@@ -49,27 +48,35 @@ DATASETS = [
     {"label": "PBE", "ace_csv": ACE_FEATURES["PBE"]},
     {"label": "PBE0", "ace_csv": ACE_FEATURES["PBE0"]},
 ]
+COL_LABELS = ("PBE", "PBE0")
 
 
-def _panel_title(label: str, n_ir: int, pressure_pa: float) -> str:
-    return (
-        f"{label} — Ir$_{{{n_ir}}}$ atom motifs — "
-        rf"$p_{{\mathrm{{O_2}}}}={pressure_pa:.3g}$ Pa"
+def _load_stack(
+    joined: dict,
+    n_ir: int,
+    pressure_pa: float,
+) -> tuple[np.ndarray, np.ndarray, list, list, int | None] | None:
+    stack = atom_motif_population_stack_by_ir_size(
+        joined, n_ir, pressure_pa, smooth_sigma=FIG04_SMOOTH_SIGMA,
     )
+    if stack is None:
+        return None
+    Ts, _, Y, colors, motif_labels, boundary_after = stack
+    return Ts, Y, colors, motif_labels, boundary_after
+
+
+def _stack_ymax(Y: np.ndarray) -> float:
+    return float(np.nanmax(np.sum(Y, axis=0)))
 
 
 def _draw_atom_panel(
     ax,
     joined: dict,
     *,
-    label: str,
     n_ir: int,
     pressure_pa: float,
-    show_ylabel: bool,
 ) -> None:
-    stack = atom_motif_population_stack_by_ir_size(
-        joined, n_ir, pressure_pa, smooth_sigma=FIG04_SMOOTH_SIGMA,
-    )
+    stack = _load_stack(joined, n_ir, pressure_pa)
     if stack is None:
         ax.text(
             0.5, 0.5, "No data", ha="center", va="center",
@@ -78,13 +85,13 @@ def _draw_atom_panel(
         ax.set_axis_off()
         return
 
-    Ts, p_used, Y, colors, motif_labels, boundary_after = stack
+    Ts, Y, colors, motif_labels, boundary_after = stack
     draw_population_stack(
         ax, Ts, Y, colors,
         labels=motif_labels,
         xlabel="",
-        ylabel="Atom motif pop. (%)" if show_ylabel else "",
-        title=_panel_title(label, n_ir, p_used),
+        ylabel="",
+        title="",
         legend_ncol=2,
         boundary_after=boundary_after,
     )
@@ -93,19 +100,28 @@ def _draw_atom_panel(
 
 def _style_grid(axes: np.ndarray) -> None:
     last_row = axes.shape[0] - 1
-    for row in range(axes.shape[0]):
+    for row, n_ir in enumerate(FIG04_IR_COUNTS):
         for col in range(axes.shape[1]):
             ax = axes[row, col]
             if not ax.axison:
                 continue
-            if col > 0:
+            if row == 0:
+                ax.set_title(COL_LABELS[col], fontsize=TITLE_FONTSIZE, pad=3)
+            if col == 0:
+                ax.set_ylabel(
+                    rf"Ir$_{{{n_ir}}}$",
+                    fontsize=AXIS_LABEL_FONTSIZE,
+                )
+            else:
                 ax.set_ylabel("")
+                ax.tick_params(labelleft=False)
             if row < last_row:
                 ax.tick_params(labelbottom=False)
                 ax.set_xlabel("")
             else:
                 ax.set_xlabel("T (K)", fontsize=AXIS_LABEL_FONTSIZE)
                 apply_gc_temperature_xticks(ax)
+            ax.tick_params(axis="both", labelsize=TICK_FONTSIZE)
 
 
 def main() -> None:
@@ -126,40 +142,48 @@ def main() -> None:
 
     pressure_pa = FIG04_LOW_PRESSURE_PA
 
-    fig = plt.figure(figsize=(FIG_W_MM / 25.4, FIG_H_MM / 25.4), dpi=DPI)
-    gs = GridSpec(
-        len(FIG04_IR_COUNTS), 2, figure=fig,
-        height_ratios=[1.0] * len(FIG04_IR_COUNTS),
-        hspace=0.32,
-        wspace=0.28,
-    )
-    axes = np.empty((len(FIG04_IR_COUNTS), 2), dtype=object)
-    for row, n_ir in enumerate(FIG04_IR_COUNTS):
-        for col, label in enumerate(("PBE", "PBE0")):
-            if row == 0 and col == 0:
-                axes[row, col] = fig.add_subplot(gs[row, col])
-            elif row == 0:
-                axes[row, col] = fig.add_subplot(gs[row, col], sharex=axes[0, 0])
-            else:
-                axes[row, col] = fig.add_subplot(gs[row, col], sharex=axes[0, col])
+    ymax = 100.0
+    for label in COL_LABELS:
+        jt = joined_by_label.get(label)
+        if jt is None:
+            continue
+        for n_ir in FIG04_IR_COUNTS:
+            stack = _load_stack(jt, n_ir, pressure_pa)
+            if stack is None:
+                continue
+            _, Y, _, _, _ = stack
+            ymax = max(ymax, _stack_ymax(Y))
 
+    fig, axes = plt.subplots(
+        len(FIG04_IR_COUNTS), 2,
+        figsize=(FIG_W_MM / 25.4, FIG_H_MM / 25.4),
+        dpi=DPI,
+        sharex="col",
+        sharey=True,
+    )
+
+    for row, n_ir in enumerate(FIG04_IR_COUNTS):
+        for col, label in enumerate(COL_LABELS):
             jt = joined_by_label.get(label)
             if jt is None:
-                ax = axes[row, col]
-                ax.text(
+                axes[row, col].text(
                     0.5, 0.5, "GC data missing", ha="center", va="center",
-                    fontsize=AXIS_LABEL_FONTSIZE, transform=ax.transAxes,
+                    fontsize=AXIS_LABEL_FONTSIZE, transform=axes[row, col].transAxes,
                 )
-                ax.set_axis_off()
+                axes[row, col].set_axis_off()
                 continue
             _draw_atom_panel(
                 axes[row, col], jt,
-                label=label, n_ir=n_ir, pressure_pa=pressure_pa,
-                show_ylabel=(col == 0),
+                n_ir=n_ir, pressure_pa=pressure_pa,
             )
 
+    for ax in axes.ravel():
+        if ax.axison:
+            ax.set_ylim(0.0, ymax)
+
     _style_grid(axes)
-    fig.subplots_adjust(left=0.10, right=0.97, top=0.97, bottom=0.08)
+    fig.supylabel("Atom motif pop. (%)", fontsize=AXIS_LABEL_FONTSIZE, x=0.02)
+    fig.subplots_adjust(left=0.12, right=0.97, top=0.97, bottom=0.08)
 
     save_fig(fig, OUTPUT_PATH, dpi=DPI)
     print(f"\n[fig04] {OUTPUT_PATH}")

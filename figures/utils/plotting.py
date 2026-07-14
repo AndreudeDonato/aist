@@ -592,8 +592,21 @@ def discrete_category_colorbar(
 # Per-figure save helper
 # ---------------------------------------------------------------------------
 
-def save_fig(fig, path: str, dpi: int = 800, pad_inches: float = 0.1):
+def save_fig(
+    fig,
+    path: str,
+    dpi: int = 800,
+    pad_inches: float = 0.1,
+    *,
+    bbox_inches: str | None = "tight",
+):
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    fig.savefig(path, dpi=dpi, bbox_inches="tight", pad_inches=pad_inches)
+    fig.canvas.draw()
+    fig.savefig(
+        path,
+        dpi=dpi,
+        bbox_inches=bbox_inches,
+        pad_inches=pad_inches,
+    )
     plt.close(fig)
     print(f"[save] {path}")

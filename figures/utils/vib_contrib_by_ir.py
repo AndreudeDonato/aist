@@ -151,6 +151,63 @@ def compute_per_structure_contribution_slab(
     return {key: np.stack(rows, axis=0) for key, rows in slabs.items()}
 
 
+def boltzmann_reaction_vib_curves_by_stoichiometry(
+    structures: list[Atoms],
+    Pgi: np.ndarray,
+    Ts: np.ndarray,
+    Ps: np.ndarray,
+    *,
+    pressure_pa: float,
+    ir_symbol: str = "Ir",
+    o_symbol: str = "O",
+) -> tuple[np.ndarray, float, dict[int, list[dict]]]:
+    """Boltzmann reaction ``⟨ΔG_vib⟩(T)`` per stoichiometry bucket, grouped by ``n_Ir``.
+
+    Uses the balanced-reaction vibrational contribution (cluster + reference + O₂
+    reservoir) with ``Pgi`` renormalized within each ``(n_Ir, n_O)`` bucket.
+    """
+    from aist.core.vibrational import (
+        _renormalized_boltzmann_weights,
+        _structure_stoichiometry_groups,
+        _weighted_mean,
+    )
+
+    Ts = np.asarray(Ts, dtype=float)
+    Ps = np.asarray(Ps, dtype=float)
+    p_idx, p_used = pressure_grid_index(Ps, pressure_pa)
+    n_T = int(Ts.size)
+
+    n_s = min(len(structures), Pgi.shape[0])
+    structures = structures[:n_s]
+    Pgi = Pgi[:n_s]
+
+    slabs = compute_per_structure_contribution_slab(structures, Ts, Ps, p_idx)
+    dg_vib = slabs["E_vib_avg"]
+
+    groups = _structure_stoichiometry_groups(
+        structures, ir_symbol=ir_symbol, o_symbol=o_symbol,
+    )
+
+    by_ir: dict[int, list[dict]] = {}
+    for (n_ir, n_o), idxs in groups.items():
+        idx = np.asarray(idxs, dtype=int)
+        g_curve = np.empty(n_T, dtype=float)
+        for t_idx in range(n_T):
+            w = _renormalized_boltzmann_weights(Pgi, idxs, p_idx, t_idx)
+            g_curve[t_idx] = _weighted_mean(dg_vib[idx, t_idx], w)
+        by_ir.setdefault(int(n_ir), []).append({
+            "n_o": int(n_o),
+            "stoich": float(n_o) / float(n_ir),
+            "dg_vib": g_curve,
+        })
+
+    curves_by_ir: dict[int, list[dict]] = {}
+    for n_ir, rows in by_ir.items():
+        curves_by_ir[n_ir] = sorted(rows, key=lambda r: (float(r["stoich"]), int(r["n_o"])))
+
+    return Ts, float(p_used), curves_by_ir
+
+
 def compute_per_structure_e_vib_tensor(
     structures: list[Atoms],
     Ts: np.ndarray,

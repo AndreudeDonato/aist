@@ -39,7 +39,7 @@ FIGURE_MODULES = {
     6: ("fig06_sublimation", "Sublimation: rutile PBE0 + oxidation bars (3 support levels)"),
     7: ("fig07_vib_vs_novib_quadrants", "PBE vib vs no-vib phase diagrams (2×2)"),
     8: ("fig08_min_pop_at_low_po2", "PBE ranked structure pop (%) at low pO₂ — novib | vib × 273 | 500 K (2×2, 88 mm)"),
-    9: ("fig09_vib_zpe_stoichiometry", "PBE Boltzmann ΔZPE & Δ(G_vib/n_Ir) vs N_vib + vib ΔG vs T (88×3 mm)"),
+    9: ("fig09_vib_zpe_stoichiometry", "PBE ΔZPE vs N_vib + Ir₃|Ir₆|Ir₉ reaction ⟨ΔG_vib⟩(T) by stoichiometry (88×4 mm)"),
 }
 
 SUPPLEMENTARY_MODULES = {
@@ -54,11 +54,11 @@ SUPPLEMENTARY_MODULES = {
     "supp_pooled_cluster_pop_inertia": "PBE | PBE0 cluster pop vs n_Ir + inertia triangle by n_Ir (88 mm)",
     "supp_rutile_gc_phase_maps": "IrO₂ rutile | IrO₂(g) | IrO₃(g) GC phase maps (1×2)",
     "supp_gc_clustering_maps": "GC phase diagrams + motif overlays (5×2; former Fig. 3)",
-    "supp_gc_motif_pressure_bars": "Fig. 4–style motif gradient bars + ⟨HOMO–LUMO⟩ at low & high pO₂ (4×2 each)",
     "supp_gc_clustering_pressure_bars": "Clustering gradient bars + ⟨HOMO–LUMO⟩ at low & high pO₂ (6×2 each)",
     "supp_vib_contrib_tchar": "PBE G-contrib 1D + vib map, ZPE, Tchar (2×2; former Fig. 8)",
     "supp_min_pop_fixedpoints": "PBE global-min map + fixed-point pop lines (1×3; former Fig. 9)",
     "supp_ir_size_oxidation_at_po2": "Per-Ir ⟨n_O/n_Ir⟩ & ⟨HOMO–LUMO⟩ vs T at ambient pO₂ (2×3; former Fig. 12)",
+    "supp_vib_dof_gvib_contrib": "G_vib vs N_vib (273|500 K) + per-Ir vib ΔG vs T (ambient|low pO₂; former Fig. 9 rows 2–5)",
 }
 
 

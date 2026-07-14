@@ -227,7 +227,7 @@ def _render_figure(pressure_pa: float, filename: str) -> None:
         N_ROWS, 2,
         figsize=(FIG_W_MM / 25.4, FIG_H_MM / 25.4),
         dpi=DPI,
-        sharex=True,
+        sharex="col",
     )
 
     row_specs = (
@@ -274,6 +274,9 @@ def _render_figure(pressure_pa: float, filename: str) -> None:
         wspace=SUBPLOT_WSPACE,
     )
     sync_temperature_xaxis_grid(axes, ts_ref)
+    for ax in axes.ravel():
+        if ax.axison:
+            ax.tick_params(axis="x", labelbottom=True)
 
     cbar_kw = {"gap": FIG03_CBAR_GAP, "width": FIG03_CBAR_WIDTH}
 

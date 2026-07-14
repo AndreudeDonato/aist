@@ -317,7 +317,6 @@ _SUPPLEMENTARY_NEEDS_ACE = {
     "supp_ir_size_vib_vs_novib_maps",
     "supp_ir_size_tchar_vs_gvib_maps",
     "supp_gc_clustering_maps",
-    "supp_gc_motif_pressure_bars",
     "supp_gc_clustering_pressure_bars",
     "supp_vib_contrib_tchar",
     "supp_min_pop_fixedpoints",
@@ -329,11 +328,11 @@ _SUPPLEMENTARY_NEEDS_GC = {
     "supp_ir_size_vib_vs_novib_maps",
     "supp_ir_size_tchar_vs_gvib_maps",
     "supp_gc_clustering_maps",
-    "supp_gc_motif_pressure_bars",
     "supp_gc_clustering_pressure_bars",
     "supp_vib_contrib_tchar",
     "supp_min_pop_fixedpoints",
     "supp_ir_size_oxidation_at_po2",
+    "supp_vib_dof_gvib_contrib",
 }
 _SUPPLEMENTARY_NEEDS_GC_VARIANTS = {
     "supp_gc_g_vs_mu",
@@ -342,7 +341,6 @@ _SUPPLEMENTARY_NEEDS_GC_VARIANTS = {
     "supp_ir_size_vib_vs_novib_maps",
     "supp_ir_size_tchar_vs_gvib_maps",
     "supp_gc_clustering_maps",
-    "supp_gc_motif_pressure_bars",
     "supp_gc_clustering_pressure_bars",
     "supp_min_pop_fixedpoints",
     "supp_ir_size_oxidation_at_po2",
