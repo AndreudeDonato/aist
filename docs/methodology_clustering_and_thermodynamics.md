@@ -199,7 +199,7 @@ The wedge below \(r_{23} = \tfrac{1}{2}\) is **mathematically empty** for any ph
 
 ### 2.6 Chemical interpretation of production labels
 
-The assignments below summarise the **current** pooled ACE cache (`figures/cache/ace/`, \(n = 1782\) structures: 1065 PBE + 717 PBE0). They are **not** hard-coded names in the pipeline—only integer labels ordered by oxidation (Ir motifs, structure clusters) or size (O motifs before geometry check). Re-run `python3 analysis/Iratoms/check_o_motif_identity.py` and `python3 analysis/Iratoms/inspect_struct_clusters.py` after any ACE rebuild to refresh the statistics.
+The assignments below summarise the **current** pooled ACE cache (`figures/cache/ace/`, \(n = 1792\) structures: 1065 PBE + 727 PBE0). They are **not** hard-coded names in the pipeline—only integer labels ordered by oxidation (Ir motifs, structure clusters) or size (O motifs before geometry check). Re-run `python3 analysis/Iratoms/check_o_motif_identity.py` and `python3 analysis/Iratoms/inspect_struct_clusters.py` after any ACE rebuild to refresh the statistics.
 
 #### O atom motifs (O-A0 … O-A2)
 
@@ -217,30 +217,32 @@ In figures, **O-A0 = bridging** and **O-A1 = terminal** (`FIG04_O_BRIDGING_IDX =
 
 Ir motifs are **ordered by parent-structure oxidation** after clustering: **Ir-A0** is the SOAP motif family with the lowest mean \(n_O/n_{\mathrm{Ir}}\), **Ir-A3** the highest. They capture distinct Ir local environments (coordination and oxide character) that track the stoichiometry ladder rather than a single scalar oxidation state:
 
-- **Ir-A0** — metal-like / weakly oxidised Ir (dominant in C0–C1).
-- **Ir-A1** — early oxide Ir sites (dominant in C2; mixed in C3).
-- **Ir-A2** — mid–high oxidation Ir environments (dominant in C4–C5).
-- **Ir-A3** — strongly oxidised Ir (dominant in C6–C8; essentially all Ir in C7).
+- **Ir-A0** — metal-like / weakly oxidised Ir (dominant in C0–C2).
+- **Ir-A1** — early oxide Ir sites (dominant in C3; mixed in C1).
+- **Ir-A2** — mid–high oxidation Ir environments (dominant in C4–C5; mixed in C6).
+- **Ir-A3** — strongly oxidised Ir (dominant in C6–C8; essentially all Ir in C7–C8).
 
 #### Structure clusters (C0 … C8)
 
 Clusters are ordered by **mean** \(n_O/n_{\mathrm{Ir}}\) (C0 lowest, C8 highest). Several groups are chemically sharp; others overlap in stoichiometry and are separated by **motif composition**, the **O₂ binary flag**, or **inertia shape** (especially linear vs compact layouts at high oxidation).
 
-| Cluster | \(n\) | Mean \(n_O/n_{\mathrm{Ir}}\) | Dominant chemistry (motifs + shape) | Narrative |
-|---------|------|-------------------------------|-------------------------------------|-----------|
-| **C0** | 220 | 0.27 | Terminal O (52%), Ir-A0; compact planar-ish \((r_{13}, r_{23}) \approx (0.53, 0.83)\) | Low-oxidation Ir-rich cores with **terminal** O termination; mostly PBE |
-| **C1** | 230 | 0.42 | **Bridging O (97%)**, Ir-A0; similar compact shape | Early oxide with **bridge-rich** O layer on still metal-like Ir; lowest oxides that are almost exclusively bridging |
-| **C2** | 163 | 1.12 | Terminal O (84%), Ir-A1 | Mid-oxidation (\(\sim\)1:1 O/Ir) **terminal-oxide** family; strongly PBE-weighted |
-| **C3** | 138 | 1.18 | Bridging O (74%) + terminal, Ir-A1/Ir-A2 | Same stoichiometry band as C2 but **bridge-heavy** and more oxidised Ir motifs |
-| **C4** | 306 | 1.36 | Bridging O (91%), Ir-A2 | Sub-stoichiometric to near-stoichiometric **bridging oxide** nanoparticles; largest mid-ox group |
-| **C5** | 216 | 1.87 | Bridging O (79%), Ir-A2/Ir-A3 | Higher oxidation **bridging** layouts; somewhat more extended mass distribution than C4 |
-| **C6** | 99 | 2.54 | **O-A2 (molecular O₂) 34%**, mixed bridging/terminal, Ir-A2/Ir-A3 | **All O₂-containing structures** in the dataset (O–O \< 1.6 Å); dissociative/adsorbed O₂ chemistry isolated by the binary O₂ feature |
-| **C7** | 224 | 2.65 | Mixed bridging/terminal (58/42%), **Ir-A3 only** | High oxidation (\(n_O/n_{\mathrm{Ir}} \ge 2\)) **compact** IrOₓ with fully oxidised Ir motifs |
-| **C8** | 186 | 2.74 | 50/50 bridging/terminal, Ir-A3; **linear** \((r_{13}, r_{23}) \approx (0.25, 0.85)\) | Highest mean oxidation; **elongated / chain-like** IrOₓ (linear **L** shape corner) distinct from compact high-ox C7 despite similar stoichiometry |
+**Functional composition (size-normalised):** for each cluster, the PBE / PBE0 split expressed as percentages that sum to 100% (each functional weighted by \(n_{\mathrm{in\,cluster}} / N_{\mathrm{functional}}\), so the larger PBE pool does not bias the split). **Dataset share:** the fraction of the PBE pool, PBE0 pool, and pooled dataset (\(n = 1792\)) that each cluster contains.
 
-**PBE vs PBE0:** labels are pooled, so both functionals share C*. C2 is mostly PBE; C5, C6, and C8 contain more PBE0 structures—consistent with PBE0 favouring higher-oxidation / molecular-O₂ configurations in this stoichiometry grid. Functional differences in phase maps therefore reflect both electronic structure and slightly different population weights across these groups.
+| Cluster | \(n\) | Mean \(n_O/n_{\mathrm{Ir}}\) | Functional composition & dataset share | Dominant chemistry (motifs + shape) | Narrative |
+|---------|------|-------------------------------|----------------------------------------|-------------------------------------|-----------|
+| **C0** | 140 | 0.24 | PBE 51% · PBE0 49% (7.9% PBE · 7.7% PBE0 · 7.8% total) | Mixed O motifs (24/20% bridge/terminal), Ir-A0 (88%); compact \((r_{13}, r_{23}) \approx (0.49, 0.83)\) | Most reduced Ir-rich cores with **light, heterogeneous** O termination; spans bare-ish to lightly oxidised layouts |
+| **C1** | 127 | 0.40 | PBE 79% · PBE0 21% (10.0% PBE · 2.8% PBE0 · 7.1% total) | Terminal O (94%), Ir-A0/Ir-A1; compact \((r_{13}, r_{23}) \approx (0.60, 0.84)\) | Low-oxidation **terminal-oxide** family; early oxide caps on still metal-like Ir |
+| **C2** | 211 | 0.41 | PBE 49% · PBE0 51% (11.5% PBE · 12.1% PBE0 · 11.8% total) | **Bridging O (99%)**, Ir-A0; compact \((r_{13}, r_{23}) \approx (0.52, 0.81)\) | Low-oxidation **bridge-rich** family at similar stoichiometry to C1; separates terminal vs bridging O at the earliest oxide stage |
+| **C3** | 179 | 1.23 | PBE 87% · PBE0 13% (15.3% PBE · 2.2% PBE0 · 10.0% total) | Terminal O (70%), Ir-A1 (83%); compact \((r_{13}, r_{23}) \approx (0.56, 0.81)\) | Mid-oxidation (\(\sim\)1:1 O/Ir) **terminal-oxide** family |
+| **C4** | 339 | 1.28 | PBE 49% · PBE0 51% (18.7% PBE · 19.3% PBE0 · 18.9% total) | Bridging O (87%), Ir-A2 (76%); compact \((r_{13}, r_{23}) \approx (0.54, 0.81)\) | Largest **bridging mid-oxide** nanoparticle group |
+| **C5** | 288 | 1.80 | PBE 39% · PBE0 61% (13.0% PBE · 20.6% PBE0 · 16.1% total) | Bridging O (82%), Ir-A2/Ir-A3; slightly more extended \((r_{13}, r_{23}) \approx (0.69, 0.85)\) | Higher oxidation **bridging** layouts; somewhat more extended mass distribution than C4 |
+| **C6** | 99 | 2.54 | PBE 33% · PBE0 67% (3.8% PBE · 8.0% PBE0 · 5.5% total) | **O-A2 (molecular O₂) 34%**, mixed bridging/terminal, Ir-A2/Ir-A3 | **All O₂-containing structures** in the dataset (O–O \< 1.6 Å); dissociative/adsorbed O₂ chemistry isolated by the binary O₂ feature |
+| **C7** | 225 | 2.66 | PBE 52% · PBE0 48% (12.9% PBE · 12.1% PBE0 · 12.6% total) | Mixed bridging/terminal (58/42%), Ir-A3 (87%); compact \((r_{13}, r_{23}) \approx (0.56, 0.78)\) | High oxidation (\(n_O/n_{\mathrm{Ir}} \ge 2\)) **compact** IrOₓ with fully oxidised Ir motifs |
+| **C8** | 184 | 2.76 | PBE 31% · PBE0 69% (6.9% PBE · 15.3% PBE0 · 10.3% total) | 50/50 bridging/terminal, Ir-A3 (90%); **linear** \((r_{13}, r_{23}) \approx (0.24, 0.86)\) | Highest mean oxidation; **elongated / chain-like** IrOₓ (linear **L** shape corner) distinct from compact high-ox C7 despite similar stoichiometry |
 
-**Role of extent in splitting “similar” oxides:** C7 vs C8 is the clearest example at high oxidation: similar \(n_O/n_{\mathrm{Ir}}\) and Ir-A3-dominated motifs, but C8’s **low** \(r_{13}\) (linear mass distribution) enters clustering because extent is high enough to unlock shape features—separating **compact high-oxide particles** from **linear oxide chains/fragments**. At low oxidation, C0 vs C1 splits largely on **terminal vs bridging O** motif fractions with shape still near-planar and extent low (shape columns small).
+**PBE vs PBE0:** labels are pooled, so both functionals share C*. Using the size-normalised composition above, C1 and C3 are strongly PBE-dominated (79% / 87%); C0, C2, C4, and C7 are near-balanced; C5, C6, and C8 are PBE0-dominated (61–69% PBE0)—consistent with PBE0 favouring higher-oxidation / molecular-O₂ configurations in this stoichiometry grid. Functional differences in phase maps therefore reflect both electronic structure and slightly different population weights across these groups.
+
+**Role of extent in splitting “similar” oxides:** C7 vs C8 is the clearest example at high oxidation: similar \(n_O/n_{\mathrm{Ir}}\) and Ir-A3-dominated motifs, but C8’s **low** \(r_{13}\) (linear mass distribution) enters clustering because extent is high enough to unlock shape features—separating **compact high-oxide particles** from **linear oxide chains/fragments**. At low oxidation, **C1 vs C2** splits largely on **terminal vs bridging O** motif fractions at similar \(\sim\)0.4 stoichiometry, while **C0** sits below both as the most reduced and chemically heterogeneous group; shape remains near-planar and extent low throughout (shape columns small).
 
 ### 2.7 Reproducibility
 

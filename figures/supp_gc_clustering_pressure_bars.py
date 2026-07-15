@@ -60,16 +60,18 @@ from figures.utils.plotting import (
     add_phase_colorbar,
     discrete_category_colorbar,
     margin_colorbar_cax,
+    save_fig,
 )
 
 FIG_W_MM = 180
-FIG_H_MM = 285
+FIG_H_MM = 252
 N_ROWS = 6
 ACE_EXTENT_NORMALIZATION = "partial"
 FIG03_LAYOUT_RECT = [0.04, 0, 0.91, 1]
 FIG03_CBAR_GAP = 0.008
 FIG03_CBAR_WIDTH = 0.012
-SUBPLOT_HSPACE = 0.48
+ROW_H_MM = 42
+SUBPLOT_HSPACE = 0.28
 SUBPLOT_WSPACE = 0.12
 
 DATASETS = [
@@ -228,6 +230,7 @@ def _render_figure(pressure_pa: float, filename: str) -> None:
         figsize=(FIG_W_MM / 25.4, FIG_H_MM / 25.4),
         dpi=DPI,
         sharex="col",
+        gridspec_kw={"height_ratios": [ROW_H_MM] * N_ROWS},
     )
 
     row_specs = (
@@ -315,10 +318,7 @@ def _render_figure(pressure_pa: float, filename: str) -> None:
     )
 
     out_path = os.path.join(OUTPUT_DIR, filename)
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
-    fig.savefig(out_path, format="svg", dpi=DPI, bbox_inches=None, pad_inches=0)
-    plt.close(fig)
-    print(f"[save] {out_path}")
+    save_fig(fig, out_path, dpi=DPI, bbox_inches="tight", pad_inches=0)
     print(f"[supp] {out_path}")
 
 

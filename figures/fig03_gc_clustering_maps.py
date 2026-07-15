@@ -56,12 +56,13 @@ from figures.utils.plotting import (
     stoichiometry_overlay_labels,
     style_phase_ax,
     style_shared_gc_panel_ax,
+    save_fig,
 )
 
 OUTPUT_PATH = os.path.join(OUTPUT_DIR, "fig03_gc_clustering_maps.svg")
 FIG_W_MM = 180
 MAP_ROW_H_MM = 42
-BAR_ROW_H_MM = 47
+BAR_ROW_H_MM = 44
 N_BAR_ROWS = 4
 N_ROWS = 1 + N_BAR_ROWS
 FIG_H_MM = MAP_ROW_H_MM + N_BAR_ROWS * BAR_ROW_H_MM
@@ -337,9 +338,7 @@ def main() -> None:
         cax=margin_colorbar_cax(fig, bar_axes[3, 0], bar_axes[3, 1], **cbar_kw),
     )
 
-    fig.savefig(OUTPUT_PATH, format="svg", dpi=DPI, bbox_inches=None, pad_inches=0)
-    plt.close(fig)
-    print(f"[save] {OUTPUT_PATH}")
+    save_fig(fig, OUTPUT_PATH, dpi=DPI, bbox_inches="tight", pad_inches=0)
     print(f"\n[fig03] {OUTPUT_PATH}")
 
 

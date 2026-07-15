@@ -60,7 +60,7 @@ from figures.utils.plotting import (
 
 OUTPUT_PATH = os.path.join(OUTPUT_DIR, "fig05_homo_lumo_gap_maps.svg")
 FIG_W_MM = 88
-BAR_ROW_H_MM = 55
+BAR_ROW_H_MM = 52
 LINES_H_MM = 50
 FIG_H_MM = 2 * BAR_ROW_H_MM + LINES_H_MM
 CBAR_GAP = 0.012
