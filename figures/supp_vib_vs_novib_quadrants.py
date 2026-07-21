@@ -1,15 +1,15 @@
-"""Figure 7 – Vibrational vs. non-vibrational phase diagrams.
+"""Supplementary – Vibrational vs. non-vibrational phase diagrams.
 
-2×2 quadrant layout (PBE — full vib/ZPE thermo from ``IryOxPBE.traj``):
+Former Figure 7. 2×2 quadrant layout (PBE — full vib/ZPE thermo from
+``IryOxPBE.traj``):
   (0,0) Full (vib + ensemble):         existing x_per_non_o
   (0,1) No vib/ZPE, with ensemble:     x_per_non_o recomputed without vib
   (1,0) With vib, no ensemble:         single-minimum stoichiometry (full G)
   (1,1) No vib/ZPE, no ensemble:       single-minimum stoichiometry (novib G)
 
-Requires figures/data/gc_variants.npz (produced by
-figures/data/compute_gc_variants.py on first run).
+Requires figures/cache/gc_variants.npz.
 
-Output: figures/outputs/fig07_vib_vs_novib_quadrants.svg
+Output: figures/outputs/supp_vib_vs_novib_quadrants.svg
 """
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ for _p in [_ROOT, os.path.join(_ROOT, "analysis")]:
 
 from figures.config import GC_NPZ, GC_VARIANTS_NPZ, OUTPUT_DIR, DPI
 from figures.utils.io import ensure_dirs, load_gc_npz
-from figures.utils.cache import ensure_for_figures
+from figures.utils.cache import ensure_for_supplementary
 from figures.utils.plotting import (
     TITLE_FONTSIZE,
     add_phase_colorbar,
@@ -38,7 +38,7 @@ from figures.utils.plotting import (
     style_phase_ax,
 )
 
-OUTPUT_PATH = os.path.join(OUTPUT_DIR, "fig07_vib_vs_novib_quadrants.svg")
+OUTPUT_PATH = os.path.join(OUTPUT_DIR, "supp_vib_vs_novib_quadrants.svg")
 PHASE_CMAP = "coolwarm"
 
 TITLES = {
@@ -74,7 +74,7 @@ def _phase_map_panel(
 
 
 def main() -> None:
-    ensure_for_figures([7])
+    ensure_for_supplementary(["supp_vib_vs_novib_quadrants"])
     ensure_dirs(OUTPUT_DIR)
 
     vd = np.load(GC_VARIANTS_NPZ, allow_pickle=True)
@@ -114,7 +114,7 @@ def main() -> None:
             label=r"$n_O / n_{Ir}$",
         )
     save_fig(fig, OUTPUT_PATH, dpi=DPI)
-    print(f"\n[fig07] {OUTPUT_PATH}")
+    print(f"\n[supp] {OUTPUT_PATH}")
 
 
 if __name__ == "__main__":

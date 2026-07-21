@@ -29,7 +29,11 @@ def build_element_matrix(reactants, products):
 
 
 def balance_reaction(reactants, products):
-    """Returns stoichiometric coefficients for a balanced reaction with first reactant = 1.0 (normalized, float)."""
+    """Return stoichiometric coefficients with the first reactant normalised to 1.0.
+
+    For Ir + O2 -> Ir_n O_m this yields r = [-1, -m/(2n)], p = [1/n], i.e.
+    formation free energy per Ir atom (G_i / n_Ir).
+    """
     M = build_element_matrix(reactants, products)
     nullspace = M.nullspace()
 

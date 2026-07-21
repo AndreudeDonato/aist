@@ -35,8 +35,10 @@ def check_gc_variants_npz(path: str) -> None:
     check_file(path, "gc_variants")
     data = np.load(path)
     required = (
-        "Ts", "Ps", "full_Pgi", "novib_Pgi", "full_phase_index",
-        "novib_phase_index", "novib_G_tensor", "full_G_tensor",
+        "Ts", "Ps", "full_Pgi", "novib_Pgi", "vib_nozpe_Pgi", "zpe_only_Pgi",
+        "full_phase_index", "novib_phase_index", "vib_nozpe_phase_index",
+        "zpe_only_phase_index",
+        "novib_G_tensor", "full_G_tensor", "vib_nozpe_G_tensor", "zpe_only_G_tensor",
     )
     missing = [k for k in required if k not in data]
     if missing:

@@ -70,7 +70,7 @@ def patch_gc_variants_support(
     ev_per_ir: float,
     ev_per_o: float,
 ) -> None:
-    """Stabilize cluster rows on both novib and full branches of ``gc_variants.npz``."""
+    """Stabilize cluster rows on all thermo branches of ``gc_variants.npz``."""
     corr = support_corrections_per_ir(
         structures_file, gas_rows_idx, ev_per_ir=ev_per_ir, ev_per_o=ev_per_o
     )
@@ -80,7 +80,7 @@ def patch_gc_variants_support(
     tg, _ = np.meshgrid(ts, ps, indexing="xy")
     stoich = np.asarray(data["stoich"], dtype=float)
 
-    for branch in ("novib", "full"):
+    for branch in ("novib", "full", "vib_nozpe", "zpe_only"):
         key = f"{branch}_G_tensor"
         if key not in data:
             continue

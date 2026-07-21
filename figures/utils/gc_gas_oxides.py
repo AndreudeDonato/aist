@@ -70,19 +70,28 @@ def _gas_rot_trans_delta(
     tg: np.ndarray,
     p_gas: float,
     *,
-    use_vib_zpe: bool,
+    use_vib_zpe: bool | None = None,
+    include_v: bool | None = None,
+    include_zpe: bool | None = None,
     include_e: bool,
 ) -> np.ndarray:
+    if use_vib_zpe is not None:
+        include_v = bool(use_vib_zpe)
+        include_zpe = bool(use_vib_zpe)
+    if include_v is None:
+        include_v = False
+    if include_zpe is None:
+        include_zpe = False
     elec = _elec_states(atoms) if include_e else None
     pgas = np.full_like(tg, p_gas)
     g_rt, _ = compute_thermo_contributions(
         atoms, tg, pgas, elec_states=elec,
-        include_v=use_vib_zpe, include_zpe=use_vib_zpe,
+        include_v=include_v, include_zpe=include_zpe,
         include_r=True, include_t=True,
     )
     g_base, _ = compute_thermo_contributions(
         atoms, tg, pgas, elec_states=elec,
-        include_v=use_vib_zpe, include_zpe=use_vib_zpe,
+        include_v=include_v, include_zpe=include_zpe,
         include_r=False, include_t=False,
     )
     return np.asarray(g_rt - g_base, dtype=np.float32)
@@ -207,17 +216,28 @@ def _patch_gc_variants_branch(
     stoich: np.ndarray,
     gas_rows: list[tuple[int, Atoms, float]],
     *,
-    use_vib_zpe: bool,
+    use_vib_zpe: bool | None = None,
+    include_v: bool | None = None,
+    include_zpe: bool | None = None,
     include_e: bool,
     include_rot_trans: bool,
     strip_vib_zpe: bool,
 ) -> dict:
+    if use_vib_zpe is not None:
+        include_v = bool(use_vib_zpe)
+        include_zpe = bool(use_vib_zpe)
+    if include_v is None:
+        include_v = False
+    if include_zpe is None:
+        include_zpe = False
     for row, atoms, p_gas in gas_rows:
         if strip_vib_zpe:
             g[row] -= _gas_vib_zpe_delta(atoms, tg, p_gas, include_e=include_e)
         if include_rot_trans:
             g[row] += _gas_rot_trans_delta(
-                atoms, tg, p_gas, use_vib_zpe=use_vib_zpe, include_e=include_e,
+                atoms, tg, p_gas,
+                include_v=include_v, include_zpe=include_zpe,
+                include_e=include_e,
             )
     return _reensemble_from_g(g, tg, stoich)
 
@@ -230,7 +250,7 @@ def patch_gc_variants_gas(
     include_rot_trans: bool = True,
     strip_vib_zpe: bool = False,
 ) -> None:
-    """Gas thermo patches on both novib and full branches in ``gc_variants.npz``."""
+    """Gas thermo patches on novib / full / vib_nozpe branches in ``gc_variants.npz``."""
     if not gas_rows:
         return
     data = dict(np.load(npz_path, allow_pickle=True))
@@ -239,30 +259,28 @@ def patch_gc_variants_gas(
     tg, _ = np.meshgrid(ts, ps, indexing="xy")
     stoich = np.asarray(data["stoich"], dtype=float)
 
-    g_novib = np.asarray(data["novib_G_tensor"], dtype=float)
-    novib = _patch_gc_variants_branch(
-        g_novib, tg, stoich, gas_rows,
-        use_vib_zpe=False, include_e=include_e,
-        include_rot_trans=include_rot_trans, strip_vib_zpe=strip_vib_zpe,
+    branch_flags = (
+        ("novib", False, False),
+        ("full", True, True),
+        ("vib_nozpe", True, False),
+        ("zpe_only", False, True),
     )
-    data["novib_G_tensor"] = g_novib.astype(np.float32)
-    data["novib_Pgi"] = novib["Pgi"]
-    data["novib_phase_index"] = novib["phase_index"]
-    data["novib_x_per_non_o"] = novib["x_per_non_o"]
-    data["novib_stoich_map"] = stoich[novib["phase_index"]]
-
-    if "full_G_tensor" in data:
-        g_full = np.asarray(data["full_G_tensor"], dtype=float)
-        full = _patch_gc_variants_branch(
-            g_full, tg, stoich, gas_rows,
-            use_vib_zpe=True, include_e=include_e,
+    for prefix, include_v, include_zpe in branch_flags:
+        g_key = f"{prefix}_G_tensor"
+        if g_key not in data:
+            continue
+        g = np.asarray(data[g_key], dtype=float)
+        ens = _patch_gc_variants_branch(
+            g, tg, stoich, gas_rows,
+            include_v=include_v, include_zpe=include_zpe,
+            include_e=include_e,
             include_rot_trans=include_rot_trans, strip_vib_zpe=strip_vib_zpe,
         )
-        data["full_G_tensor"] = g_full.astype(np.float32)
-        data["full_Pgi"] = full["Pgi"]
-        data["full_phase_index"] = full["phase_index"]
-        data["full_x_per_non_o"] = full["x_per_non_o"]
-        data["full_stoich_map"] = stoich[full["phase_index"]]
+        data[g_key] = g.astype(np.float32)
+        data[f"{prefix}_Pgi"] = ens["Pgi"]
+        data[f"{prefix}_phase_index"] = ens["phase_index"]
+        data[f"{prefix}_x_per_non_o"] = ens["x_per_non_o"]
+        data[f"{prefix}_stoich_map"] = stoich[ens["phase_index"]]
 
     np.savez(npz_path, **data)
 

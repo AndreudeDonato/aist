@@ -340,6 +340,32 @@ def ensemble_scalar_vs_T_at_pressure(
     return ts, float(jt_sub["Ps"][p_idx]), np.asarray(field[p_idx, :], dtype=float)
 
 
+def winner_scalar_vs_T_at_pressure(
+    joined: dict,
+    n_ir: int,
+    per_structure: np.ndarray,
+    pressure_pa: float,
+    *,
+    include_gas_reservoir: bool | None = None,
+) -> tuple[np.ndarray, float, np.ndarray] | None:
+    """Winning-structure scalar vs ``T`` for one ``n_Ir`` bucket at fixed ``pO₂``."""
+    ctx = _subset_at_pressure(
+        joined, n_ir, pressure_pa, include_gas_reservoir=include_gas_reservoir,
+    )
+    if ctx is None:
+        return None
+    jt_sub, p_idx, ts = ctx
+    per_sub = _subset_per_structure(
+        joined, n_ir, per_structure, include_gas_reservoir=include_gas_reservoir,
+    )
+    if per_sub is None:
+        return None
+    pgi_slab = np.asarray(jt_sub["Pgi"][:, p_idx, :], dtype=float)
+    winner = np.argmax(pgi_slab, axis=0)
+    values = np.asarray(per_sub, dtype=float)[winner]
+    return ts, float(jt_sub["Ps"][p_idx]), values
+
+
 def ensemble_o_motif_vs_T_at_pressure(
     joined: dict,
     n_ir: int,
@@ -479,6 +505,47 @@ def draw_scalar_gradient_bars(
         return t_plot, _scalar_colors_with_gas_1d(
             values, f_gas, cmap=cmap, vmin=vmin, vmax=vmax,
         )
+
+    return _draw_bar_layers(
+        ax, joined, pressure_pa, ir_counts,
+        bar_colors_fn=colors_fn,
+        section_kind=section_kind,
+        section_labels=section_labels,
+        include_gas_reservoir=include_gas_reservoir,
+        section_phase_index_by_ir=section_phase_index_by_ir,
+        xlim=xlim,
+    )
+
+
+def draw_winner_scalar_gradient_bars(
+    ax,
+    joined: dict,
+    pressure_pa: float,
+    ir_counts: list[int],
+    per_structure: np.ndarray,
+    *,
+    cmap: str,
+    vmin: float,
+    vmax: float,
+    section_kind: SectionKind = "global_min",
+    section_labels: list[str] | None = None,
+    include_gas_reservoir: bool | None = None,
+    section_phase_index_by_ir: dict[int, np.ndarray] | None = None,
+    xlim: tuple[float, float] | None = None,
+) -> float:
+    """Horizontal bars vs ``T``: one band per ``n_Ir``, colour = winner scalar."""
+    norm = Normalize(vmin=vmin, vmax=vmax)
+    cm = plt.get_cmap(cmap)
+
+    def colors_fn(n: int):
+        curve = winner_scalar_vs_T_at_pressure(
+            joined, n, per_structure, pressure_pa,
+            include_gas_reservoir=include_gas_reservoir,
+        )
+        if curve is None:
+            return None, None
+        t_plot, _, values = curve
+        return t_plot, cm(norm(values))
 
     return _draw_bar_layers(
         ax, joined, pressure_pa, ir_counts,

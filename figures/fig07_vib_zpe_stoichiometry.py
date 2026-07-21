@@ -1,11 +1,12 @@
-"""Figure 9 – Boltzmann ΔZPE vs N_vib + reaction ⟨ΔG_vib⟩(T) by stoichiometry (PBE).
+"""Figure 7 – Boltzmann ΔZPE vs N_vib + reaction ⟨ΔG_vib⟩(T) by stoichiometry (PBE).
 
 Single column (88 mm wide, 4 rows):
 
-  1. Boltzmann ⟨ΔZPE⟩ vs vibrational DOF ``N_vib`` (by Ir, 273 K).
-  2–4. Boltzmann reaction ⟨ΔG_vib⟩(T) for Ir₃, Ir₆, Ir₉ (stoichiometry colour).
+  1. Boltzmann ⟨ΔZPE⟩ vs vibrational DOF ``N_vib`` (by Ir).
+  2–4. Boltzmann reaction ⟨ΔG_vib⟩(T) for Ir₃, Ir₆, Ir₉
+     (stoichiometry colour; GC reaction normalised to one cluster product).
 
-Output: ``figures/outputs/fig09_vib_zpe_stoichiometry.svg``
+Output: ``figures/outputs/fig07_vib_zpe_stoichiometry.svg``
 """
 from __future__ import annotations
 
@@ -41,7 +42,7 @@ from figures.utils.plotting import (
 from figures.utils.validation import check_vib_availability
 from figures.utils.vib_contrib_by_ir import boltzmann_reaction_vib_curves_by_stoichiometry
 
-OUTPUT_PATH = os.path.join(OUTPUT_DIR, "fig09_vib_zpe_stoichiometry.svg")
+OUTPUT_PATH = os.path.join(OUTPUT_DIR, "fig07_vib_zpe_stoichiometry.svg")
 FIG_W_MM = 88
 ROW_H_MM = 42
 FIG_H_MM = 4 * ROW_H_MM
@@ -49,13 +50,6 @@ IR_TARGETS = (3, 6, 9)
 LAYOUT_RECT = [0, 0, 0.84, 1]
 CBAR_GAP = 0.01
 CBAR_WIDTH = 0.012
-
-
-def _condition_label(temperature_k: float) -> str:
-    return (
-        rf"$T={temperature_k:.0f}$ K, "
-        rf"$p_{{\mathrm{{O_2}}}}={FIG08_PRESSURE_PA:.3g}$ Pa"
-    )
 
 
 def _pin_line_xlim(ax, xmin: float, xmax: float) -> None:
@@ -170,7 +164,7 @@ def _plot_reaction_vib_vs_t(
 
 
 def main() -> None:
-    ensure_for_figures([9])
+    ensure_for_figures([7])
     ensure_dirs(OUTPUT_DIR)
 
     gc = load_gc_npz(VIB_GC_NPZ, light=True)
@@ -189,7 +183,7 @@ def main() -> None:
         temperature_k=FIG08_VIB_G_TEMP_K,
         pressure_pa=FIG08_PRESSURE_PA,
     )
-    Ts, p_used, curves_by_ir = boltzmann_reaction_vib_curves_by_stoichiometry(
+    Ts, _p_used, curves_by_ir = boltzmann_reaction_vib_curves_by_stoichiometry(
         structures,
         gc["Pgi"],
         gc["Ts"],
@@ -197,7 +191,6 @@ def main() -> None:
         pressure_pa=FIG08_PRESSURE_PA,
     )
 
-    cond_273 = _condition_label(FIG08_VIB_G_TEMP_K)
     ox_vmin, ox_vmax = _stoich_limits(curves_by_ir, IR_TARGETS)
     ox_norm = Normalize(vmin=ox_vmin, vmax=ox_vmax)
     ox_cmap = plt.get_cmap(PHASE_CMAP)
@@ -213,8 +206,8 @@ def main() -> None:
     zpe_xlim = _plot_zpe_vs_vib_dof(
         axes[0],
         grouped_273,
-        title=rf"Boltzmann $\langle\Delta\mathrm{{ZPE}}\rangle$ vs "
-              rf"$N_{{\mathrm{{vib}}}}$ (by Ir, {cond_273})",
+        title=r"Boltzmann $\langle\Delta\mathrm{ZPE}\rangle$ vs "
+              r"$N_{\mathrm{vib}}$ (by Ir)",
     )
 
     for row, n_ir in enumerate(IR_TARGETS, start=1):
@@ -224,7 +217,7 @@ def main() -> None:
             curves_by_ir.get(n_ir, []),
             ox_norm,
             ox_cmap,
-            title=rf"Ir$_{{{n_ir}}}$ at $p_{{\mathrm{{O_2}}}}={p_used:.3g}$ Pa",
+            title=rf"Ir$_{{{n_ir}}}$",
         )
 
     if zpe_xlim is not None:
@@ -260,7 +253,7 @@ def main() -> None:
     )
 
     save_fig(fig, OUTPUT_PATH, dpi=DPI, bbox_inches=None, pad_inches=0)
-    print(f"\n[fig09] {OUTPUT_PATH}")
+    print(f"\n[fig07] {OUTPUT_PATH}")
 
 
 if __name__ == "__main__":

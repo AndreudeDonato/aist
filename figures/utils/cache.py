@@ -251,6 +251,10 @@ def _gc_variants_stale(path: str) -> bool:
     with np.load(path) as data:
         if "novib_G_tensor" not in data.files or "full_G_tensor" not in data.files:
             return True
+        if "vib_nozpe_G_tensor" not in data.files:
+            return True
+        if "zpe_only_G_tensor" not in data.files:
+            return True
         if "gc_gas_P_Pa" not in data.files:
             return True
         if not np.isclose(float(data["gc_gas_P_Pa"]), GC_GAS_P["PBE"], rtol=1e-6):
@@ -303,9 +307,9 @@ def ensure_gc_variants(*, force: bool = False) -> None:
         )
 
 
-_FIG_NEEDS_ACE = {2, 3, 4, 6}
+_FIG_NEEDS_ACE = {2, 3, 4, 6, 9}
 _FIG_NEEDS_GC = {3, 4, 5, 7, 8, 9}
-_FIG_NEEDS_GC_VARIANTS = {3, 4, 5, 7, 8}
+_FIG_NEEDS_GC_VARIANTS = {3, 4, 5, 8, 9}
 _FIG_NEEDS_RUTILE_GC = {6}
 _FIG_NEEDS_FIG06_GC = {6}
 _SUPPLEMENTARY_NEEDS_ACE = {
@@ -315,35 +319,53 @@ _SUPPLEMENTARY_NEEDS_ACE = {
     "supp_ir_size_gc_maps",
     "supp_ir_size_o_motif_ratio_maps",
     "supp_ir_size_vib_vs_novib_maps",
+    "supp_ir_size_oxidation_delta_maps",
     "supp_ir_size_tchar_vs_gvib_maps",
     "supp_gc_clustering_maps",
     "supp_gc_clustering_pressure_bars",
     "supp_vib_contrib_tchar",
     "supp_min_pop_fixedpoints",
+    "supp_ranked_pop_by_ir",
     "supp_ir_size_oxidation_at_po2",
+    "supp_vib_vs_novib_quadrants",
+    "supp_vib_vs_novib_bars",
+    "supp_oxidation_delta_by_ir",
+    "supp_oxidation_delta_by_ir_low_po2",
 }
 _SUPPLEMENTARY_NEEDS_GC = {
     "supp_ir_size_gc_maps",
     "supp_ir_size_o_motif_ratio_maps",
     "supp_ir_size_vib_vs_novib_maps",
+    "supp_ir_size_oxidation_delta_maps",
     "supp_ir_size_tchar_vs_gvib_maps",
     "supp_gc_clustering_maps",
     "supp_gc_clustering_pressure_bars",
     "supp_vib_contrib_tchar",
     "supp_min_pop_fixedpoints",
+    "supp_ranked_pop_by_ir",
     "supp_ir_size_oxidation_at_po2",
     "supp_vib_dof_gvib_contrib",
+    "supp_vib_vs_novib_quadrants",
+    "supp_vib_vs_novib_bars",
+    "supp_oxidation_delta_by_ir",
+    "supp_oxidation_delta_by_ir_low_po2",
 }
 _SUPPLEMENTARY_NEEDS_GC_VARIANTS = {
     "supp_gc_g_vs_mu",
     "supp_ir_size_gc_maps",
     "supp_ir_size_o_motif_ratio_maps",
     "supp_ir_size_vib_vs_novib_maps",
+    "supp_ir_size_oxidation_delta_maps",
     "supp_ir_size_tchar_vs_gvib_maps",
     "supp_gc_clustering_maps",
     "supp_gc_clustering_pressure_bars",
     "supp_min_pop_fixedpoints",
+    "supp_ranked_pop_by_ir",
     "supp_ir_size_oxidation_at_po2",
+    "supp_vib_vs_novib_quadrants",
+    "supp_vib_vs_novib_bars",
+    "supp_oxidation_delta_by_ir",
+    "supp_oxidation_delta_by_ir_low_po2",
 }
 
 

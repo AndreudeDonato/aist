@@ -1,4 +1,4 @@
-"""Full vs no-vib grand-canonical variants for Figures 5 and 8."""
+"""Full / novib / vib-no-ZPE grand-canonical variants."""
 from __future__ import annotations
 
 import os
@@ -8,6 +8,16 @@ import numpy as np
 from aist.core.grandcanonical import GCConfig, compute_gc
 
 
+def _branch_out(prefix: str, result: dict, stoich: np.ndarray) -> dict:
+    return {
+        f"{prefix}_phase_index": result["phase_index"],
+        f"{prefix}_x_per_non_o": result["x_per_non_o"],
+        f"{prefix}_stoich_map": stoich[result["phase_index"]],
+        f"{prefix}_Pgi": result["Pgi"],
+        f"{prefix}_G_tensor": result["G_tensor"],
+    }
+
+
 def run_gc_variants(
     structures_file: str,
     pressure_file: str,
@@ -15,7 +25,7 @@ def run_gc_variants(
     *,
     grid_config: GCConfig | None = None,
 ) -> None:
-    """Compute and save full/novib GC maps with full ``Pgi`` tensors."""
+    """Compute and save full / novib / vib-no-ZPE GC maps with ``Pgi`` tensors."""
     os.makedirs(os.path.dirname(output_npz) or ".", exist_ok=True)
 
     base = grid_config or GCConfig()
@@ -28,58 +38,38 @@ def run_gc_variants(
         "n_P": base.n_P,
         "reference_file": base.reference_file,
     }
-    cfg_full = GCConfig(
-        **common,
-        include_v_product=True,
-        include_v_mu=True,
-        include_zpe_product=True,
-        include_zpe_mu=True,
-        include_decomposition=False,
-    )
-    cfg_novib = GCConfig(
-        **common,
-        include_v_product=False,
-        include_v_mu=False,
-        include_zpe_product=False,
-        include_zpe_mu=False,
-        include_decomposition=False,
+    branches = (
+        ("full", True, True, "full (vib + ZPE + ensemble)"),
+        ("novib", False, False, "novib (no vib, no ZPE)"),
+        ("vib_nozpe", True, False, "vib only (no ZPE)"),
+        ("zpe_only", False, True, "ZPE only (no thermal vib)"),
     )
 
-    print("[gc_variants] full (vib + ZPE + ensemble)")
-    full = compute_gc(
-        structures_file,
-        pressure_file,
-        config=cfg_full,
-        save_outputs=False,
-    )
-    stoich = full["stoich"]
-    full_g_tensor = full["G_tensor"]
-    full_out = {
-        "Ts": full["Ts"],
-        "Ps": full["Ps"],
-        "full_phase_index": full["phase_index"],
-        "full_x_per_non_o": full["x_per_non_o"],
-        "full_stoich_map": stoich[full["phase_index"]],
-        "full_Pgi": full["Pgi"],
-        "full_G_tensor": full_g_tensor,
-    }
-    del full
+    out: dict = {}
+    stoich = None
+    for prefix, use_v, use_zpe, label in branches:
+        cfg = GCConfig(
+            **common,
+            include_v_product=use_v,
+            include_v_mu=use_v,
+            include_zpe_product=use_zpe,
+            include_zpe_mu=use_zpe,
+            include_decomposition=False,
+        )
+        print(f"[gc_variants] {label}")
+        result = compute_gc(
+            structures_file,
+            pressure_file,
+            config=cfg,
+            save_outputs=False,
+        )
+        if stoich is None:
+            stoich = result["stoich"]
+            out["Ts"] = result["Ts"]
+            out["Ps"] = result["Ps"]
+            out["stoich"] = stoich
+        out.update(_branch_out(prefix, result, stoich))
+        del result
 
-    print("[gc_variants] novib (no vib, no ZPE)")
-    novib = compute_gc(
-        structures_file,
-        pressure_file,
-        config=cfg_novib,
-        save_outputs=False,
-    )
-    novib_out = {
-        "novib_phase_index": novib["phase_index"],
-        "novib_x_per_non_o": novib["x_per_non_o"],
-        "novib_stoich_map": stoich[novib["phase_index"]],
-        "novib_Pgi": novib["Pgi"],
-        "novib_G_tensor": novib["G_tensor"],
-    }
-    del novib
-
-    np.savez(output_npz, stoich=stoich, **full_out, **novib_out)
+    np.savez(output_npz, **out)
     print(f"[gc_variants] saved: {output_npz}")

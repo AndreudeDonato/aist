@@ -138,6 +138,44 @@ def oxidation_map_by_n_ir(
     return out
 
 
+def stoich_winner_map_by_n_ir(
+    Ts: np.ndarray,
+    Ps: np.ndarray,
+    Pgi: np.ndarray,
+    stoich: np.ndarray,
+    n_ir_per_struct: np.ndarray,
+    n_ir_target: int,
+    formulas: np.ndarray | None = None,
+    *,
+    include_gas_reservoir: bool | None = None,
+) -> dict | None:
+    """Single-minimum ``n_O/n_Ir`` map for one Ir bucket + gas oxides.
+
+    Winner at each ``(p, T)`` is ``argmax`` of ``Pgi`` renormalised on the bucket
+    (same rule as the global ``*_stoich_map`` fields in ``gc_variants.npz``).
+    """
+    if include_gas_reservoir is None:
+        include_gas_reservoir = GC_INCLUDE_GAS_RESERVOIR
+    mask = ir_size_reservoir_mask(
+        n_ir_per_struct, n_ir_target, formulas, include_gas_reservoir=include_gas_reservoir,
+    )
+    if not np.any(mask):
+        return None
+
+    stoich_m, Pgi_n = _renorm_pgi_at_indices(Pgi, stoich, mask)
+    winner = np.argmax(Pgi_n, axis=0)
+    out: dict = {
+        "Ts": Ts,
+        "Ps": Ps,
+        "stoich_map": stoich_m[winner],
+        "phase_index": winner,
+        "n_struct": int(mask.sum()),
+    }
+    if formulas is not None:
+        out["formulas"] = np.asarray(formulas[mask], dtype=object)
+    return out
+
+
 def structure_g_curves_by_ir_at_temperature(
     G_tensor: np.ndarray,
     stoich: np.ndarray,
@@ -194,6 +232,36 @@ def oxidation_vs_t_by_ir_at_pressure(
             gc["Pgi"], stoich, mask, p_idx=p_idx,
         )
         lines[int(n)] = stoich_m @ Pgi_n
+    return Ts, pressure_used, lines
+
+
+def single_min_stoich_vs_t_by_ir_at_pressure(
+    Pgi: np.ndarray,
+    stoich: np.ndarray,
+    n_ir_per_struct: np.ndarray,
+    Ts: np.ndarray,
+    Ps: np.ndarray,
+    pressure_pa: float,
+    *,
+    ir_counts: range | list[int] | None = None,
+    formulas: np.ndarray | None = None,
+) -> tuple[np.ndarray, float, dict[int, np.ndarray]]:
+    """Winning-structure ``n_O/n_Ir`` vs ``T`` at fixed ``pO₂``, one curve per ``n_Ir``."""
+    from aist.core.grandcanonical import pressure_grid_index
+
+    if ir_counts is None:
+        ir_counts = range(3, 10)
+    p_idx, pressure_used = pressure_grid_index(Ps, pressure_pa)
+    Ts = np.asarray(Ts, dtype=float)
+    stoich = np.asarray(stoich, dtype=float)
+    lines: dict[int, np.ndarray] = {}
+    for n in ir_counts:
+        mask = ir_size_reservoir_mask(n_ir_per_struct, int(n), formulas)
+        if not np.any(mask):
+            continue
+        Pgi_n = _renorm_pgi_slab(Pgi, mask, p_idx=p_idx)
+        winner = np.argmax(Pgi_n, axis=0)
+        lines[int(n)] = stoich[mask][winner]
     return Ts, pressure_used, lines
 
 
