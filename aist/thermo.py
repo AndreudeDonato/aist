@@ -89,11 +89,11 @@ class ThermoPartitionFunctions:
         self.c = speed_of_light
         self.Na = Avogadro
 
-        self.eV_to_J = 1 / electron_volt
-        self.J_to_eV = electron_volt
+        self.eV_to_J = electron_volt
+        self.J_to_eV = 1 / electron_volt
         self.amu_to_kg = physical_constants["atomic mass constant"][0]
         self.angstrom2_to_m2 = 1e-20
-        self.Jmol_to_eV = self.eV_to_J / self.Na
+        self.Jmol_to_eV = self.J_to_eV / self.Na
 
     def get_inertia_tensor(self, atoms):
         positions = atoms.get_positions() - atoms.get_center_of_mass()
@@ -216,7 +216,7 @@ class ThermoPartitionFunctions:
         qspin = 1
         for I in nuclear_spins:
             qspin *= int(2 * I + 1)
-        sspin = self.kb * np.log(qspin) / 1e3
+        sspin = self.r_cons * np.log(qspin)
         return sspin * self.Jmol_to_eV, qspin
 
     def get_total_thermo(self, atoms, T, P, vib_freqs, elec_states, nuclear_spins, include_zpe=False):

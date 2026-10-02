@@ -31,9 +31,11 @@ def compute_thermo_contributions(structure, Tg, Pg, elec_states=None,
 
     if include_t:
         et, st, _ = thermo.get_translational(Tg, Pg)
+        # ideal-gas enthalpy: H_trans = U_trans + pV = 3/2 kT + kT, so G = H - TS = -kT ln q
+        et = et + thermo.tp.kb * thermo.tp.J_to_eV * np.asarray(Tg, dtype=float)
     if include_v and len(frequencies) > 0:
         ev, sv, _ = thermo.get_vibrational(frequencies, Tg)
-    if include_r and len(frequencies) > 0:
+    if include_r and len(structure) > 1:
         er, sr, _ = thermo.get_rotational(Tg)
     if elec_states is not None:
         eelec, selec, _ = thermo.get_electronic(elec_states, Tg)
