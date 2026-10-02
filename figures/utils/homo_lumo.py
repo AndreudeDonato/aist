@@ -29,8 +29,9 @@ def homo_lumo_gaps(structures) -> np.ndarray:
 
 def homo_lumo_gap_map(Pgi: np.ndarray, gaps: np.ndarray) -> np.ndarray:
     """Ensemble ``⟨HOMO–LUMO⟩`` field on the GC grid."""
-    n = min(gaps.size, Pgi.shape[0])
-    return ensemble_weighted_mean_map(Pgi[:n], gaps[:n])
+    if gaps.size != Pgi.shape[0]:
+        raise ValueError(f"{gaps.size} gaps but {Pgi.shape[0]} GC rows")
+    return ensemble_weighted_mean_map(Pgi, gaps)
 
 
 def ir_size_homo_lumo_panel(jt: dict, gaps: np.ndarray, n_ir: int) -> dict | None:

@@ -26,7 +26,7 @@ from figures.utils.cache import ensure_for_figures
 from figures.utils.comparison import build_comparison_joined_table, load_gc_comparison_view
 from figures.utils.datasets import DATASETS, dataset_inputs
 from figures.utils.gc_subset import oxidation_map_by_n_ir, stoich_winner_map_by_n_ir
-from figures.utils.io import ensure_dirs, load_ace_features, load_npz
+from figures.utils.io import ensure_dirs, load_ace_features, load_npz, load_variants_like
 from figures.utils.plotting import (
     AXIS_LABEL_FONTSIZE,
     add_phase_colorbar,
@@ -68,30 +68,22 @@ def _symmetric_limit(deltas: list[np.ndarray]) -> float:
 def _dataset_panels(label: str) -> dict[tuple[int, int], dict]:
     """{(n_Ir, difference index): panel} of one functional."""
     inp = dataset_inputs(label)
-    vd = load_npz(
-        inp.variants_npz,
-        keys=("Ts", "Ps", "stoich", "full_Pgi", "novib_Pgi"),
-    )
+    gc_ref = load_gc_comparison_view(label, light=True)
+    vd = load_variants_like(inp.variants_npz, gc_ref, ("Ts", "Ps", "stoich", "full_Pgi", "novib_Pgi"))
     Ts, Ps = vd["Ts"], vd["Ps"]
     stoich = np.asarray(vd["stoich"], dtype=float)
 
-    gc_ref = load_gc_comparison_view(label, light=True)
     rows = load_ace_features(inp.ace_features)
-    n_gc = min(
-        len(gc_ref["formulas"]),
-        vd["full_Pgi"].shape[0],
-        vd["novib_Pgi"].shape[0],
-    )
     jt = build_comparison_joined_table(
-        {**gc_ref, "Pgi": gc_ref["Pgi"][:n_gc]},
+        gc_ref,
         rows,
         label,
     )
     n_ir = np.asarray(jt["n_Ir"], dtype=int)
     formulas = np.asarray(jt["formulas_gc"], dtype=object)
-    full_Pgi = vd["full_Pgi"][:n_gc]
-    novib_Pgi = vd["novib_Pgi"][:n_gc]
-    stoich_n = stoich[:n_gc]
+    full_Pgi = vd["full_Pgi"]
+    novib_Pgi = vd["novib_Pgi"]
+    stoich_n = stoich
 
     panels: dict[tuple[int, int], dict] = {}
     for n_ir_target in IR_COUNTS:

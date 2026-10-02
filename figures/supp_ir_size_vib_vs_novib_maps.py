@@ -23,7 +23,7 @@ from figures.utils.comparison import build_comparison_joined_table, load_gc_comp
 from figures.utils.cache import ensure_for_supplementary
 from figures.utils.datasets import DATASETS, dataset_inputs
 from figures.utils.gc_subset import oxidation_map_by_n_ir
-from figures.utils.io import ensure_dirs, load_ace_features, load_npz
+from figures.utils.io import ensure_dirs, load_ace_features, load_npz, load_variants_like
 from figures.utils.plotting import (
     AXIS_LABEL_FONTSIZE,
     add_phase_colorbar,
@@ -66,22 +66,14 @@ def _scalar_limits(panels: list[dict]) -> tuple[float, float]:
 
 def _dataset_grid(label: str) -> dict[tuple[int, str], dict]:
     inp = dataset_inputs(label)
-    vd = load_npz(
-        inp.variants_npz,
-        keys=("Ts", "Ps", "stoich", "full_Pgi", "novib_Pgi"),
-    )
+    gc_ref = load_gc_comparison_view(label, light=True)
+    vd = load_variants_like(inp.variants_npz, gc_ref, ("Ts", "Ps", "stoich", "full_Pgi", "novib_Pgi"))
     Ts, Ps = vd["Ts"], vd["Ps"]
     stoich = np.asarray(vd["stoich"], dtype=float)
 
-    gc_ref = load_gc_comparison_view(label, light=True)
     rows = load_ace_features(inp.ace_features)
-    n_gc = min(
-        len(gc_ref["formulas"]),
-        vd["full_Pgi"].shape[0],
-        vd["novib_Pgi"].shape[0],
-    )
     jt = build_comparison_joined_table(
-        {**gc_ref, "Pgi": gc_ref["Pgi"][:n_gc]},
+        gc_ref,
         rows,
         label,
     )
@@ -92,7 +84,7 @@ def _dataset_grid(label: str) -> dict[tuple[int, str], dict]:
     for n_ir_target in IR_COUNTS:
         for pgi_key, col_label in COLUMN_SPECS:
             panel = oxidation_map_by_n_ir(
-                Ts, Ps, vd[pgi_key][:n_gc], stoich[:n_gc], n_ir, n_ir_target,
+                Ts, Ps, vd[pgi_key], stoich, n_ir, n_ir_target,
                 formulas=formulas,
             )
             if panel is not None:

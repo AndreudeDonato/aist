@@ -37,10 +37,24 @@ def load_npz(path: str, *, keys: tuple[str, ...] | None = None) -> dict:
 
 
 def _attach_source_frames(data: dict, npz_path: str) -> dict:
+    """Attach the ``<npz>_frames.npy`` sidecar (trajectory frame of each GC row, -1 = gas oxide)."""
     side = npz_path[:-4] + "_frames.npy"
-    if os.path.exists(side):
-        data["source_frames"] = np.load(side)
+    if not os.path.exists(side):
+        raise FileNotFoundError(f"GC frames sidecar not found: {side}\nRun: python3 figures/build_all.py --rebuild-cache")
+    data["source_frames"] = np.load(side)
     return data
+
+
+def load_variants_like(variants_npz: str, gc_ref: dict, keys: tuple[str, ...]) -> dict:
+    """Fields of a GC variants NPZ, checked to hold the same rows (trajectory frames) as ``gc_ref``."""
+    vd = _attach_source_frames(load_npz(variants_npz, keys=keys), variants_npz)
+    ref = gc_ref.get("source_frames")
+    if ref is None or not np.array_equal(np.asarray(ref), vd["source_frames"]):
+        raise ValueError(f"{variants_npz} rows do not match the reference GC rows; rebuild the cache")
+    for k in keys:
+        if k.endswith("Pgi") and np.shape(vd[k])[0] != len(ref):
+            raise ValueError(f"{variants_npz}: {k} has {np.shape(vd[k])[0]} rows, frames sidecar {len(ref)}")
+    return vd
 
 
 def load_gc_npz(path: str, *, light: bool = False, extra_keys: tuple[str, ...] = ()) -> dict:

@@ -103,11 +103,11 @@ def _dataset_grid(label: str) -> dict[tuple[int, str], dict]:
     inp = dataset_inputs(label)
     gc = load_gc_npz(inp.gc_npz)
     structures = gc_structures(label)
-    n_s = min(len(structures), gc["Pgi"].shape[0])
-    structures = structures[:n_s]
-    Pgi = np.asarray(gc["Pgi"][:n_s], dtype=float)
+    if len(structures) != gc["Pgi"].shape[0]:
+        raise ValueError(f"{label}: {len(structures)} structures but {gc['Pgi'].shape[0]} GC rows")
+    Pgi = np.asarray(gc["Pgi"], dtype=float)
     Ts, Ps = gc["Ts"], gc["Ps"]
-    formulas = np.asarray(gc["formulas"][:n_s], dtype=object)
+    formulas = np.asarray(gc["formulas"], dtype=object)
     n_ir = np.array([_n_ir_n_o(s)[0] for s in structures], dtype=int)
 
     check_vib_availability(structures, label, required=True)

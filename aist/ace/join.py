@@ -8,57 +8,46 @@ from aist.core.grandcanonical import pressure_grid_index
 
 
 def align_ace_rows_to_gc(gc_data: dict, ace_rows: list[dict]) -> list[dict]:
-    """ACE rows in the order of the GC structure rows.
+    """ACE rows in the order of the GC structure rows, checked by formula.
 
-    When a GC ensemble holds only part of a trajectory (e.g. only structures with vibrational
-    frequencies), ``gc_data["source_frames"]`` gives each GC row's frame index (-1 = gas oxide) and
-    ACE rows are picked by their ``frame_index``; rows with ``frame_index < 0`` (synthetic gas rows) are
-    kept at the end. Without ``source_frames`` the rows are returned unchanged (positional join).
+    ``gc_data["source_frames"]`` (the ``<npz>_frames.npy`` sidecar) gives each GC row's trajectory frame
+    (-1 = gas oxide). ACE rows are picked by their ``frame_index``; rows with ``frame_index < 0`` (synthetic
+    gas rows) are kept at the end. Raises when the sidecar is missing, a frame has no ACE row, or the
+    formulas of a GC row and its ACE row differ (e.g. ACE rows of the other functional).
     """
     src = gc_data.get("source_frames")
     if src is None:
-        return ace_rows
+        raise ValueError("GC data has no source_frames (the <npz>_frames.npy sidecar); rebuild the cache")
     frames = [int(s) for s in np.asarray(src) if int(s) >= 0]
     struct_rows = [r for r in ace_rows if int(r.get("frame_index", -1)) >= 0]
     gas_rows = [r for r in ace_rows if int(r.get("frame_index", -1)) < 0]
-    if [int(r["frame_index"]) for r in struct_rows] == frames:
-        return list(ace_rows)
     by_frame = {int(r["frame_index"]): r for r in struct_rows}
     missing = [f for f in frames if f not in by_frame]
     if missing:
         raise ValueError(f"GC structures without an ACE row (frames {missing[:5]}…); rebuild the cache")
-    return [by_frame[f] for f in frames] + gas_rows
+    aligned = [by_frame[f] for f in frames]
+    gc_formulas = [str(f) for f in np.asarray(gc_data["formulas"])[: len(aligned)]]
+    bad = [(f, r["formula"], g) for f, r, g in zip(frames, aligned, gc_formulas) if str(r["formula"]) != g]
+    if bad:
+        raise ValueError(f"ACE rows do not match the GC rows (frame, ACE, GC): {bad[:3]}… ({len(bad)} rows)")
+    return aligned + gas_rows
 
 
 def build_joined_table(
     gc_data: dict,
     ace_rows: list[dict],
     dataset: str = "PBE",
-    *,
-    strict: bool = True,
 ) -> dict:
     """Align GC ensemble weights with per-structure ACE labels."""
     ace_rows = align_ace_rows_to_gc(gc_data, ace_rows)
-    n_gc = gc_data["Pgi"].shape[0]
-    n_ace = len(ace_rows)
-    if n_gc != n_ace:
-        if strict:
-            raise ValueError(
-                f"[{dataset}] GC has {n_gc} structures, ACE features has {n_ace} rows. "
-                "Re-run cache with --force after updating data/ trajectories."
-            )
-        n = min(n_gc, n_ace)
-        print(
-            f"[warn][join] truncating to {n} structures "
-            f"(GC={n_gc}, ACE={n_ace}, dataset={dataset})"
+    n = gc_data["Pgi"].shape[0]
+    if n != len(ace_rows):
+        raise ValueError(
+            f"[{dataset}] GC has {n} structures, ACE features has {len(ace_rows)} rows. "
+            "Re-run cache with --force after updating data/ trajectories."
         )
-        gc_pgi = gc_data["Pgi"][:n]
-        gc_phase = gc_data["phase_index"]
-        ace_rows = ace_rows[:n]
-    else:
-        n = n_gc
-        gc_pgi = gc_data["Pgi"]
-        gc_phase = gc_data["phase_index"]
+    gc_pgi = gc_data["Pgi"]
+    gc_phase = gc_data["phase_index"]
 
     ir_cols = sorted(
         [k for k in ace_rows[0] if k.startswith("Ir-") and k.endswith("_frac")]

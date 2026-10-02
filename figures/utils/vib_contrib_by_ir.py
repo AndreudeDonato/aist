@@ -14,7 +14,7 @@ from aist.core.grandcanonical import (
 from aist.stoichiometry import balance_reaction
 from aist.utils import get_energy
 
-from figures.config import IR_REF_PBE, THERMO_IR_COUNTS, VIB_O2_REF, gc_grid_config
+from figures.config import THERMO_IR_COUNTS
 from figures.utils.gc_subset import _renorm_pgi_slab, ir_size_reservoir_mask
 from figures.utils.vib_metrics import tchar_energy_weighted_ensemble_map
 
@@ -36,11 +36,11 @@ def compute_per_structure_contribution_slab(
     Ps: np.ndarray,
     p_idx: int,
     *,
-    config: GCConfig | None = None,
-    o2_path: str = VIB_O2_REF,
+    config: GCConfig,
+    o2_path: str,
 ) -> dict[str, np.ndarray]:
     """Per-structure ΔG contribution vs ``T`` at fixed ``p_idx`` (shape ``n_s × n_T``)."""
-    cfg = config or gc_grid_config(reference_file=IR_REF_PBE, include_decomposition=True)
+    cfg = config
     Ts = np.asarray(Ts, dtype=float)
     Ps = np.asarray(Ps, dtype=float)
     Tg, Pg = np.meshgrid(Ts, Ps, indexing="xy")
@@ -158,16 +158,15 @@ def boltzmann_reaction_vib_curves_by_stoichiometry(
     pressure_pa: float,
     ir_symbol: str = "Ir",
     o_symbol: str = "O",
-    config: GCConfig | None = None,
-    o2_path: str = VIB_O2_REF,
+    config: GCConfig,
+    o2_path: str,
 ) -> tuple[np.ndarray, float, dict[int, list[dict]]]:
     """Boltzmann reaction ``⟨ΔG_vib⟩(T)`` per stoichiometry bucket, grouped by ``n_Ir``.
 
     Uses the balanced-reaction vibrational contribution (cluster + reference + O₂
     reservoir) with the GC Boltzmann weights restricted to each ``(n_Ir, n_O)`` bucket
     (``aist.core.vibrational.stoichiometry_weights``; ``gc`` needs ``Ts``, ``Ps``, ``G_tensor``,
-    ``degeneracy``). ``config`` (Ir reference) and ``o2_path`` default to PBE; pass the PBE0 ones for
-    PBE0 structures.
+    ``degeneracy``). ``config`` (Ir reference) and ``o2_path`` are the functional's references.
     """
     from aist.core.vibrational import (
         _structure_stoichiometry_groups,
@@ -214,11 +213,11 @@ def compute_per_structure_e_vib_tensor(
     Ts: np.ndarray,
     Ps: np.ndarray,
     *,
-    config: GCConfig | None = None,
-    o2_path: str = VIB_O2_REF,
+    config: GCConfig,
+    o2_path: str,
 ) -> np.ndarray:
     """Per-structure vibrational ΔG contribution on the GC grid (``n_s × n_P × n_T``)."""
-    cfg = config or gc_grid_config(reference_file=IR_REF_PBE, include_decomposition=True)
+    cfg = config
     Ts = np.asarray(Ts, dtype=float)
     Ps = np.asarray(Ps, dtype=float)
     Tg, Pg = np.meshgrid(Ts, Ps, indexing="xy")
@@ -372,20 +371,19 @@ def contribution_lines_by_ir_at_pressure(
     *,
     ir_counts: list[int] | None = None,
     formulas: np.ndarray | None = None,
-    config: GCConfig | None = None,
-    o2_path: str = VIB_O2_REF,
+    config: GCConfig,
+    o2_path: str,
 ) -> tuple[np.ndarray, float, dict[int, list[tuple[str, np.ndarray]]]]:
     """ΔG contribution lines vs ``T`` at fixed ``pO₂``, one set per ``n_Ir`` bucket (``config`` / ``o2_path``:
-    the functional's Ir and O₂ references, PBE by default)."""
+    the functional's Ir and O₂ references)."""
     Ts = np.asarray(gc["Ts"], dtype=float)
     Ps = np.asarray(gc["Ps"], dtype=float)
     Pgi = np.asarray(gc["Pgi"], dtype=float)
     p_idx, pressure_used = pressure_grid_index(Ps, pressure_pa)
 
-    n_s = min(len(structures), Pgi.shape[0])
-    structures = structures[:n_s]
-    Pgi = Pgi[:n_s]
-    n_ir_per_struct = np.asarray(n_ir_per_struct[:n_s], dtype=int)
+    if len(structures) != Pgi.shape[0]:
+        raise ValueError(f"{len(structures)} structures but {Pgi.shape[0]} GC rows")
+    n_ir_per_struct = np.asarray(n_ir_per_struct, dtype=int)
 
     slabs = compute_per_structure_contribution_slab(
         structures, Ts, Ps, p_idx, config=config, o2_path=o2_path,

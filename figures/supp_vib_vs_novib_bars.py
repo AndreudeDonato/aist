@@ -42,7 +42,7 @@ from figures.utils.gc_gradient_bars import (
     sync_temperature_xaxis_grid,
     winner_scalar_vs_T_at_pressure,
 )
-from figures.utils.io import ensure_dirs, load_ace_features, load_npz
+from figures.utils.io import ensure_dirs, load_ace_features, load_npz, load_variants_like
 from figures.utils.plotting import (
     AXIS_LABEL_FONTSIZE,
     TICK_FONTSIZE,
@@ -138,26 +138,18 @@ def _style_bar_axes(axes: np.ndarray) -> None:
 def _dataset_joined(label: str) -> tuple[dict, dict, dict, np.ndarray]:
     """(reference, full, novib) joined tables and n_O/n_Ir per GC row of one functional."""
     inp = dataset_inputs(label)
-    vd = load_npz(
-        inp.variants_npz,
-        keys=("Ts", "Ps", "stoich", "full_Pgi", "novib_Pgi"),
-    )
     gc_ref = load_gc_comparison_view(label, light=True)
+    vd = load_variants_like(inp.variants_npz, gc_ref, ("Ts", "Ps", "stoich", "full_Pgi", "novib_Pgi"))
     rows = load_ace_features(inp.ace_features)
-    n_gc = min(
-        len(gc_ref["formulas"]),
-        vd["full_Pgi"].shape[0],
-        vd["novib_Pgi"].shape[0],
-    )
     jt = build_comparison_joined_table(
-        {**gc_ref, "Pgi": gc_ref["Pgi"][:n_gc]},
+        gc_ref,
         rows,
         label,
     )
     n_ir = np.asarray(jt["n_Ir"], dtype=float)
     n_o = np.asarray(jt["n_O"], dtype=float)
     stoich = np.where(n_ir > 0, n_o / n_ir, np.nan)
-    return jt, _joined_with_pgi(jt, vd["full_Pgi"][:n_gc]), _joined_with_pgi(jt, vd["novib_Pgi"][:n_gc]), stoich
+    return jt, _joined_with_pgi(jt, vd["full_Pgi"]), _joined_with_pgi(jt, vd["novib_Pgi"]), stoich
 
 
 def main() -> None:

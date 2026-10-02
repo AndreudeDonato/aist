@@ -43,7 +43,7 @@ from figures.utils.gc_gradient_bars import (
     sync_temperature_xaxis,
     winner_scalar_vs_T_at_pressure,
 )
-from figures.utils.io import ensure_dirs, load_ace_features, load_npz
+from figures.utils.io import ensure_dirs, load_ace_features, load_npz, load_variants_like
 from figures.utils.plotting import (
     AXIS_LABEL_FONTSIZE,
     LEGEND_FONTSIZE,
@@ -238,24 +238,14 @@ def _draw_variant_gradient_bars(
 def _series(label: str, pressure_pa: float) -> dict:
     """Oxidation lines of every thermo variant and their Δ to VZE, for one functional."""
     inp = dataset_inputs(label)
-    vd = load_npz(
-        inp.variants_npz,
-        keys=(
-            "Ts", "Ps", "stoich",
-            "full_Pgi", "novib_Pgi", "vib_nozpe_Pgi", "zpe_only_Pgi",
-        ),
-    )
     gc_ref = load_gc_comparison_view(label, light=True)
-    rows = load_ace_features(inp.ace_features)
-    n_gc = min(
-        len(gc_ref["formulas"]),
-        vd["full_Pgi"].shape[0],
-        vd["novib_Pgi"].shape[0],
-        vd["vib_nozpe_Pgi"].shape[0],
-        vd["zpe_only_Pgi"].shape[0],
+    vd = load_variants_like(
+        inp.variants_npz, gc_ref,
+        ("Ts", "Ps", "stoich", "full_Pgi", "novib_Pgi", "vib_nozpe_Pgi", "zpe_only_Pgi"),
     )
+    rows = load_ace_features(inp.ace_features)
     jt = build_comparison_joined_table(
-        {**gc_ref, "Pgi": gc_ref["Pgi"][:n_gc]},
+        gc_ref,
         rows,
         label,
     )
@@ -264,10 +254,10 @@ def _series(label: str, pressure_pa: float) -> dict:
     stoich = np.where(n_ir > 0, n_o / n_ir, np.nan)
 
     joined_by_branch = {
-        "full": _joined_with_pgi(jt, vd["full_Pgi"][:n_gc]),
-        "novib": _joined_with_pgi(jt, vd["novib_Pgi"][:n_gc]),
-        "vib_nozpe": _joined_with_pgi(jt, vd["vib_nozpe_Pgi"][:n_gc]),
-        "zpe_only": _joined_with_pgi(jt, vd["zpe_only_Pgi"][:n_gc]),
+        "full": _joined_with_pgi(jt, vd["full_Pgi"]),
+        "novib": _joined_with_pgi(jt, vd["novib_Pgi"]),
+        "vib_nozpe": _joined_with_pgi(jt, vd["vib_nozpe_Pgi"]),
+        "zpe_only": _joined_with_pgi(jt, vd["zpe_only_Pgi"]),
     }
 
     ox_cache: dict[tuple[str, str], dict[int, np.ndarray]] = {}
