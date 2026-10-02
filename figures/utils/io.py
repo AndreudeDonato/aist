@@ -43,11 +43,12 @@ def _attach_source_frames(data: dict, npz_path: str) -> dict:
     return data
 
 
-def load_gc_npz(path: str, *, light: bool = False) -> dict:
+def load_gc_npz(path: str, *, light: bool = False, extra_keys: tuple[str, ...] = ()) -> dict:
     """Load grandcanonical_results.npz and return as plain dict.
 
     With ``light=True``, skip ``G_tensor`` and other fields not needed for
-    subset oxidation maps (saves ~100 MB per file at 150×150 grids).
+    subset oxidation maps (saves ~100 MB per file at 150×150 grids); ``extra_keys`` adds fields
+    to that light set.
     """
     if not os.path.exists(path):
         raise FileNotFoundError(
@@ -58,7 +59,7 @@ def load_gc_npz(path: str, *, light: bool = False) -> dict:
         return _attach_source_frames(load_npz(path), path)
     return _attach_source_frames(load_npz(
         path,
-        keys=("Ts", "Ps", "Pgi", "stoich", "formulas", "phase_index", "x_per_non_o"),
+        keys=("Ts", "Ps", "Pgi", "stoich", "formulas", "phase_index", "x_per_non_o") + tuple(extra_keys),
     ), path)
 
 

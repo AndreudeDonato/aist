@@ -129,6 +129,7 @@ def compute_gc(
         include_t=cfg.include_t_mu,
     )
     Eo = get_energy(structure_pressure)
+    E_ir = get_energy(reference_structure)
 
     Er_val, ref_contrib = compute_thermo_contributions(
         reference_structure,
@@ -205,9 +206,8 @@ def compute_gc(
 
         E_struct = get_energy(structure)
         E0_dft_structures.append(E_struct)
-        E_ref = get_energy(structures_main[0])
         Eform_dft_structures.append(
-            p_coeffs[0] * E_struct + r_coeffs[0] * E_ref + r_coeffs[1] * Eo
+            p_coeffs[0] * E_struct + r_coeffs[0] * E_ir + r_coeffs[1] * Eo
         )
 
     G_tensor = np.stack(G_list, axis=0)
@@ -325,6 +325,7 @@ def compute_gc(
         "I1_I3_vol": I1_vol / I3_vol,
         "I2_I3_vol": I2_vol / I3_vol,
         "pop_max": np.max(Pgi, axis=(1, 2)),
+        "degeneracy": np.array(degeneracies, dtype=float),
         "G_avg": G_avg,
         "S_conf": S_conf,
         "include_decomposition": np.array([int(cfg.include_decomposition)], dtype=int),

@@ -68,6 +68,7 @@ def run_gc_variants(
             out["Ts"] = result["Ts"]
             out["Ps"] = result["Ps"]
             out["stoich"] = stoich
+            out["degeneracy"] = result["degeneracy"]
         out.update(_branch_out(prefix, result, stoich))
         del result
 

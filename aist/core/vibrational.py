@@ -12,6 +12,7 @@ from aist.thermo import ThermoFromAtoms, ThermoPartitionFunctions
 
 
 _TP = ThermoPartitionFunctions()
+KB_EV = _TP.kb * _TP.J_to_eV
 
 
 def prepare_vibrational_modes(atoms: Atoms) -> np.ndarray:
@@ -175,12 +176,14 @@ def tchar_energy_weighted_ensemble_map(
     """
     Pgi = np.asarray(Pgi, dtype=float)
     Ts = np.asarray(Ts, dtype=float)
-    n_s = min(len(structures), Pgi.shape[0])
+    if len(structures) != Pgi.shape[0]:
+        raise ValueError(f"{len(structures)} structures but {Pgi.shape[0]} Pgi rows")
+    n_s = len(structures)
     if n_s == 0 or Ts.size == 0:
         return np.full(Pgi.shape[1:], np.nan)
 
     tc_at_T = np.full((n_s, Ts.size), np.nan, dtype=float)
-    for i, atoms in enumerate(structures[:n_s]):
+    for i, atoms in enumerate(structures):
         row = tchar_energy_weighted_at_Ts(atoms, Ts)
         if np.isfinite(row).any():
             tc_at_T[i] = row
@@ -189,7 +192,6 @@ def tchar_energy_weighted_ensemble_map(
     if not np.any(valid):
         return np.full(Pgi.shape[1:], np.nan)
 
-    Pgi = Pgi[:n_s]
     tc_at_T = tc_at_T[valid]
     Pgi = Pgi[valid]
 
@@ -320,30 +322,6 @@ def compute_vib_gibbs_contribution(atoms: Atoms, temperature_k: float) -> float:
     )
 
 
-def compute_vib_gibbs_contribution_vs_temperature(
-    atoms: Atoms,
-    temperatures_k: np.ndarray,
-) -> np.ndarray:
-    """Vibrational Gibbs term ``G_vib(T)`` on a temperature grid (eV)."""
-    Ts = np.asarray(temperatures_k, dtype=float)
-    if prepare_vibrational_modes(atoms).size == 0:
-        return np.full(Ts.shape, np.nan)
-    _, contrib = compute_thermo_contributions(
-        atoms,
-        Ts,
-        np.ones_like(Ts),
-        include_v=True,
-        include_zpe=True,
-        include_r=False,
-        include_t=False,
-    )
-    ev = np.asarray(contrib.get("ev", 0.0), dtype=float)
-    sv = np.asarray(contrib.get("sv", 0.0), dtype=float)
-    zpe = contrib.get("zpe", 0.0)
-    zpe_arr = np.full_like(Ts, float(zpe), dtype=float)
-    return ev + zpe_arr - Ts * sv
-
-
 def g_vib_global_minima_per_ir_by_ir_content(
     structures: list[Atoms] | str,
     *,
@@ -418,22 +396,28 @@ def _structure_stoichiometry_groups(
     return groups
 
 
-def _renormalized_boltzmann_weights(
-    Pgi: np.ndarray,
+def stoichiometry_weights(
+    gc: dict,
     indices: list[int],
     p_idx: int,
     t_idx: int,
 ) -> np.ndarray:
-    """GC populations at ``(T, p)``, renormalized over ``indices`` only."""
+    """Boltzmann weights over the isomers ``indices`` (one stoichiometry) at grid point ``(p_idx, t_idx)``.
+
+    Same rule as ``compute_gc`` (``g_i exp(-beta G_i)`` with the Ir-normalized ``G_tensor`` and the
+    point-group degeneracies), taken relative to the lowest isomer of the group, so the weights stay exact
+    where the global populations ``Pgi`` underflow (stoichiometries far from stable).
+    """
     idx = np.asarray(indices, dtype=int)
-    w = np.asarray(Pgi[idx, p_idx, t_idx], dtype=float)
-    if w.size == 0:
-        return w
-    w = np.where(np.isfinite(w) & (w >= 0.0), w, 0.0)
-    s = float(w.sum())
-    if s <= 0.0:
-        return np.full(w.size, 1.0 / w.size)
-    return w / s
+    if idx.size == 0:
+        return np.zeros(0)
+    for key in ("G_tensor", "degeneracy"):
+        if key not in gc:
+            raise KeyError(f"GC data has no {key!r}; rebuild the cache (build_all.py --rebuild-cache)")
+    g = np.asarray(gc["G_tensor"][idx, p_idx, t_idx], dtype=float)
+    beta = 1.0 / (KB_EV * float(np.asarray(gc["Ts"])[t_idx]))
+    w = np.asarray(gc["degeneracy"], dtype=float)[idx] * np.exp(-beta * (g - g.min()))
+    return w / w.sum()
 
 
 def _weighted_mean(values: np.ndarray, weights: np.ndarray) -> float:
@@ -450,9 +434,7 @@ def _weighted_mean(values: np.ndarray, weights: np.ndarray) -> float:
 
 def boltzmann_weighted_vib_stoichiometry_by_ir_content(
     structures: list[Atoms],
-    Pgi: np.ndarray,
-    Ts: np.ndarray,
-    Ps: np.ndarray,
+    gc: dict,
     *,
     temperature_k: float,
     pressure_pa: float,
@@ -463,20 +445,18 @@ def boltzmann_weighted_vib_stoichiometry_by_ir_content(
     """Boltzmann-weighted ZPE and G_vib/n_Ir vs O content, by Ir count.
 
     At fixed ``(temperature_k, pressure_pa)``, weights within each
-    ``(n_Ir, n_O)`` bucket are ``Pgi`` renormalized over all isomers of that
-    stoichiometry (same Boltzmann rule as the GC ensemble, including
-    degeneracy). ZPE uses ``zpe_temperature_k``; ``G_vib`` uses
+    ``(n_Ir, n_O)`` bucket are the GC Boltzmann weights restricted to the isomers of that
+    stoichiometry (``stoichiometry_weights``; ``gc`` needs ``Ts``, ``Ps``, ``G_tensor``,
+    ``degeneracy`` in the row order of ``structures``). ZPE uses ``zpe_temperature_k``; ``G_vib`` uses
     ``temperature_k``. Differences are referenced to the Boltzmann average at
     ``n_O = 0`` for each ``n_Ir``.
     """
     from aist.core.grandcanonical import pressure_grid_index, temperature_grid_index
 
-    p_idx, _ = pressure_grid_index(Ps, pressure_pa)
-    t_idx, _ = temperature_grid_index(Ts, temperature_k)
-
-    n_s = min(len(structures), Pgi.shape[0])
-    structures = structures[:n_s]
-    Pgi = Pgi[:n_s]
+    if len(structures) != np.shape(gc["G_tensor"])[0]:
+        raise ValueError(f"{len(structures)} structures but {np.shape(gc['G_tensor'])[0]} GC rows")
+    p_idx, _ = pressure_grid_index(gc["Ps"], pressure_pa)
+    t_idx, _ = temperature_grid_index(gc["Ts"], temperature_k)
 
     zpe_all = np.array(
         [compute_zpe_energy(s, zpe_temperature_k) for s in structures],
@@ -497,7 +477,7 @@ def boltzmann_weighted_vib_stoichiometry_by_ir_content(
 
     avg: dict[tuple[int, int], dict[str, float]] = {}
     for (n_ir, n_o), idxs in groups.items():
-        w = _renormalized_boltzmann_weights(Pgi, idxs, p_idx, t_idx)
+        w = stoichiometry_weights(gc, idxs, p_idx, t_idx)
         avg[(n_ir, n_o)] = {
             "zpe": _weighted_mean(zpe_all[idxs], w),
             "g_vib": _weighted_mean(g_vib_all[idxs], w),
@@ -543,60 +523,3 @@ def boltzmann_weighted_vib_stoichiometry_by_ir_content(
         out[n_ir] = enriched
 
     return out
-
-
-def boltzmann_weighted_g_vib_vs_temperature_by_stoichiometry(
-    structures: list[Atoms],
-    Pgi: np.ndarray,
-    Ts: np.ndarray,
-    Ps: np.ndarray,
-    *,
-    pressure_pa: float,
-    ir_symbol: str = "Ir",
-    o_symbol: str = "O",
-) -> tuple[np.ndarray, float, dict[int, list[dict[str, Any]]]]:
-    """Boltzmann ``⟨G_vib⟩(T)`` per stoichiometry bucket, grouped by ``n_Ir``.
-
-    At each ``(T, p)``, weights within each ``(n_Ir, n_O)`` bucket are ``Pgi``
-    renormalized over all isomers of that stoichiometry.
-    """
-    from aist.core.grandcanonical import pressure_grid_index
-
-    Ts = np.asarray(Ts, dtype=float)
-    p_idx, p_used = pressure_grid_index(Ps, pressure_pa)
-    n_T = int(Ts.size)
-
-    n_s = min(len(structures), Pgi.shape[0])
-    structures = structures[:n_s]
-    Pgi = Pgi[:n_s]
-
-    g_vib_vs_T = np.stack(
-        [
-            compute_vib_gibbs_contribution_vs_temperature(s, Ts)
-            for s in structures
-        ],
-        axis=0,
-    )
-
-    groups = _structure_stoichiometry_groups(
-        structures, ir_symbol=ir_symbol, o_symbol=o_symbol,
-    )
-
-    by_ir: dict[int, list[dict[str, Any]]] = {}
-    for (n_ir, n_o), idxs in groups.items():
-        idx = np.asarray(idxs, dtype=int)
-        g_curve = np.empty(n_T, dtype=float)
-        for t_idx in range(n_T):
-            w = _renormalized_boltzmann_weights(Pgi, idxs, p_idx, t_idx)
-            g_curve[t_idx] = _weighted_mean(g_vib_vs_T[idx, t_idx], w)
-        by_ir.setdefault(int(n_ir), []).append({
-            "n_o": int(n_o),
-            "stoich": float(n_o) / float(n_ir),
-            "g_vib": g_curve,
-        })
-
-    out: dict[int, list[dict[str, Any]]] = {}
-    for n_ir, rows in by_ir.items():
-        out[n_ir] = sorted(rows, key=lambda r: (float(r["stoich"]), int(r["n_o"])))
-
-    return Ts, float(p_used), out

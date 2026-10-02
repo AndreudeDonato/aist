@@ -153,9 +153,7 @@ def compute_per_structure_contribution_slab(
 
 def boltzmann_reaction_vib_curves_by_stoichiometry(
     structures: list[Atoms],
-    Pgi: np.ndarray,
-    Ts: np.ndarray,
-    Ps: np.ndarray,
+    gc: dict,
     *,
     pressure_pa: float,
     ir_symbol: str = "Ir",
@@ -166,23 +164,23 @@ def boltzmann_reaction_vib_curves_by_stoichiometry(
     """Boltzmann reaction ``⟨ΔG_vib⟩(T)`` per stoichiometry bucket, grouped by ``n_Ir``.
 
     Uses the balanced-reaction vibrational contribution (cluster + reference + O₂
-    reservoir) with ``Pgi`` renormalized within each ``(n_Ir, n_O)`` bucket. ``config`` (Ir reference)
-    and ``o2_path`` default to PBE; pass the PBE0 ones for PBE0 structures.
+    reservoir) with the GC Boltzmann weights restricted to each ``(n_Ir, n_O)`` bucket
+    (``aist.core.vibrational.stoichiometry_weights``; ``gc`` needs ``Ts``, ``Ps``, ``G_tensor``,
+    ``degeneracy``). ``config`` (Ir reference) and ``o2_path`` default to PBE; pass the PBE0 ones for
+    PBE0 structures.
     """
     from aist.core.vibrational import (
-        _renormalized_boltzmann_weights,
         _structure_stoichiometry_groups,
         _weighted_mean,
+        stoichiometry_weights,
     )
 
-    Ts = np.asarray(Ts, dtype=float)
-    Ps = np.asarray(Ps, dtype=float)
+    Ts = np.asarray(gc["Ts"], dtype=float)
+    Ps = np.asarray(gc["Ps"], dtype=float)
+    if len(structures) != np.shape(gc["G_tensor"])[0]:
+        raise ValueError(f"{len(structures)} structures but {np.shape(gc['G_tensor'])[0]} GC rows")
     p_idx, p_used = pressure_grid_index(Ps, pressure_pa)
     n_T = int(Ts.size)
-
-    n_s = min(len(structures), Pgi.shape[0])
-    structures = structures[:n_s]
-    Pgi = Pgi[:n_s]
 
     slabs = compute_per_structure_contribution_slab(structures, Ts, Ps, p_idx, config=config, o2_path=o2_path)
     dg_vib = slabs["E_vib_avg"]
@@ -196,7 +194,7 @@ def boltzmann_reaction_vib_curves_by_stoichiometry(
         idx = np.asarray(idxs, dtype=int)
         g_curve = np.empty(n_T, dtype=float)
         for t_idx in range(n_T):
-            w = _renormalized_boltzmann_weights(Pgi, idxs, p_idx, t_idx)
+            w = stoichiometry_weights(gc, idxs, p_idx, t_idx)
             g_curve[t_idx] = _weighted_mean(dg_vib[idx, t_idx], w)
         by_ir.setdefault(int(n_ir), []).append({
             "n_o": int(n_o),

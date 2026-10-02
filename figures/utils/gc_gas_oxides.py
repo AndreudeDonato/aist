@@ -121,10 +121,12 @@ def _gas_reservoir_thermo_delta(
     return np.asarray(g_full - g_elec, dtype=np.float32)
 
 
-def _reensemble_from_g(g: np.ndarray, tg: np.ndarray, stoich: np.ndarray) -> dict:
+def _reensemble_from_g(g: np.ndarray, tg: np.ndarray, stoich: np.ndarray, degeneracy: np.ndarray) -> dict:
+    """Populations from a patched ``G_tensor``, with the same chirality degeneracies as ``compute_gc``."""
     kB = Boltzmann / electron_volt
     beta = 1.0 / (kB * tg)
     weights = np.exp(-beta * (g - np.min(g, axis=0, keepdims=True)))
+    weights *= np.asarray(degeneracy, dtype=float)[:, None, None]
     xi = np.sum(weights, axis=0)
     pgi = (weights / xi).astype(np.float32)
     phase_index = np.argmin(g, axis=0)
@@ -156,7 +158,7 @@ def patch_gas_strip_vib_zpe(
         g[row] -= _gas_vib_zpe_delta(atoms, tg, p_gas, include_e=include_e)
 
     data["G_tensor"] = g.astype(np.float32)
-    data.update(_reensemble_from_g(g, tg, stoich))
+    data.update(_reensemble_from_g(g, tg, stoich, data["degeneracy"]))
     np.savez(npz_path, **data)
 
 
@@ -181,7 +183,7 @@ def patch_gas_rot_trans(
         )
 
     data["G_tensor"] = g.astype(np.float32)
-    data.update(_reensemble_from_g(g, tg, stoich))
+    data.update(_reensemble_from_g(g, tg, stoich, data["degeneracy"]))
     np.savez(npz_path, **data)
 
 
@@ -206,7 +208,7 @@ def patch_gas_reservoir_thermo(
         )
 
     data["G_tensor"] = g.astype(np.float32)
-    data.update(_reensemble_from_g(g, tg, stoich))
+    data.update(_reensemble_from_g(g, tg, stoich, data["degeneracy"]))
     np.savez(npz_path, **data)
 
 
@@ -222,6 +224,7 @@ def _patch_gc_variants_branch(
     include_e: bool,
     include_rot_trans: bool,
     strip_vib_zpe: bool,
+    degeneracy: np.ndarray,
 ) -> dict:
     if use_vib_zpe is not None:
         include_v = bool(use_vib_zpe)
@@ -239,7 +242,7 @@ def _patch_gc_variants_branch(
                 include_v=include_v, include_zpe=include_zpe,
                 include_e=include_e,
             )
-    return _reensemble_from_g(g, tg, stoich)
+    return _reensemble_from_g(g, tg, stoich, degeneracy)
 
 
 def patch_gc_variants_gas(
@@ -275,6 +278,7 @@ def patch_gc_variants_gas(
             include_v=include_v, include_zpe=include_zpe,
             include_e=include_e,
             include_rot_trans=include_rot_trans, strip_vib_zpe=strip_vib_zpe,
+            degeneracy=data["degeneracy"],
         )
         data[g_key] = g.astype(np.float32)
         data[f"{prefix}_Pgi"] = ens["Pgi"]

@@ -148,7 +148,7 @@ def load_fig06_gc_view(
     ensure_fig06_gc()
     data = load_npz(
         FIG06_GC_NPZ_PBE0,
-        keys=("G_tensor", "Tg", "Ts", "Ps", "stoich", "formulas"),
+        keys=("G_tensor", "Tg", "Ts", "Ps", "stoich", "formulas", "degeneracy"),
     )
     g = np.asarray(data["G_tensor"], dtype=float).copy()
     tg = np.asarray(data["Tg"], dtype=float)
@@ -161,7 +161,7 @@ def load_fig06_gc_view(
         merged_path, gas_idx, ev_per_ir=ev_per_ir, ev_per_o=ev_per_o,
     )
     g -= corr[:, None, None]
-    ens = _reensemble_from_g(g, tg, stoich)
+    ens = _reensemble_from_g(g, tg, stoich, data["degeneracy"])
     return {
         "Ts": data["Ts"],
         "Ps": data["Ps"],

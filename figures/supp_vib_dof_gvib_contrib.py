@@ -167,7 +167,7 @@ def _plot_vib_contrib_by_ir(
 
 
 def _load_grouped(label: str, temperature_k: float) -> dict[int, list[dict[str, Any]]]:
-    gc = load_gc_npz(dataset_inputs(label).gc_npz, light=True)
+    gc = load_gc_npz(dataset_inputs(label).gc_npz, light=True, extra_keys=("G_tensor", "degeneracy"))
     structures = gc_structures(label)
     if len(structures) != gc["Pgi"].shape[0]:
         raise ValueError(
@@ -175,9 +175,7 @@ def _load_grouped(label: str, temperature_k: float) -> dict[int, list[dict[str, 
         )
     return boltzmann_weighted_vib_stoichiometry_by_ir_content(
         structures,
-        gc["Pgi"],
-        gc["Ts"],
-        gc["Ps"],
+        gc,
         temperature_k=temperature_k,
         pressure_pa=FIG08_PRESSURE_PA,
     )

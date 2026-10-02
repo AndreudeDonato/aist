@@ -170,17 +170,16 @@ def _plot_reaction_vib_vs_t(
 def _dataset_series(label: str) -> dict:
     """ΔZPE rows (by Ir) and reaction ⟨ΔG_vib⟩(T) curves (by stoichiometry) of one functional."""
     inp = dataset_inputs(label)
-    gc = load_gc_npz(inp.gc_npz, light=True)
+    gc = load_gc_npz(inp.gc_npz, light=True, extra_keys=("G_tensor", "degeneracy"))
     structures = gc_structures(label)
     if len(structures) != gc["Pgi"].shape[0]:
         raise ValueError(f"{label} structure count {len(structures)} != GC Pgi rows {gc['Pgi'].shape[0]}")
     check_vib_availability(structures, label, required=True)
     grouped = boltzmann_weighted_vib_stoichiometry_by_ir_content(
-        structures, gc["Pgi"], gc["Ts"], gc["Ps"],
-        temperature_k=FIG08_VIB_G_TEMP_K, pressure_pa=FIG08_PRESSURE_PA,
+        structures, gc, temperature_k=FIG08_VIB_G_TEMP_K, pressure_pa=FIG08_PRESSURE_PA,
     )
     Ts, _p_used, curves_by_ir = boltzmann_reaction_vib_curves_by_stoichiometry(
-        structures, gc["Pgi"], gc["Ts"], gc["Ps"], pressure_pa=FIG08_PRESSURE_PA,
+        structures, gc, pressure_pa=FIG08_PRESSURE_PA,
         config=inp.grid_config(include_decomposition=True), o2_path=inp.o2_ref,
     )
     return {"grouped": grouped, "Ts": Ts, "curves": curves_by_ir}

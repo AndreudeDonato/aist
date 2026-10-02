@@ -56,7 +56,7 @@ def patch_support_stabilization(
     g -= corr[:, None, None]
 
     data["G_tensor"] = g.astype(np.float32)
-    data.update(_reensemble_from_g(g, tg, stoich))
+    data.update(_reensemble_from_g(g, tg, stoich, data["degeneracy"]))
     data["gc_support_ev_per_ir"] = np.float32(ev_per_ir)
     data["gc_support_ev_per_o"] = np.float32(ev_per_o)
     np.savez(npz_path, **data)
@@ -86,7 +86,7 @@ def patch_gc_variants_support(
             continue
         g = np.asarray(data[key], dtype=float)
         g -= corr[:, None, None]
-        ens = _reensemble_from_g(g, tg, stoich)
+        ens = _reensemble_from_g(g, tg, stoich, data["degeneracy"])
         data[key] = g.astype(np.float32)
         data[f"{branch}_Pgi"] = ens["Pgi"]
         data[f"{branch}_phase_index"] = ens["phase_index"]
