@@ -68,6 +68,7 @@ def build_joined_table(
         "o_frac": np.array([[r[c] for c in o_cols] for r in ace_rows], dtype=float),
         "formulas_gc": gc_data["formulas"][:n],
         "Pgi": gc_pgi,
+        "degeneracy": np.asarray(gc_data["degeneracy"], dtype=float),
         "Ts": gc_data["Ts"],
         "Ps": gc_data["Ps"],
         "phase_index": gc_phase,

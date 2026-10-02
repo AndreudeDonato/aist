@@ -76,7 +76,7 @@ def main() -> None:
 
     panels: dict[str, dict] = {}
     for label, path in RUTILE_GC_NPZ.items():
-        panels[label] = load_gc_npz(path, light=True)
+        panels[label] = load_gc_npz(path, light=True, frames=False)
 
     formulas = panels["PBE"]["formulas"]
     overlay_labels = stoichiometry_overlay_labels(formulas)

@@ -85,7 +85,7 @@ def _dataset_grid(label: str) -> dict[tuple[int, str], dict]:
         for pgi_key, col_label in COLUMN_SPECS:
             panel = oxidation_map_by_n_ir(
                 Ts, Ps, vd[pgi_key], stoich, n_ir, n_ir_target,
-                formulas=formulas,
+                formulas=formulas, degeneracy=jt["degeneracy"],
             )
             if panel is not None:
                 panel["stoich_labels"] = stoichiometry_overlay_labels(panel["formulas"])

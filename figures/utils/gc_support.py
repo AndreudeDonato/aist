@@ -12,7 +12,7 @@ from __future__ import annotations
 import numpy as np
 from ase.io import read
 
-from figures.utils.gc_gas_oxides import _reensemble_from_g
+from figures.utils.gc_gas_oxides import _reensemble_from_g, refresh_ensemble
 
 
 def support_corrections_per_ir(
@@ -56,7 +56,7 @@ def patch_support_stabilization(
     g -= corr[:, None, None]
 
     data["G_tensor"] = g.astype(np.float32)
-    data.update(_reensemble_from_g(g, tg, stoich, data["degeneracy"]))
+    refresh_ensemble(data, g, tg, stoich)
     data["gc_support_ev_per_ir"] = np.float32(ev_per_ir)
     data["gc_support_ev_per_o"] = np.float32(ev_per_o)
     np.savez(npz_path, **data)

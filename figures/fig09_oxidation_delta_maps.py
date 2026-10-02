@@ -88,13 +88,13 @@ def _dataset_panels(label: str) -> dict[tuple[int, int], dict]:
     panels: dict[tuple[int, int], dict] = {}
     for n_ir_target in IR_COUNTS:
         full = oxidation_map_by_n_ir(
-            Ts, Ps, full_Pgi, stoich_n, n_ir, n_ir_target, formulas=formulas,
+            Ts, Ps, full_Pgi, stoich_n, n_ir, n_ir_target, formulas=formulas, degeneracy=jt["degeneracy"],
         )
         novib_ens = oxidation_map_by_n_ir(
-            Ts, Ps, novib_Pgi, stoich_n, n_ir, n_ir_target, formulas=formulas,
+            Ts, Ps, novib_Pgi, stoich_n, n_ir, n_ir_target, formulas=formulas, degeneracy=jt["degeneracy"],
         )
         novib_min = stoich_winner_map_by_n_ir(
-            Ts, Ps, novib_Pgi, stoich_n, n_ir, n_ir_target, formulas=formulas,
+            Ts, Ps, novib_Pgi, stoich_n, n_ir, n_ir_target, formulas=formulas, degeneracy=jt["degeneracy"],
         )
         if full is None or novib_ens is None or novib_min is None:
             continue

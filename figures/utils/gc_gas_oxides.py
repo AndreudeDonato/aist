@@ -140,6 +140,23 @@ def _reensemble_from_g(g: np.ndarray, tg: np.ndarray, stoich: np.ndarray, degene
     }
 
 
+# compute_gc ensemble averages that a patched G_tensor makes stale (their per-structure terms are not stored)
+_STALE_AFTER_PATCH = ("E_dft_avg", "E_elec_avg", "E_vib_avg", "E_rot_avg", "E_trans_avg")
+
+
+def refresh_ensemble(data: dict, g: np.ndarray, tg: np.ndarray, stoich: np.ndarray) -> None:
+    """Re-ensemble ``data`` (a GC NPZ dict) in place from a patched ``g``: populations, phase, averages.
+
+    ``q_ir_avg`` is recomputed from ``q_ir_mean``; the decomposition averages are dropped because they
+    would keep the populations from before the patch.
+    """
+    data.update(_reensemble_from_g(g, tg, stoich, data["degeneracy"]))
+    if "q_ir_mean" in data:
+        data["q_ir_avg"] = np.tensordot(np.asarray(data["q_ir_mean"], dtype=float), data["Pgi"], axes=1)
+    for key in _STALE_AFTER_PATCH:
+        data.pop(key, None)
+
+
 def patch_gas_strip_vib_zpe(
     npz_path: str,
     gas_rows: list[tuple[int, Atoms, float]],
@@ -158,7 +175,7 @@ def patch_gas_strip_vib_zpe(
         g[row] -= _gas_vib_zpe_delta(atoms, tg, p_gas, include_e=include_e)
 
     data["G_tensor"] = g.astype(np.float32)
-    data.update(_reensemble_from_g(g, tg, stoich, data["degeneracy"]))
+    refresh_ensemble(data, g, tg, stoich)
     np.savez(npz_path, **data)
 
 
@@ -183,7 +200,7 @@ def patch_gas_rot_trans(
         )
 
     data["G_tensor"] = g.astype(np.float32)
-    data.update(_reensemble_from_g(g, tg, stoich, data["degeneracy"]))
+    refresh_ensemble(data, g, tg, stoich)
     np.savez(npz_path, **data)
 
 
@@ -208,7 +225,7 @@ def patch_gas_reservoir_thermo(
         )
 
     data["G_tensor"] = g.astype(np.float32)
-    data.update(_reensemble_from_g(g, tg, stoich, data["degeneracy"]))
+    refresh_ensemble(data, g, tg, stoich)
     np.savez(npz_path, **data)
 
 

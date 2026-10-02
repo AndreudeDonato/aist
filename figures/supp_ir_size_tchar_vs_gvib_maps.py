@@ -120,13 +120,13 @@ def _dataset_grid(label: str) -> dict[tuple[int, str], dict]:
     grid: dict[tuple[int, str], dict] = {}
     for n_ir_target in IR_COUNTS:
         tchar_panel = tchar_map_by_n_ir(
-            structures, Pgi, Ts, Ps, n_ir, n_ir_target, formulas=formulas,
+            structures, Pgi, Ts, Ps, n_ir, n_ir_target, formulas=formulas, degeneracy=gc["degeneracy"],
         )
         if tchar_panel is not None:
             grid[(n_ir_target, "tchar")] = tchar_panel
 
         gvib_panel = e_vib_avg_map_by_n_ir(
-            e_vib_tensor, Pgi, Ts, Ps, n_ir, n_ir_target, formulas=formulas,
+            e_vib_tensor, Pgi, Ts, Ps, n_ir, n_ir_target, formulas=formulas, degeneracy=gc["degeneracy"],
         )
         if gvib_panel is not None:
             gvib_panel["stoich_labels"] = stoichiometry_overlay_labels(gvib_panel["formulas"])

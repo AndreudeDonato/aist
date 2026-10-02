@@ -24,7 +24,9 @@ def _content(path: str) -> str:
     with open(path, errors="replace") as fh:
         t = fh.read()
     t = re.sub(r"<dc:date>.*?</dc:date>", "", t)
-    t = re.sub(r'\b(id|href|xlink:href|clip-path|mask)="[^"]*"', "", t)
+    t = re.sub(r'\b(id|clip-path|mask)="[^"]*"', "", t)
+    # references to generated ids only: embedded rasters (href="data:image/png;base64,...") are content
+    t = re.sub(r'\b(href|xlink:href)="#[^"]*"', "", t)
     return re.sub(r"url\(#[^)]*\)", "", t)
 
 
@@ -47,7 +49,8 @@ def publish(output_dir: str = OUTPUT_DIR, paper_dir: str = PAPER_FIGURES_DIR, dp
             continue
         dst = os.path.join(paper_dir, sec, name + ".svg")
         png = dst[:-4] + ".png"
-        if os.path.exists(png) and _content(dst) == _content(svg):
+        png_current = os.path.exists(png) and os.path.getmtime(png) >= os.path.getmtime(dst)
+        if png_current and _content(dst) == _content(svg):
             out["unchanged"].append(name)
             continue
         shutil.copyfile(svg, dst)

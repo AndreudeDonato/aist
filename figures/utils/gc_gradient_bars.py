@@ -9,7 +9,7 @@ from matplotlib.colors import Normalize, to_rgb
 
 from aist.core.grandcanonical import pressure_grid_index
 
-from figures.utils.gc_subset import ir_size_reservoir_mask, subset_joined_table_by_n_ir
+from figures.utils.gc_subset import ir_size_reservoir_mask, lowest_g_index, subset_joined_table_by_n_ir
 from figures.utils.comparison import gas_structure_mask, scalar_field_rgb_with_gas
 from figures.utils.join import (
     cluster_population_fractions,
@@ -333,7 +333,7 @@ def winner_scalar_vs_T_at_pressure(
     if per_sub is None:
         return None
     pgi_slab = np.asarray(jt_sub["Pgi"][:, p_idx, :], dtype=float)
-    winner = np.argmax(pgi_slab, axis=0)
+    winner = lowest_g_index(pgi_slab, jt_sub["degeneracy"])
     values = np.asarray(per_sub, dtype=float)[winner]
     return ts, float(jt_sub["Ps"][p_idx]), values
 

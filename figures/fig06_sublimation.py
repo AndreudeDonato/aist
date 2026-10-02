@@ -180,7 +180,7 @@ def main() -> None:
     ensure_for_figures([6])
     ensure_dirs(OUTPUT_DIR)
 
-    rutile_gc = load_gc_npz(RUTILE_GC_NPZ["PBE0"], light=True)
+    rutile_gc = load_gc_npz(RUTILE_GC_NPZ["PBE0"], light=True, frames=False)
     rutile_labels = stoichiometry_overlay_labels(rutile_gc["formulas"])
     support_cols = [_load_support_column(v) for v in FIG06_SUPPORT_VARIANTS]
     ox_vmin, ox_vmax = _oxidation_scale(rutile_gc, support_cols, FIG06_PRESSURE_PA)

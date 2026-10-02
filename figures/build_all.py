@@ -149,11 +149,15 @@ def main() -> None:
     for name, ok in supp_results.items():
         print(f"  Supp  [{'OK  ' if ok else 'FAIL'}]  {SUPPLEMENTARY_MODULES[name]}")
 
+    n_failed = sum(1 for ok in results.values() if not ok) + sum(1 for ok in supp_results.values() if not ok)
     if not args.no_paper:
-        from figures.utils.paper import publish
-        publish()
+        if n_failed:
+            print(f"[paper] not updated: {n_failed} figure(s) failed")
+        else:
+            from figures.utils.paper import publish
+            publish()
 
-    if sum(1 for ok in results.values() if not ok) + sum(1 for ok in supp_results.values() if not ok):
+    if n_failed:
         sys.exit(1)
 
 

@@ -169,5 +169,6 @@ def load_fig06_gc_view(
         "phase_index": ens["phase_index"],
         "x_per_non_o": ens["x_per_non_o"],
         "formulas": data["formulas"],
+        "degeneracy": data["degeneracy"],
         "source_frames": np.load(FIG06_GC_NPZ_PBE0[:-4] + "_frames.npy"),
     }

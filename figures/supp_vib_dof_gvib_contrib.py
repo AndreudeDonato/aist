@@ -167,7 +167,7 @@ def _plot_vib_contrib_by_ir(
 
 
 def _load_grouped(label: str, temperature_k: float) -> dict[int, list[dict[str, Any]]]:
-    gc = load_gc_npz(dataset_inputs(label).gc_npz, light=True, extra_keys=("G_tensor", "degeneracy"))
+    gc = load_gc_npz(dataset_inputs(label).gc_npz, light=True, extra_keys=("G_tensor",))
     structures = gc_structures(label)
     if len(structures) != gc["Pgi"].shape[0]:
         raise ValueError(

@@ -57,12 +57,13 @@ def load_variants_like(variants_npz: str, gc_ref: dict, keys: tuple[str, ...]) -
     return vd
 
 
-def load_gc_npz(path: str, *, light: bool = False, extra_keys: tuple[str, ...] = ()) -> dict:
+def load_gc_npz(path: str, *, light: bool = False, extra_keys: tuple[str, ...] = (), frames: bool = True) -> dict:
     """Load grandcanonical_results.npz and return as plain dict.
 
     With ``light=True``, skip ``G_tensor`` and other fields not needed for
     subset oxidation maps (saves ~100 MB per file at 150×150 grids); ``extra_keys`` adds fields
-    to that light set.
+    to that light set. ``frames=False`` for ensembles that are not trajectory frames (rutile GC);
+    otherwise the frames sidecar is attached as ``source_frames`` and must exist.
     """
     if not os.path.exists(path):
         raise FileNotFoundError(
@@ -70,11 +71,14 @@ def load_gc_npz(path: str, *, light: bool = False, extra_keys: tuple[str, ...] =
             "Run: python3 figures/utils/cache.py"
         )
     if not light:
-        return _attach_source_frames(load_npz(path), path)
-    return _attach_source_frames(load_npz(
-        path,
-        keys=("Ts", "Ps", "Pgi", "stoich", "formulas", "phase_index", "x_per_non_o") + tuple(extra_keys),
-    ), path)
+        data = load_npz(path)
+    else:
+        data = load_npz(
+            path,
+            keys=("Ts", "Ps", "Pgi", "stoich", "formulas", "phase_index", "x_per_non_o", "degeneracy")
+            + tuple(extra_keys),
+        )
+    return _attach_source_frames(data, path) if frames else data
 
 
 def load_gc_pbe_novib_view(variants_npz: str, formulas_npz: str) -> dict:
@@ -85,12 +89,14 @@ def load_gc_pbe_novib_view(variants_npz: str, formulas_npz: str) -> dict:
     """
     vd = load_npz(
         variants_npz,
-        keys=("Ts", "Ps", "novib_Pgi", "novib_phase_index", "novib_x_per_non_o"),
+        keys=("Ts", "Ps", "stoich", "degeneracy", "novib_Pgi", "novib_phase_index", "novib_x_per_non_o"),
     )
     formulas = load_npz(formulas_npz, keys=("formulas",))["formulas"]
     return _attach_source_frames({
         "Ts": vd["Ts"],
         "Ps": vd["Ps"],
+        "stoich": vd["stoich"],
+        "degeneracy": vd["degeneracy"],
         "Pgi": vd["novib_Pgi"],
         "phase_index": vd["novib_phase_index"],
         "x_per_non_o": vd["novib_x_per_non_o"],

@@ -61,6 +61,17 @@ def _renorm_pgi_at_indices(
     return stoich_m, Pgi_m
 
 
+def lowest_g_index(Pgi_m: np.ndarray, degeneracy_m: np.ndarray) -> np.ndarray:
+    """Lowest-G structure of a bucket at each grid point (rows of ``Pgi_m``).
+
+    ``Pgi`` is proportional to ``g_i exp(-beta G_i)``, so ``argmax(Pgi / g_i)`` is ``argmin G``, the
+    global-minimum definition of the pooled maps (``compute_gc`` ``phase_index``); ``argmax(Pgi)``
+    alone would pick a chiral (g = 2) isomer up to kT ln 2 above the minimum.
+    """
+    deg = np.asarray(degeneracy_m, dtype=float).reshape((-1,) + (1,) * (np.ndim(Pgi_m) - 1))
+    return np.argmax(np.asarray(Pgi_m, dtype=float) / deg, axis=0)
+
+
 def subset_joined_table_by_n_ir(
     jt: dict,
     n_ir_target: int,
@@ -98,9 +109,10 @@ def subset_joined_table_by_n_ir(
         "o_frac": np.asarray(jt["o_frac"][mask], dtype=float),
         "formulas_gc": np.asarray(jt["formulas_gc"][mask], dtype=object),
         "Pgi": Pgi_m,
+        "degeneracy": np.asarray(jt["degeneracy"])[mask],
         "Ts": jt["Ts"],
         "Ps": jt["Ps"],
-        "phase_index": np.argmax(Pgi_m, axis=0),
+        "phase_index": lowest_g_index(Pgi_m, np.asarray(jt["degeneracy"])[mask]),
         "x_per_non_o": x_per_non_o,
     }
 
@@ -114,6 +126,7 @@ def oxidation_map_by_n_ir(
     n_ir_target: int,
     formulas: np.ndarray | None = None,
     *,
+    degeneracy: np.ndarray,
     include_gas_reservoir: bool | None = None,
 ) -> dict | None:
     """``⟨n_O/n_Ir⟩`` map and phase overlay for one Ir bucket + gas oxides."""
@@ -131,7 +144,7 @@ def oxidation_map_by_n_ir(
         "Ts": Ts,
         "Ps": Ps,
         "x_per_non_o": x_per_non_o,
-        "phase_index": np.argmax(Pgi_n, axis=0),
+        "phase_index": lowest_g_index(Pgi_n, np.asarray(degeneracy)[mask]),
         "n_struct": int(mask.sum()),
     }
     if formulas is not None:
@@ -148,12 +161,13 @@ def stoich_winner_map_by_n_ir(
     n_ir_target: int,
     formulas: np.ndarray | None = None,
     *,
+    degeneracy: np.ndarray,
     include_gas_reservoir: bool | None = None,
 ) -> dict | None:
     """Single-minimum ``n_O/n_Ir`` map for one Ir bucket + gas oxides.
 
-    Winner at each ``(p, T)`` is ``argmax`` of ``Pgi`` renormalised on the bucket
-    (same rule as the global ``*_stoich_map`` fields in ``gc_variants.npz``).
+    Winner at each ``(p, T)`` is the lowest-G structure of the bucket (``lowest_g_index``; same rule as
+    the global ``*_stoich_map`` fields in ``gc_variants.npz``).
     """
     if include_gas_reservoir is None:
         include_gas_reservoir = GC_INCLUDE_GAS_RESERVOIR
@@ -164,7 +178,7 @@ def stoich_winner_map_by_n_ir(
         return None
 
     stoich_m, Pgi_n = _renorm_pgi_at_indices(Pgi, stoich, mask)
-    winner = np.argmax(Pgi_n, axis=0)
+    winner = lowest_g_index(Pgi_n, np.asarray(degeneracy)[mask])
     out: dict = {
         "Ts": Ts,
         "Ps": Ps,

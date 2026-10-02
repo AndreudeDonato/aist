@@ -15,7 +15,7 @@ from aist.stoichiometry import balance_reaction
 from aist.utils import get_energy
 
 from figures.config import THERMO_IR_COUNTS
-from figures.utils.gc_subset import _renorm_pgi_slab, ir_size_reservoir_mask
+from figures.utils.gc_subset import _renorm_pgi_slab, ir_size_reservoir_mask, lowest_g_index
 from figures.utils.vib_metrics import tchar_energy_weighted_ensemble_map
 
 
@@ -304,6 +304,8 @@ def tchar_map_by_n_ir(
     n_ir_per_struct: np.ndarray,
     n_ir_target: int,
     formulas: np.ndarray | None = None,
+    *,
+    degeneracy: np.ndarray,
 ) -> dict | None:
     """Energy-weighted ``⟨Θ_eff⟩`` map for one Ir bucket (cluster isomers only)."""
     mask = ir_size_reservoir_mask(
@@ -320,7 +322,7 @@ def tchar_map_by_n_ir(
         "Ts": Ts,
         "Ps": Ps,
         "tchar_map": tc_map,
-        "phase_index": np.argmax(Pgi_sub, axis=0),
+        "phase_index": lowest_g_index(Pgi_sub, np.asarray(degeneracy)[mask]),
         "n_struct": int(mask.sum()),
     }
     if formulas is not None:
@@ -336,6 +338,8 @@ def e_vib_avg_map_by_n_ir(
     n_ir_per_struct: np.ndarray,
     n_ir_target: int,
     formulas: np.ndarray | None = None,
+    *,
+    degeneracy: np.ndarray,
 ) -> dict | None:
     """Ensemble ``⟨G_vib⟩`` map for one Ir bucket (cluster isomers only)."""
     mask = ir_size_reservoir_mask(
@@ -355,7 +359,7 @@ def e_vib_avg_map_by_n_ir(
         "Ts": Ts,
         "Ps": Ps,
         "e_vib_avg": e_vib_avg,
-        "phase_index": np.argmax(Pgi_n, axis=0),
+        "phase_index": lowest_g_index(Pgi_n, np.asarray(degeneracy)[mask]),
         "n_struct": int(mask.sum()),
     }
     if formulas is not None:
@@ -410,3 +414,30 @@ def contribution_lines_by_ir_at_pressure(
         out[int(n)] = curves
 
     return Ts, pressure_used, out
+
+
+def contribution_lines_pooled_at_pressure(
+    gc: dict,
+    structures: list[Atoms],
+    pressure_pa: float,
+    *,
+    config: GCConfig,
+    o2_path: str,
+) -> tuple[np.ndarray, float, list[tuple[str, np.ndarray]]]:
+    """ΔG contribution lines vs ``T`` at fixed ``pO₂`` for the whole (pooled) ensemble, weighted with the
+    final ``gc["Pgi"]`` (the NPZ ``E_*_avg`` fields keep the weights from before the support patch)."""
+    Ts = np.asarray(gc["Ts"], dtype=float)
+    Ps = np.asarray(gc["Ps"], dtype=float)
+    Pgi = np.asarray(gc["Pgi"], dtype=float)
+    if len(structures) != Pgi.shape[0]:
+        raise ValueError(f"{len(structures)} structures but {Pgi.shape[0]} GC rows")
+    p_idx, pressure_used = pressure_grid_index(Ps, pressure_pa)
+    slabs = compute_per_structure_contribution_slab(structures, Ts, Ps, p_idx, config=config, o2_path=o2_path)
+    w = Pgi[:, p_idx, :] / Pgi[:, p_idx, :].sum(axis=0, keepdims=True)
+    curves: list[tuple[str, np.ndarray]] = []
+    for label, key in GC_CONTRIBUTION_SERIES:
+        y = np.sum(w * slabs[key], axis=0)
+        if key == "E_dft_avg":
+            y = y - float(np.min(y))
+        curves.append((label, y))
+    return Ts, pressure_used, curves
