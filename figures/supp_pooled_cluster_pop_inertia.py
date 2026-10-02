@@ -18,6 +18,7 @@ from aist.ace.common import struct_cluster_palette
 from aist.ace.datasets import load_dataset
 from aist.inertia import inertia_shape_extent_features
 from aist.thermo import ThermoPartitionFunctions
+from aist.ace.constants import ACE_EXTENT_BLEND, ACE_EXTENT_NORMALIZATION
 
 from figures.config import (
     ACE_FEATURES,
@@ -47,8 +48,8 @@ FIG_H_MM = 2 * ROW_H_MM
 CBAR_GAP = 0.012
 CBAR_WIDTH = 0.025
 LAYOUT_RECT = [0, 0, 0.88, 1]
-EXTENT_NORMALIZATION = "partial"
-EXTENT_BLEND = 0.1
+EXTENT_NORMALIZATION = ACE_EXTENT_NORMALIZATION
+EXTENT_BLEND = ACE_EXTENT_BLEND
 IR_CMAP = "winter"
 MARKER_SCALE = 0.10
 SCATTER_S = 8.0

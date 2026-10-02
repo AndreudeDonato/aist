@@ -28,6 +28,7 @@ from matplotlib.colors import to_rgb
 from aist.ace.common import struct_cluster_palette
 from aist.inertia import inertia_shape_extent_features
 from aist.thermo import ThermoPartitionFunctions
+from aist.ace.constants import ACE_EXTENT_BLEND, ACE_EXTENT_NORMALIZATION
 
 from figures.config import (
     ACE_FEATURES,
@@ -50,8 +51,8 @@ OUTPUT_PATH = os.path.join(OUTPUT_DIR, "supp_momentsofinertia.svg")
 FIG_W_MM = 180
 FIG_H_MM = 220  # compact vs prior 300 mm; keep rows visually separated
 COL_WSPACE = 0.06
-EXTENT_NORMALIZATION = "partial"
-EXTENT_BLEND = 0.1
+EXTENT_NORMALIZATION = ACE_EXTENT_NORMALIZATION
+EXTENT_BLEND = ACE_EXTENT_BLEND
 # Trim empty Axes3D margins only; keep 2D gaps positive so triangle labels do not collide.
 PANEL_HSPACE = -0.18
 PANEL_HSPACE_2D = 0.08
