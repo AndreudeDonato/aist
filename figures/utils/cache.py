@@ -10,6 +10,7 @@ from ase.io import read, write
 from figures.config import (
     ACE_ATOM_IR_NPZ,
     ACE_ATOM_O_NPZ,
+    ACE_CENTROIDS,
     ACE_FEATURES,
     ACE_ROOT,
     ACE_STRUCT_NPZ,
@@ -18,22 +19,21 @@ from figures.config import (
     GC_GAS_INCLUDE_ROT_TRANS,
     GC_GAS_INCLUDE_VIB,
     GC_GAS_P,
+    GC_IR_COUNTS,
     GC_NPZ,
-    GC_SUPPORT_STAB_EV_PER_IR,
-    GC_SUPPORT_STAB_EV_PER_O,
     GC_NPZ_PBE0,
     GC_N_P,
     GC_N_T,
+    GC_SUPPORT_STAB_EV_PER_IR,
+    GC_SUPPORT_STAB_EV_PER_O,
     GC_T_MAX,
     GC_T_MIN,
-    GC_STRUCTURES,
-    GC_VARIANTS_NPZ_PBE0,
-    GC_IR_COUNTS,
     GC_USE_VIB_ZPE_BY_DATASET,
     GC_VARIANTS_NPZ,
-    MOTIF_JSON,
+    GC_VARIANTS_NPZ_PBE0,
     IR_REF_PBE,
     IR_REF_PBE0,
+    MOTIF_JSON,
     O2_REF_PBE,
     O2_REF_PBE0,
     RAW_DATA_DIR,
@@ -43,6 +43,14 @@ from figures.config import (
     gc_cache_config,
     gc_gas_reservoir_specs,
     gc_grid_config,
+)
+from figures.utils.cache_stamp import (
+    file_stamp,
+    gc_config_settings,
+    make_stamp,
+    npz_stamp,
+    write_file_stamp,
+    write_npz_stamp,
 )
 from figures.utils.gc_gas_oxides import (
     merge_gas_oxides,
@@ -149,10 +157,17 @@ def ensure_ace(*, force: bool = False) -> None:
         ACE_ATOM_IR_NPZ,
         ACE_ATOM_O_NPZ,
         ACE_STRUCT_NPZ,
+        MOTIF_JSON["PBE"],
+        MOTIF_JSON["PBE0"],
         MOTIF_JSON["pooled"],
+        *ACE_CENTROIDS.values(),
     ]
     sources = [TRAJ_PBE, TRAJ_PBE0]
-    if not force and not _any_newer_than(sources, outputs):
+    from aist.ace import constants as ace_constants
+
+    stamp = make_stamp("ace", inputs=sources, settings={k: v for k, v in vars(ace_constants).items() if k.isupper()})
+    stamp_path = os.path.join(ACE_ROOT, "cache_stamp.json")
+    if not force and all(os.path.exists(p) for p in outputs) and file_stamp(stamp_path) == stamp:
         print("[cache] ACE clustering up to date")
         return
 
@@ -163,6 +178,7 @@ def ensure_ace(*, force: bool = False) -> None:
         data_dir=RAW_DATA_DIR,
         write_plots=False,
     )
+    write_file_stamp(stamp_path, stamp)
 
 
 def _write_gc_frames(output_npz: str, frames: list[int], n_gas: int) -> None:
@@ -227,6 +243,19 @@ def _gc_input_structures(label: str, structures_file: str) -> str:
     return out
 
 
+def _gc_model_settings(label: str) -> dict:
+    """Settings outside GCConfig that shape a GC/variants cache (part of its stamp)."""
+    return {
+        "ir_counts": sorted(GC_IR_COUNTS),
+        "use_vib": GC_USE_VIB_ZPE_BY_DATASET.get(label, False),
+        "gas_reservoir": [os.path.basename(p) for p, _ in gc_gas_reservoir_specs(label)],
+        "gas_p": float(GC_GAS_P[label]),
+        "gas_vib": GC_GAS_INCLUDE_VIB,
+        "gas_rot_trans": GC_GAS_INCLUDE_ROT_TRANS,
+        "support": [GC_SUPPORT_STAB_EV_PER_IR, GC_SUPPORT_STAB_EV_PER_O] if GC_APPLY_SUPPORT_STAB else [0.0, 0.0],
+    }
+
+
 def _ensure_gc_dataset(
     *,
     label: str,
@@ -242,8 +271,12 @@ def _ensure_gc_dataset(
     )
     sources = [structures_file, o2_traj, ir_ref] + [p for p, _ in gc_gas_reservoir_specs(label)]
     kept = _gc_kept_frames(label, structures_file)
+    use_vib = GC_USE_VIB_ZPE_BY_DATASET.get(label, False)
+    cfg = gc_cache_config(reference_file=ir_ref, use_vib_zpe=use_vib)
+    stamp = make_stamp("gc", inputs=sources, label=label, config=gc_config_settings(cfg), **_gc_model_settings(label))
     stale = (
-        _gc_npz_grid_mismatch(output_npz)
+        npz_stamp(output_npz) != stamp
+        or _gc_npz_grid_mismatch(output_npz)
         or _gc_gas_p_stale(output_npz, label=label)
         or _gc_support_stale(output_npz)
         or _gc_gas_thermo_stale(output_npz)
@@ -258,14 +291,13 @@ def _ensure_gc_dataset(
 
     os.makedirs(CACHE_DIR, exist_ok=True)
     print(f"[cache] grand-canonical {label}, grid {GC_N_T}×{GC_N_P}, P_gas={p_gas:.3g} Pa -> {output_npz}")
-    use_vib = GC_USE_VIB_ZPE_BY_DATASET.get(label, False)
     run_gc(
         structures_file=gc_structures,
         pressure_file=o2_traj,
         output_npz=output_npz,
         output_threshold_dir=os.path.join(CACHE_DIR, f"gc_structures_{label}"),
         output_minima_traj=os.path.join(CACHE_DIR, f"phase_minima_{label}.traj"),
-        config=gc_cache_config(reference_file=ir_ref, use_vib_zpe=use_vib),
+        config=cfg,
     )
     _write_gc_frames(output_npz, kept, len(gas_rows))
     if gas_rows:
@@ -276,28 +308,20 @@ def _ensure_gc_dataset(
     # Written even without gas rows: the staleness checks above need these keys, and without them
     # the cache was rebuilt on every call when the gas reservoir is off.
     _write_gc_gas_metadata(output_npz, label=label, p_gas=p_gas)
-    if GC_APPLY_SUPPORT_STAB:
-        patch_support_stabilization(
-            output_npz,
-            gc_structures,
-            [row for row, _, _ in gas_rows],
-            ev_per_ir=GC_SUPPORT_STAB_EV_PER_IR,
-            ev_per_o=GC_SUPPORT_STAB_EV_PER_O,
-        )
-    else:
-        patch_support_stabilization(
-            output_npz,
-            gc_structures,
-            [row for row, _, _ in gas_rows],
-            ev_per_ir=0.0,
-            ev_per_o=0.0,
-        )
+    patch_support_stabilization(
+        output_npz,
+        gc_structures,
+        [row for row, _, _ in gas_rows],
+        ev_per_ir=GC_SUPPORT_STAB_EV_PER_IR if GC_APPLY_SUPPORT_STAB else 0.0,
+        ev_per_o=GC_SUPPORT_STAB_EV_PER_O if GC_APPLY_SUPPORT_STAB else 0.0,
+    )
+    write_npz_stamp(output_npz, stamp)
 
 
 def ensure_gc(*, force: bool = False) -> None:
     _ensure_gc_dataset(
         label="PBE",
-        structures_file=GC_STRUCTURES,
+        structures_file=TRAJ_PBE,
         o2_traj=O2_REF_PBE,
         ir_ref=IR_REF_PBE,
         output_npz=GC_NPZ,
@@ -340,7 +364,14 @@ def _ensure_gc_variants_dataset(*, label: str, structures_file: str, o2_ref: str
     )
     sources = [structures_file, o2_ref, ir_ref] + [p for p, _ in gc_gas_reservoir_specs(label)]
     kept = _gc_kept_frames(label, structures_file)
-    stale = _gc_variants_stale(output_npz, label) or _gc_frames_stale(output_npz, kept, len(gas_rows))
+    grid = gc_grid_config(reference_file=ir_ref)
+    stamp = make_stamp("gc_variants", inputs=sources, label=label, config=gc_config_settings(grid),
+                       **_gc_model_settings(label))
+    stale = (
+        npz_stamp(output_npz) != stamp
+        or _gc_variants_stale(output_npz, label)
+        or _gc_frames_stale(output_npz, kept, len(gas_rows))
+    )
     if not force and not stale and os.path.exists(output_npz) and not _any_newer_than(sources, [output_npz]):
         print(f"[cache] GC variants {label} up to date ({GC_N_T}×{GC_N_P} grid)")
         return
@@ -350,7 +381,7 @@ def _ensure_gc_variants_dataset(*, label: str, structures_file: str, o2_ref: str
         gc_structures,
         o2_ref,
         output_npz,
-        grid_config=gc_grid_config(reference_file=ir_ref),
+        grid_config=grid,
     )
     _write_gc_frames(output_npz, kept, len(gas_rows))
     patch_gc_variants_gas(
@@ -367,23 +398,26 @@ def _ensure_gc_variants_dataset(*, label: str, structures_file: str, o2_ref: str
         ev_per_ir=GC_SUPPORT_STAB_EV_PER_IR if GC_APPLY_SUPPORT_STAB else 0.0,
         ev_per_o=GC_SUPPORT_STAB_EV_PER_O if GC_APPLY_SUPPORT_STAB else 0.0,
     )
+    write_npz_stamp(output_npz, stamp)
 
 
 def ensure_gc_variants(*, force: bool = False) -> None:
     """Vib / no-vib / ZPE-only variants for both functionals (the vibrational comparison needs both)."""
-    _ensure_gc_variants_dataset(label="PBE", structures_file=GC_STRUCTURES, o2_ref=O2_REF_PBE,
+    _ensure_gc_variants_dataset(label="PBE", structures_file=TRAJ_PBE, o2_ref=O2_REF_PBE,
                                 ir_ref=IR_REF_PBE, output_npz=GC_VARIANTS_NPZ, force=force)
     _ensure_gc_variants_dataset(label="PBE0", structures_file=TRAJ_PBE0, o2_ref=O2_REF_PBE0,
                                 ir_ref=IR_REF_PBE0, output_npz=GC_VARIANTS_NPZ_PBE0, force=force)
 
 
-_FIG_NEEDS_ACE = {2, 3, 4, 6, 9}
+_FIG_NEEDS_ACE = {2, 3, 4, 5, 6, 8, 9}
 _FIG_NEEDS_GC = {3, 4, 5, 7, 8, 9}
 _FIG_NEEDS_GC_VARIANTS = {3, 4, 5, 8, 9}
 _FIG_NEEDS_RUTILE_GC = {6}
 _FIG_NEEDS_FIG06_GC = {6}
 _SUPPLEMENTARY_NEEDS_ACE = {
     "supp_atom_hirshfeld",
+    "supp_motif_spin_kde",
+    "supp_gc_g_vs_mu",
     "supp_moments_of_inertia",
     "supp_pooled_cluster_pop_inertia",
     "supp_ir_size_gc_maps",
@@ -403,6 +437,7 @@ _SUPPLEMENTARY_NEEDS_ACE = {
     "supp_oxidation_delta_by_ir_low_po2",
 }
 _SUPPLEMENTARY_NEEDS_GC = {
+    "supp_gc_g_vs_mu",
     "supp_ir_size_gc_maps",
     "supp_ir_size_o_motif_ratio_maps",
     "supp_ir_size_vib_vs_novib_maps",

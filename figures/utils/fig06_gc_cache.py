@@ -40,6 +40,7 @@ from figures.utils.gc_gas_oxides import (
     patch_gas_rot_trans,
     patch_gas_strip_vib_zpe,
 )
+from figures.utils.cache_stamp import gc_config_settings, make_stamp, npz_stamp, write_npz_stamp
 from figures.utils.gc_support import support_corrections_per_ir
 from figures.utils.io import load_npz
 
@@ -103,8 +104,16 @@ def ensure_fig06_gc(*, force: bool = False) -> None:
     sources = [TRAJ_PBE0, O2_REF_PBE0, IR_REF_PBE0] + [p for p, _ in gas_specs]
     output_npz = FIG06_GC_NPZ_PBE0
     kept = _gc_kept_frames("PBE0", TRAJ_PBE0)
-    stale = _fig06_npz_stale(output_npz) or _gc_frames_stale(output_npz, kept, len(gas_rows))
+    use_vib = GC_USE_VIB_ZPE_BY_DATASET.get("PBE0", False)
+    cfg = gc_fig06_cache_config(reference_file=IR_REF_PBE0, use_vib_zpe=use_vib)
     p_gas = float(GC_GAS_P["PBE0"])
+    stamp = make_stamp("fig06", inputs=sources, config=gc_config_settings(cfg), gas_p=p_gas,
+                       gas_vib=GC_GAS_INCLUDE_VIB, gas_rot_trans=GC_GAS_INCLUDE_ROT_TRANS)
+    stale = (
+        npz_stamp(output_npz) != stamp
+        or _fig06_npz_stale(output_npz)
+        or _gc_frames_stale(output_npz, kept, len(gas_rows))
+    )
 
     if not force and not stale and os.path.exists(output_npz) and not _any_newer_than(
         sources, [output_npz]
@@ -121,14 +130,13 @@ def ensure_fig06_gc(*, force: bool = False) -> None:
         f"(T={FIG06_T_MIN:.0f}–{FIG06_T_MAX:.0f} K), "
         f"P_gas={p_gas:.3g} Pa -> {output_npz}"
     )
-    use_vib = GC_USE_VIB_ZPE_BY_DATASET.get("PBE0", False)
     run_gc(
         structures_file=gc_structures,
         pressure_file=O2_REF_PBE0,
         output_npz=output_npz,
         output_threshold_dir=os.path.join(FIG06_CACHE_DIR, "structures_PBE0"),
         output_minima_traj=os.path.join(FIG06_CACHE_DIR, "phase_minima_PBE0.traj"),
-        config=gc_fig06_cache_config(reference_file=IR_REF_PBE0, use_vib_zpe=use_vib),
+        config=cfg,
     )
     _write_gc_frames(output_npz, kept, len(gas_rows))
     if gas_rows:
@@ -137,6 +145,7 @@ def ensure_fig06_gc(*, force: bool = False) -> None:
         if GC_GAS_INCLUDE_ROT_TRANS:
             patch_gas_rot_trans(output_npz, gas_rows, use_vib_zpe=use_vib)
     _write_fig06_metadata(output_npz, p_gas=p_gas)
+    write_npz_stamp(output_npz, stamp)
 
 
 def load_fig06_gc_view(

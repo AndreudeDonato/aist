@@ -112,7 +112,6 @@ REQUIRED_RAW_FILES = (
 )
 
 # Grand-canonical / thermo figures: full PBE structures
-GC_STRUCTURES = TRAJ_PBE
 GC_T_MIN = 100.0
 GC_T_MAX = 1000.0
 GC_T_TICKS = (200, 400, 600, 800, 1000)
@@ -176,6 +175,11 @@ RUTILE_GC_STRUCTURES = {
 # With vibrations on, structures without frequencies are left out of that dataset's ensembles
 # (cache/gc_excluded_<label>.tsv lists them) instead of entering without vib/rot terms.
 GC_USE_VIB_ZPE_BY_DATASET = {"PBE": True, "PBE0": True}
+
+# Version of the cached results (figures/utils/cache_stamp.py). Bump it when a code change alters cached
+# numbers: every cache whose stamp differs is rebuilt. 2 = 2026-10-02 thermo fixes (pV term, O2 rotation
+# without vibrations, degeneracies stored).
+CACHE_VERSION = 2
 # Level of the PBE | PBE0 comparison views (figures 3–5 and their supplementary versions):
 #   "full"  — both functionals with vibrations (grandcanonical NPZs)
 #   "novib" — electronic + rot/trans only, the paper-1 comparison level (from the variants NPZs)
@@ -186,8 +190,6 @@ MINIMA_TRAJ = {
     "PBE0": os.path.join(CACHE_DIR, "minima_PBE0.traj"),
 }
 
-# ACE features joined to the PBE GC in validation.py
-GC_ACE_FEATURES = ACE_FEATURES["PBE"]
 
 # ---------------------------------------------------------------------------
 # Ambient O₂ partial pressure (~20% of 1 atm dry air)

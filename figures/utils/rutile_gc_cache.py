@@ -34,6 +34,7 @@ from figures.config import (
 )
 from figures.utils.cache import _any_newer_than
 from figures.utils.gc_gas_oxides import merge_gas_oxides, patch_gas_reservoir_thermo, patch_gas_rot_trans
+from figures.utils.cache_stamp import gc_config_settings, make_stamp, npz_stamp, write_npz_stamp
 from figures.utils.rutile_gc_calibrate import RutileCalibrationAnchor, rutile_minus_iro3_at_anchor
 
 
@@ -177,8 +178,11 @@ def _ensure_rutile_dataset(*, label: str, force: bool) -> None:
     sources = [rutile_path, spec["o2_traj"], spec["ir_ref"]]
     sources += [p for p, _ in gas_specs]
     output_npz = spec["output_npz"]
-    stale = _rutile_npz_stale(output_npz)
     gas_use_vib = RUTILE_GC_GAS_USE_VIB
+    cfg = gc_rutile_cache_config(reference_file=spec["ir_ref"], use_vib_zpe=False)
+    stamp = make_stamp("rutile", inputs=sources, label=label, config=gc_config_settings(cfg),
+                       gas_p=float(RUTILE_GC_GAS_P), gas_vib=gas_use_vib, gas_rot_trans=RUTILE_GC_GAS_INCLUDE_ROT_TRANS)
+    stale = npz_stamp(output_npz) != stamp or _rutile_npz_stale(output_npz)
     p_stored = _stored_rutile_gas_p(output_npz)
 
     if not force and not stale and os.path.exists(output_npz) and not _any_newer_than(
@@ -205,7 +209,7 @@ def _ensure_rutile_dataset(*, label: str, force: bool) -> None:
         output_npz=output_npz,
         output_threshold_dir=os.path.join(RUTILE_GC_CACHE_DIR, f"structures_{label}"),
         output_minima_traj=os.path.join(RUTILE_GC_CACHE_DIR, f"phase_minima_rutile_{label}.traj"),
-        config=gc_rutile_cache_config(reference_file=spec["ir_ref"], use_vib_zpe=False),
+        config=cfg,
     )
     if gas_rows:
         p_gas = float(RUTILE_GC_GAS_P)
@@ -227,6 +231,7 @@ def _ensure_rutile_dataset(*, label: str, force: bool) -> None:
             gas_use_vib=gas_use_vib,
             calibration_dg_eV=delta_g,
         )
+    write_npz_stamp(output_npz, stamp)
 
 
 def ensure_rutile_gc(*, force: bool = False) -> None:

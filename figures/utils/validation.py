@@ -60,33 +60,27 @@ def check_gc_variants_npz(path: str) -> None:
 
 
 def validate_cache_for_figures(fig_nums: set[int]) -> None:
-    """Post-build checks: artifact presence, GC/ACE alignment, variant schema."""
+    """Post-build checks for the main figures: artifact presence, GC/ACE alignment, variant schema.
+
+    Which caches a figure needs comes from ``figures.utils.cache`` (the sets the cache builder uses).
+    """
     from figures.config import (
         ACE_FEATURES,
-        GC_ACE_FEATURES,
-        GC_NPZ,
-        GC_NPZ_PBE0,
+        GC_NPZ_BY_DATASET,
         GC_N_P,
         GC_N_T,
-        GC_STRUCTURES,
-        GC_VARIANTS_NPZ,
+        GC_VARIANTS_NPZ_BY_DATASET,
+        TRAJ_PBE,
         TRAJ_PBE0,
     )
+    from figures.utils.cache import _FIG_NEEDS_ACE, _FIG_NEEDS_GC, _FIG_NEEDS_GC_VARIANTS
     from figures.utils.comparison import count_gas_structures
-    from figures.utils.io import load_ace_features, load_gc_npz, load_traj
+    from figures.utils.io import load_ace_features, load_gc_npz
 
-    needs_ace = bool(fig_nums & {2, 3, 6})
-    needs_gc = bool(fig_nums & {3, 4, 5, 6, 7, 8, 9})
-    needs_variants = bool(fig_nums & {3, 4, 5, 7, 8})
-    needs_gc_join = False
-    needs_pbe0_gc = bool(fig_nums & {3, 4, 5, 6})
+    nums = set(fig_nums)
+    trajs = {"PBE": TRAJ_PBE, "PBE0": TRAJ_PBE0}
 
-    n_gas_pbe = count_gas_structures("PBE")
-    n_gas_pbe0 = count_gas_structures("PBE0")
-    n_expected_pbe = _n_gc_expected(GC_NPZ, GC_STRUCTURES, n_gas_pbe)
-    n_expected_pbe0 = _n_gc_expected(GC_NPZ_PBE0, TRAJ_PBE0, n_gas_pbe0)
-
-    if needs_ace:
+    if nums & _FIG_NEEDS_ACE:
         from figures.config import ACE_ATOM_IR_NPZ, ACE_ATOM_O_NPZ, ACE_STRUCT_NPZ, MOTIF_JSON
 
         for label, path in ACE_FEATURES.items():
@@ -99,44 +93,30 @@ def validate_cache_for_figures(fig_nums: set[int]) -> None:
         ]:
             check_file(path, label)
 
-    if needs_gc:
-        check_file(GC_NPZ, "grand-canonical")
-        check_gc_grid(GC_NPZ, GC_N_T, GC_N_P)
-        gc = load_gc_npz(GC_NPZ)
-        if gc["Pgi"].shape[0] != n_expected_pbe:
-            raise ValueError(
-                f"GC NPZ has {gc['Pgi'].shape[0]} structures, expected {n_expected_pbe}. "
-                "Rebuild cache."
-            )
-        if needs_gc_join and n_gas_pbe == 0:
-            rows = load_ace_features(GC_ACE_FEATURES)
-            check_gc_ace_alignment(gc, rows, "PBE")
-
-    if needs_pbe0_gc:
-        check_file(GC_NPZ_PBE0, "grand-canonical PBE0")
-        check_gc_grid(GC_NPZ_PBE0, GC_N_T, GC_N_P)
-        gc0 = load_gc_npz(GC_NPZ_PBE0)
-        if gc0["Pgi"].shape[0] != n_expected_pbe0:
-            raise ValueError(
-                f"PBE0 GC NPZ has {gc0['Pgi'].shape[0]} structures, "
-                f"expected {n_expected_pbe0}. Rebuild cache."
-            )
-        if n_gas_pbe == 0:
-            check_gc_ace_alignment(
-                load_gc_npz(GC_NPZ), load_ace_features(ACE_FEATURES["PBE"]), "PBE",
-            )
-        if n_gas_pbe0 == 0:
-            check_gc_ace_alignment(gc0, load_ace_features(ACE_FEATURES["PBE0"]), "PBE0")
-
-    if needs_variants:
-        check_gc_variants_npz(GC_VARIANTS_NPZ)
-        check_gc_grid(GC_VARIANTS_NPZ, GC_N_T, GC_N_P)
-        vd = np.load(GC_VARIANTS_NPZ)
-        if int(vd["novib_Pgi"].shape[0]) != n_expected_pbe:
-            raise ValueError(
-                f"gc_variants novib has {vd['novib_Pgi'].shape[0]} structures, "
-                f"expected {n_expected_pbe}. Rebuild cache."
-            )
+    for label in ("PBE", "PBE0"):
+        n_gas = count_gas_structures(label)
+        n_expected = _n_gc_expected(GC_NPZ_BY_DATASET[label], trajs[label], n_gas)
+        if nums & _FIG_NEEDS_GC:
+            path = GC_NPZ_BY_DATASET[label]
+            check_file(path, f"grand-canonical {label}")
+            check_gc_grid(path, GC_N_T, GC_N_P)
+            gc = load_gc_npz(path)
+            if gc["Pgi"].shape[0] != n_expected:
+                raise ValueError(
+                    f"{label} GC NPZ has {gc['Pgi'].shape[0]} structures, expected {n_expected}. Rebuild cache."
+                )
+            if n_gas == 0 and nums & _FIG_NEEDS_ACE:
+                check_gc_ace_alignment(gc, load_ace_features(ACE_FEATURES[label]), label)
+        if nums & _FIG_NEEDS_GC_VARIANTS:
+            path = GC_VARIANTS_NPZ_BY_DATASET[label]
+            check_gc_variants_npz(path)
+            check_gc_grid(path, GC_N_T, GC_N_P)
+            vd = np.load(path)
+            if int(vd["novib_Pgi"].shape[0]) != n_expected:
+                raise ValueError(
+                    f"{label} gc_variants novib has {vd['novib_Pgi'].shape[0]} structures, "
+                    f"expected {n_expected}. Rebuild cache."
+                )
 
 
 def check_vib_availability(structures, dataset: str, required: bool = True) -> int:
