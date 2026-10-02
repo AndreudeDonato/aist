@@ -1,8 +1,8 @@
-"""Supplementary – per-Ir Θ_eff and ⟨G_vib⟩ maps (PBE).
+"""Supplementary – per-Ir Θ_eff and ⟨G_vib⟩ maps, PBE | PBE0.
 
-7 rows × 2 columns (Ir₃…Ir₉ × ⟨Θ_eff⟩ | ⟨G_vib⟩), matching other per-Ir
-supplementary grids. Left column follows Figure 8's characteristic-temperature
-panel; right column follows Figure 8's vibrational Gibbs contribution map.
+Rows Ir₄…Ir₆ × columns PBE ⟨Θ_eff⟩ | PBE ⟨G_vib⟩ | PBE0 ⟨Θ_eff⟩ | PBE0 ⟨G_vib⟩ (one colour scale per
+quantity), matching other per-Ir supplementary grids. Θ_eff columns follow Figure 8's characteristic-
+temperature panel; G_vib columns follow Figure 8's vibrational Gibbs contribution map.
 
 Output: ``figures/outputs/supp_ir_size_tchar_vs_gvib_maps.svg``
 """
@@ -17,11 +17,11 @@ from matplotlib.colors import Normalize
 from figures.config import (
     DPI,
     OUTPUT_DIR,
-    SUPP_IR_COUNTS,
-    VIB_GC_NPZ,
+    THERMO_IR_COUNTS,
 )
 from figures.utils.cache import ensure_for_supplementary
-from figures.utils.io import ensure_dirs, load_gc_npz, load_pbe_gc_structures
+from figures.utils.datasets import DATASETS, dataset_inputs, gc_structures
+from figures.utils.io import ensure_dirs, load_gc_npz
 from figures.utils.plotting import (
     AXIS_LABEL_FONTSIZE,
     CBAR_LABEL_FONTSIZE,
@@ -43,18 +43,18 @@ from figures.utils.vib_contrib_by_ir import (
 
 OUTPUT_PATH = os.path.join(OUTPUT_DIR, "supp_ir_size_tchar_vs_gvib_maps.svg")
 FIG_W_MM = 180
-ROW_H_MM = 32
-FIG_H_MM = len(SUPP_IR_COUNTS) * ROW_H_MM
-IR_COUNTS = SUPP_IR_COUNTS
-LAYOUT_RECT = [0, 0, 0.84, 1]
+ROW_H_MM = 38
+FIG_H_MM = len(THERMO_IR_COUNTS) * ROW_H_MM
+IR_COUNTS = THERMO_IR_COUNTS
+LAYOUT_RECT = [0, 0, 0.91, 1]
 CBAR_GAP = 0.01
 CBAR_WIDTH = 0.012
 CBAR_STACK_GAP = 0.025
 CBAR_STACK_HEIGHT_FRAC = 0.50
 
 COLUMN_SPECS = (
-    ("tchar", r"Cluster $\langle\Theta_{\mathrm{eff}}(T)\rangle$"),
-    ("gvib", r"Vibrational $\langle G_{vib}\rangle$ (eV)"),
+    ("tchar", r"$\langle\Theta_{\mathrm{eff}}(T)\rangle$"),
+    ("gvib", r"$\langle G_{vib}\rangle$ (eV)"),
 )
 
 
@@ -98,12 +98,11 @@ def _gvib_vmax(panels: list[dict]) -> float:
     return float(np.nanpercentile(vals, 97))
 
 
-def main() -> None:
-    ensure_for_supplementary(["supp_ir_size_tchar_vs_gvib_maps"])
-    ensure_dirs(OUTPUT_DIR)
-
-    gc = load_gc_npz(VIB_GC_NPZ)
-    structures = load_pbe_gc_structures()
+def _dataset_grid(label: str) -> dict[tuple[int, str], dict]:
+    """{(n_Ir, "tchar" | "gvib"): panel} of one functional."""
+    inp = dataset_inputs(label)
+    gc = load_gc_npz(inp.gc_npz)
+    structures = gc_structures(label)
     n_s = min(len(structures), gc["Pgi"].shape[0])
     structures = structures[:n_s]
     Pgi = np.asarray(gc["Pgi"][:n_s], dtype=float)
@@ -111,10 +110,12 @@ def main() -> None:
     formulas = np.asarray(gc["formulas"][:n_s], dtype=object)
     n_ir = np.array([_n_ir_n_o(s)[0] for s in structures], dtype=int)
 
-    check_vib_availability(structures, "PBE", required=False)
+    check_vib_availability(structures, label, required=True)
 
-    print("[supp] Computing per-structure E_vib tensor …")
-    e_vib_tensor = compute_per_structure_e_vib_tensor(structures, Ts, Ps)
+    print(f"[supp] {label}: computing per-structure E_vib tensor …")
+    e_vib_tensor = compute_per_structure_e_vib_tensor(
+        structures, Ts, Ps, config=inp.grid_config(include_decomposition=True), o2_path=inp.o2_ref,
+    )
 
     grid: dict[tuple[int, str], dict] = {}
     for n_ir_target in IR_COUNTS:
@@ -130,18 +131,26 @@ def main() -> None:
         if gvib_panel is not None:
             gvib_panel["stoich_labels"] = stoichiometry_overlay_labels(gvib_panel["formulas"])
             grid[(n_ir_target, "gvib")] = gvib_panel
+    return grid
 
-    if not grid:
+
+def main() -> None:
+    ensure_for_supplementary(["supp_ir_size_tchar_vs_gvib_maps"])
+    ensure_dirs(OUTPUT_DIR)
+
+    grids = {label: _dataset_grid(label) for label in DATASETS}
+    if not any(grids.values()):
         raise RuntimeError("[supp] No Ir-size panels for tchar vs G_vib maps.")
 
-    tchar_panels = [p for (n, k), p in grid.items() if k == "tchar"]
-    gvib_panels = [p for (n, k), p in grid.items() if k == "gvib"]
+    tchar_panels = [p for g in grids.values() for (n, k), p in g.items() if k == "tchar"]
+    gvib_panels = [p for g in grids.values() for (n, k), p in g.items() if k == "gvib"]
     tchar_vmin, tchar_vmax = _tchar_limits(tchar_panels)
     gvib_vmax = _gvib_vmax(gvib_panels)
     gvib_norm = Normalize(vmin=-gvib_vmax, vmax=gvib_vmax)
 
+    columns = [(label, key, f"{label}: {title}") for label in DATASETS for key, title in COLUMN_SPECS]
     fig, axes = plt.subplots(
-        len(IR_COUNTS), 2,
+        len(IR_COUNTS), len(columns),
         figsize=(FIG_W_MM / 25.4, FIG_H_MM / 25.4),
         dpi=DPI,
         sharex=True,
@@ -151,12 +160,11 @@ def main() -> None:
     tchar_mesh_ref = None
     gvib_mesh_ref = None
     last_row = len(IR_COUNTS) - 1
-    col_keys = [key for key, _ in COLUMN_SPECS]
-    col_labels = [label for _, label in COLUMN_SPECS]
 
     for row, n_ir_target in enumerate(IR_COUNTS):
-        for col, (col_key, col_label) in enumerate(zip(col_keys, col_labels)):
+        for col, (label, col_key, col_label) in enumerate(columns):
             ax = axes[row, col]
+            grid = grids[label]
             panel = grid.get((n_ir_target, col_key))
             if panel is None:
                 ax.text(
@@ -203,7 +211,7 @@ def main() -> None:
 
     fig.tight_layout(pad=6 / 25.4, rect=LAYOUT_RECT)
 
-    caxes = _stacked_margin_colorbar_caxes(fig, axes[0, 0], axes[-1, 1])
+    caxes = _stacked_margin_colorbar_caxes(fig, axes[0, 0], axes[-1, -1])
     if tchar_mesh_ref is not None:
         add_phase_colorbar(
             fig, tchar_mesh_ref,

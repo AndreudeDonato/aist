@@ -14,7 +14,7 @@ from aist.core.grandcanonical import (
 from aist.stoichiometry import balance_reaction
 from aist.utils import get_energy
 
-from figures.config import IR_REF_PBE, SUPP_IR_COUNTS, VIB_O2_REF, gc_grid_config
+from figures.config import IR_REF_PBE, THERMO_IR_COUNTS, VIB_O2_REF, gc_grid_config
 from figures.utils.gc_subset import _renorm_pgi_slab, ir_size_reservoir_mask
 from figures.utils.vib_metrics import tchar_energy_weighted_ensemble_map
 
@@ -160,11 +160,14 @@ def boltzmann_reaction_vib_curves_by_stoichiometry(
     pressure_pa: float,
     ir_symbol: str = "Ir",
     o_symbol: str = "O",
+    config: GCConfig | None = None,
+    o2_path: str = VIB_O2_REF,
 ) -> tuple[np.ndarray, float, dict[int, list[dict]]]:
     """Boltzmann reaction ``⟨ΔG_vib⟩(T)`` per stoichiometry bucket, grouped by ``n_Ir``.
 
     Uses the balanced-reaction vibrational contribution (cluster + reference + O₂
-    reservoir) with ``Pgi`` renormalized within each ``(n_Ir, n_O)`` bucket.
+    reservoir) with ``Pgi`` renormalized within each ``(n_Ir, n_O)`` bucket. ``config`` (Ir reference)
+    and ``o2_path`` default to PBE; pass the PBE0 ones for PBE0 structures.
     """
     from aist.core.vibrational import (
         _renormalized_boltzmann_weights,
@@ -181,7 +184,7 @@ def boltzmann_reaction_vib_curves_by_stoichiometry(
     structures = structures[:n_s]
     Pgi = Pgi[:n_s]
 
-    slabs = compute_per_structure_contribution_slab(structures, Ts, Ps, p_idx)
+    slabs = compute_per_structure_contribution_slab(structures, Ts, Ps, p_idx, config=config, o2_path=o2_path)
     dg_vib = slabs["E_vib_avg"]
 
     groups = _structure_stoichiometry_groups(
@@ -371,8 +374,11 @@ def contribution_lines_by_ir_at_pressure(
     *,
     ir_counts: list[int] | None = None,
     formulas: np.ndarray | None = None,
+    config: GCConfig | None = None,
+    o2_path: str = VIB_O2_REF,
 ) -> tuple[np.ndarray, float, dict[int, list[tuple[str, np.ndarray]]]]:
-    """ΔG contribution lines vs ``T`` at fixed ``pO₂``, one set per ``n_Ir`` bucket."""
+    """ΔG contribution lines vs ``T`` at fixed ``pO₂``, one set per ``n_Ir`` bucket (``config`` / ``o2_path``:
+    the functional's Ir and O₂ references, PBE by default)."""
     Ts = np.asarray(gc["Ts"], dtype=float)
     Ps = np.asarray(gc["Ps"], dtype=float)
     Pgi = np.asarray(gc["Pgi"], dtype=float)
@@ -384,11 +390,11 @@ def contribution_lines_by_ir_at_pressure(
     n_ir_per_struct = np.asarray(n_ir_per_struct[:n_s], dtype=int)
 
     slabs = compute_per_structure_contribution_slab(
-        structures, Ts, Ps, p_idx,
+        structures, Ts, Ps, p_idx, config=config, o2_path=o2_path,
     )
 
     if ir_counts is None:
-        ir_counts = list(SUPP_IR_COUNTS)
+        ir_counts = list(THERMO_IR_COUNTS)
 
     out: dict[int, list[tuple[str, np.ndarray]]] = {}
     for n in ir_counts:

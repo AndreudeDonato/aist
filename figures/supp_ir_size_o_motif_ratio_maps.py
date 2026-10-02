@@ -25,7 +25,7 @@ from figures.config import (
     FIG04_O_TERMINAL_IDX,
     OUTPUT_DIR,
     PHASE_CMAP,
-    SUPP_IR_COUNTS,
+    THERMO_IR_COUNTS,
 )
 from figures.utils.cache import ensure_for_supplementary
 from figures.utils.comparison import (
@@ -47,8 +47,8 @@ from figures.utils.plotting import (
 
 FIG_W_MM = 180
 ROW_H_MM = 32
-FIG_H_MM = len(SUPP_IR_COUNTS) * ROW_H_MM
-IR_COUNTS = SUPP_IR_COUNTS
+FIG_H_MM = len(THERMO_IR_COUNTS) * ROW_H_MM
+IR_COUNTS = THERMO_IR_COUNTS
 LAYOUT_RECT = [0, 0, 0.84, 1]
 CBAR_GAP = 0.01
 CBAR_WIDTH = 0.012

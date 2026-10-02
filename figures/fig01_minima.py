@@ -92,11 +92,13 @@ def build_tile_into(
     *,
     half_span: float | None = None,
     panel_spec=None,
+    tile_scale: float | None = None,
 ) -> np.ndarray:
     """Draw stoichiometry tiles (no labels).
 
     ``panel_spec``: optional ``GridSpec`` cell for the combined figure; if omitted,
     tiles fill the whole ``fig`` (standalone 88 mm panel).
+    ``tile_scale``: zoom relative to the grid cell (default ``TILE_BOX_SCALE``).
     """
     if half_span is None:
         half_span = _half_span(selected)
@@ -147,7 +149,7 @@ def build_tile_into(
         ax.set_ylim(yc - half_span, yc + half_span)
         ax.set_aspect("equal", adjustable="box")
 
-    _apply_tile_scale(axes, TILE_BOX_SCALE)
+    _apply_tile_scale(axes, TILE_BOX_SCALE if tile_scale is None else tile_scale)
     return axes
 
 

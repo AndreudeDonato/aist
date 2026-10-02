@@ -36,6 +36,13 @@ def load_npz(path: str, *, keys: tuple[str, ...] | None = None) -> dict:
     return out
 
 
+def _attach_source_frames(data: dict, npz_path: str) -> dict:
+    side = npz_path[:-4] + "_frames.npy"
+    if os.path.exists(side):
+        data["source_frames"] = np.load(side)
+    return data
+
+
 def load_gc_npz(path: str, *, light: bool = False) -> dict:
     """Load grandcanonical_results.npz and return as plain dict.
 
@@ -48,11 +55,11 @@ def load_gc_npz(path: str, *, light: bool = False) -> dict:
             "Run: python3 figures/utils/cache.py"
         )
     if not light:
-        return load_npz(path)
-    return load_npz(
+        return _attach_source_frames(load_npz(path), path)
+    return _attach_source_frames(load_npz(
         path,
         keys=("Ts", "Ps", "Pgi", "stoich", "formulas", "phase_index", "x_per_non_o"),
-    )
+    ), path)
 
 
 def load_gc_pbe_novib_view(variants_npz: str, formulas_npz: str) -> dict:
@@ -66,14 +73,14 @@ def load_gc_pbe_novib_view(variants_npz: str, formulas_npz: str) -> dict:
         keys=("Ts", "Ps", "novib_Pgi", "novib_phase_index", "novib_x_per_non_o"),
     )
     formulas = load_npz(formulas_npz, keys=("formulas",))["formulas"]
-    return {
+    return _attach_source_frames({
         "Ts": vd["Ts"],
         "Ps": vd["Ps"],
         "Pgi": vd["novib_Pgi"],
         "phase_index": vd["novib_phase_index"],
         "x_per_non_o": vd["novib_x_per_non_o"],
         "formulas": formulas,
-    }
+    }, variants_npz)
 
 
 def load_gc_pbe_novib_g_tensor(variants_npz: str) -> tuple[np.ndarray, dict]:
@@ -119,19 +126,13 @@ def load_traj(path: str):
 
 
 def load_pbe_gc_structures(*, include_gas: bool | None = None) -> list:
-    """PBE structures in GC order (traj + optional gas oxides)."""
-    from figures.config import GC_INCLUDE_GAS_RESERVOIR, GC_STRUCTURES, gc_gas_reservoir_specs
+    """PBE structures in GC row order (the frames of the grand-canonical NPZ + optional gas oxides)."""
+    from figures.config import GC_INCLUDE_GAS_RESERVOIR
+    from figures.utils.datasets import gc_structures
 
     if include_gas is None:
         include_gas = GC_INCLUDE_GAS_RESERVOIR
-    structures = list(read(GC_STRUCTURES, index=":"))
-    if include_gas:
-        for path, _ in gc_gas_reservoir_specs("PBE"):
-            if not os.path.exists(path):
-                continue
-            mol = read(path)
-            structures.append(mol[0] if isinstance(mol, list) else mol)
-    return structures
+    return gc_structures("PBE", include_gas=include_gas)
 
 
 def ensure_dirs(*dirs: str) -> None:

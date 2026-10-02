@@ -16,6 +16,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.cm import ScalarMappable
 from matplotlib.colors import Normalize
+from matplotlib.ticker import MaxNLocator
 
 from figures.config import (
     ACE_FEATURES,
@@ -23,7 +24,7 @@ from figures.config import (
     FIG04_LOW_PRESSURE_PA,
     OUTPUT_DIR,
     PHASE_CMAP,
-    SUPP_IR_COUNTS,
+    THERMO_IR_COUNTS,
     TRAJ_PBE,
     TRAJ_PBE0,
 )
@@ -146,7 +147,7 @@ def _oxidation_limits(
         finite = Z[np.isfinite(Z)]
         if finite.size:
             vals.extend([float(finite.min()), float(finite.max())])
-        for n in SUPP_IR_COUNTS:
+        for n in THERMO_IR_COUNTS:
             curve = ensemble_scalar_vs_T_at_pressure(
                 col["joined"], n, col["stoich"], pressure_pa,
             )
@@ -208,6 +209,7 @@ def _style_bar_axes(axes: np.ndarray) -> None:
             if not ax.axison:
                 continue
             ax.set_yscale("linear")
+            ax.yaxis.set_major_locator(MaxNLocator(integer=True))   # n_Ir rows, not 3.5, 4.0, …
             if col_idx == 0:
                 ax.set_ylabel(r"$n_{\mathrm{Ir}}$", fontsize=AXIS_LABEL_FONTSIZE)
             else:
@@ -283,14 +285,14 @@ def main() -> None:
             section_labels = col[labels_key] if labels_key else None
             if kind == "scalar":
                 draw_scalar_gradient_bars(
-                    ax, col["joined"], pressure_pa, SUPP_IR_COUNTS, col[key],
+                    ax, col["joined"], pressure_pa, THERMO_IR_COUNTS, col[key],
                     cmap=PHASE_CMAP, vmin=ox_vmin, vmax=ox_vmax,
                     section_kind=section_kind,
                     section_labels=section_labels,
                 )
             else:
                 draw_rgb_gradient_bars(
-                    ax, col["joined"], pressure_pa, SUPP_IR_COUNTS, col[key],
+                    ax, col["joined"], pressure_pa, THERMO_IR_COUNTS, col[key],
                     section_kind=section_kind,
                     section_labels=section_labels,
                 )

@@ -11,7 +11,18 @@ def check_file(path: str, label: str = "") -> None:
         raise FileNotFoundError(f"Required file missing{' (' + label + ')' if label else ''}: {path}")
 
 
+def _n_gc_expected(npz_path: str, traj_path: str, n_gas: int) -> int:
+    """GC rows expected: from the frame sidecar when the ensemble is a subset of the trajectory."""
+    side = npz_path[:-4] + "_frames.npy"
+    if os.path.exists(side):
+        return int(np.load(side).size)
+    from figures.utils.io import load_traj
+    return len(list(load_traj(traj_path))) + n_gas
+
+
 def check_gc_ace_alignment(gc_data: dict, ace_rows: list, dataset: str) -> None:
+    from aist.ace.join import align_ace_rows_to_gc
+    ace_rows = align_ace_rows_to_gc(gc_data, ace_rows)
     n_gc = gc_data["Pgi"].shape[0]
     n_ace = len(ace_rows)
     if n_gc != n_ace:
@@ -72,8 +83,8 @@ def validate_cache_for_figures(fig_nums: set[int]) -> None:
 
     n_gas_pbe = count_gas_structures("PBE")
     n_gas_pbe0 = count_gas_structures("PBE0")
-    n_expected_pbe = len(list(load_traj(GC_STRUCTURES))) + n_gas_pbe
-    n_expected_pbe0 = len(list(load_traj(TRAJ_PBE0))) + n_gas_pbe0
+    n_expected_pbe = _n_gc_expected(GC_NPZ, GC_STRUCTURES, n_gas_pbe)
+    n_expected_pbe0 = _n_gc_expected(GC_NPZ_PBE0, TRAJ_PBE0, n_gas_pbe0)
 
     if needs_ace:
         from figures.config import ACE_ATOM_IR_NPZ, ACE_ATOM_O_NPZ, ACE_STRUCT_NPZ, MOTIF_JSON

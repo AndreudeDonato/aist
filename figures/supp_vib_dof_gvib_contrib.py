@@ -1,6 +1,6 @@
-"""Supplementary – Boltzmann G_vib vs N_vib and per-Ir ΔG_vib(T) panels (PBE).
+"""Supplementary – Boltzmann G_vib vs N_vib and per-Ir ΔG_vib(T) panels, PBE | PBE0.
 
-Former Figure 9 rows 2–5. Single column (88 mm wide, 4 rows):
+Former Figure 9 rows 2–5. 180 mm wide, 4 rows × 2 columns (PBE | PBE0, same y range per row):
 
   1. Boltzmann ⟨G_vib⟩ vs ``N_vib`` (by Ir, 273 K).
   2. Boltzmann ⟨G_vib⟩ vs ``N_vib`` (by Ir, 500 K).
@@ -26,11 +26,11 @@ from figures.config import (
     FIG08_PRESSURE_PA,
     FIG08_VIB_G_TEMP_K,
     OUTPUT_DIR,
-    SUPP_IR_COUNTS,
-    VIB_GC_NPZ,
+    THERMO_IR_COUNTS,
 )
 from figures.utils.cache import ensure_for_supplementary
-from figures.utils.io import ensure_dirs, load_gc_npz, load_pbe_gc_structures
+from figures.utils.datasets import DATASETS, dataset_inputs, gc_structures
+from figures.utils.io import ensure_dirs, load_gc_npz
 from figures.utils.plotting import (
     AXIS_LABEL_FONTSIZE,
     LEGEND_FONTSIZE,
@@ -42,7 +42,7 @@ from figures.utils.validation import check_vib_availability
 from figures.utils.vib_contrib_by_ir import contribution_lines_by_ir_at_pressure
 
 OUTPUT_PATH = os.path.join(OUTPUT_DIR, "supp_vib_dof_gvib_contrib.svg")
-FIG_W_MM = 88
+FIG_W_MM = 180
 ROW_H_MM = 42
 FIG_H_MM = 4 * ROW_H_MM
 VIB_TERM_LABEL = "Vibrational"
@@ -166,12 +166,12 @@ def _plot_vib_contrib_by_ir(
     return float(Ts[0]), float(Ts[-1])
 
 
-def _load_grouped(temperature_k: float) -> dict[int, list[dict[str, Any]]]:
-    gc = load_gc_npz(VIB_GC_NPZ, light=True)
-    structures = load_pbe_gc_structures(include_gas=False)
+def _load_grouped(label: str, temperature_k: float) -> dict[int, list[dict[str, Any]]]:
+    gc = load_gc_npz(dataset_inputs(label).gc_npz, light=True)
+    structures = gc_structures(label)
     if len(structures) != gc["Pgi"].shape[0]:
         raise ValueError(
-            f"PBE structure count {len(structures)} != GC Pgi rows {gc['Pgi'].shape[0]}"
+            f"{label} structure count {len(structures)} != GC Pgi rows {gc['Pgi'].shape[0]}"
         )
     return boltzmann_weighted_vib_stoichiometry_by_ir_content(
         structures,
@@ -184,10 +184,12 @@ def _load_grouped(temperature_k: float) -> dict[int, list[dict[str, Any]]]:
 
 
 def _load_contrib_by_ir(
+    label: str,
     pressure_pa: float,
 ) -> tuple[np.ndarray, float, dict[int, list[tuple[str, np.ndarray]]]]:
-    gc = load_gc_npz(VIB_GC_NPZ, light=True)
-    structures = load_pbe_gc_structures(include_gas=False)
+    inp = dataset_inputs(label)
+    gc = load_gc_npz(inp.gc_npz, light=True)
+    structures = gc_structures(label)
     n_ir = np.array([
         sum(1 for s in a.get_chemical_symbols() if s == "Ir") for a in structures
     ], dtype=int)
@@ -197,77 +199,74 @@ def _load_contrib_by_ir(
         structures,
         n_ir,
         pressure_pa,
-        ir_counts=SUPP_IR_COUNTS,
+        ir_counts=THERMO_IR_COUNTS,
         formulas=formulas,
+        config=inp.grid_config(include_decomposition=True),
+        o2_path=inp.o2_ref,
     )
+
+
+def _shared_ylim(axes_row) -> None:
+    lo = min(ax.get_ylim()[0] for ax in axes_row)
+    hi = max(ax.get_ylim()[1] for ax in axes_row)
+    for ax in axes_row:
+        ax.set_ylim(lo, hi)
 
 
 def main() -> None:
     ensure_for_supplementary(["supp_vib_dof_gvib_contrib"])
     ensure_dirs(OUTPUT_DIR)
 
-    structures = load_pbe_gc_structures(include_gas=False)
-    check_vib_availability(structures, "PBE", required=False)
-
-    grouped_273 = _load_grouped(FIG08_VIB_G_TEMP_K)
-    grouped_500 = _load_grouped(FIG09_HIGH_T_K)
-    Ts, p_ambient, ir_lines_ambient = _load_contrib_by_ir(FIG08_PRESSURE_PA)
-    _, p_low, ir_lines_low = _load_contrib_by_ir(FIG04_LOW_PRESSURE_PA)
     cond_273 = _condition_label(FIG08_VIB_G_TEMP_K)
     cond_500 = _condition_label(FIG09_HIGH_T_K)
     gvib_ylabel = rf"$\langle G_{{\mathrm{{vib}}}}\rangle$ (eV)"
 
-    def _gvib_title(cond: str) -> str:
+    def _gvib_title(label: str, cond: str) -> str:
         return (
-            rf"Boltzmann $\langle G_{{\mathrm{{vib}}}}\rangle$ vs "
+            rf"{label}: $\langle G_{{\mathrm{{vib}}}}\rangle$ vs "
             rf"$N_{{\mathrm{{vib}}}}$ (by Ir, {cond})"
         )
 
     fig, axes = plt.subplots(
-        4, 1,
+        4, len(DATASETS),
         figsize=(FIG_W_MM / 25.4, FIG_H_MM / 25.4),
         dpi=DPI,
         sharex=False,
     )
 
-    gvib_273_xlim = _plot_ir_series_vs_vib_dof(
-        axes[0],
-        grouped_273,
-        y_key="g_vib",
-        ylabel=gvib_ylabel,
-        title=_gvib_title(cond_273),
-        zero_at_ref=False,
-    )
-    gvib_500_xlim = _plot_ir_series_vs_vib_dof(
-        axes[1],
-        grouped_500,
-        y_key="g_vib",
-        ylabel=gvib_ylabel,
-        title=_gvib_title(cond_500),
-        zero_at_ref=False,
-    )
-    t_xlim_ambient = _plot_vib_contrib_by_ir(
-        axes[2], ir_lines_ambient, Ts, pressure_pa=p_ambient,
-    )
-    t_xlim_low = _plot_vib_contrib_by_ir(
-        axes[3], ir_lines_low, Ts, pressure_pa=p_low,
-    )
+    for col, label in enumerate(DATASETS):
+        check_vib_availability(gc_structures(label), label, required=True)
+        grouped_273 = _load_grouped(label, FIG08_VIB_G_TEMP_K)
+        grouped_500 = _load_grouped(label, FIG09_HIGH_T_K)
+        Ts, p_ambient, ir_lines_ambient = _load_contrib_by_ir(label, FIG08_PRESSURE_PA)
+        _, p_low, ir_lines_low = _load_contrib_by_ir(label, FIG04_LOW_PRESSURE_PA)
 
-    for ax in axes:
+        xlims = [
+            _plot_ir_series_vs_vib_dof(
+                axes[0, col], grouped_273, y_key="g_vib", ylabel=gvib_ylabel,
+                title=_gvib_title(label, cond_273), zero_at_ref=False,
+            ),
+            _plot_ir_series_vs_vib_dof(
+                axes[1, col], grouped_500, y_key="g_vib", ylabel=gvib_ylabel,
+                title=_gvib_title(label, cond_500), zero_at_ref=False,
+            ),
+            _plot_vib_contrib_by_ir(axes[2, col], ir_lines_ambient, Ts, pressure_pa=p_ambient),
+            _plot_vib_contrib_by_ir(axes[3, col], ir_lines_low, Ts, pressure_pa=p_low),
+        ]
+        for row, xlim in enumerate(xlims):
+            if xlim is not None:
+                _pin_line_xlim(axes[row, col], *xlim)
+        for row in (2, 3):
+            axes[row, col].set_title(f"{label}: " + axes[row, col].get_title(), fontsize=TITLE_FONTSIZE)
+
+    for row in range(axes.shape[0]):
+        _shared_ylim(axes[row])
+    for ax in axes.ravel():
         ax.tick_params(axis="x", labelbottom=True)
         ax.tick_params(axis="y", labelleft=True)
 
-    if gvib_273_xlim is not None:
-        _pin_line_xlim(axes[0], *gvib_273_xlim)
-    if gvib_500_xlim is not None:
-        _pin_line_xlim(axes[1], *gvib_500_xlim)
-    if t_xlim_ambient is not None:
-        _pin_line_xlim(axes[2], *t_xlim_ambient)
-    if t_xlim_low is not None:
-        _pin_line_xlim(axes[3], *t_xlim_low)
-
     fig.tight_layout(pad=6 / 25.4)
-    fig.subplots_adjust(hspace=0.42)
+    fig.subplots_adjust(hspace=0.55, wspace=0.25)
 
     save_fig(fig, OUTPUT_PATH, dpi=DPI, bbox_inches=None, pad_inches=0)
     print(f"[supp] {OUTPUT_PATH}")

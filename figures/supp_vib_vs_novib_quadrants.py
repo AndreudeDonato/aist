@@ -1,13 +1,11 @@
-"""Supplementary – Vibrational vs. non-vibrational phase diagrams.
+"""Supplementary – Vibrational vs. non-vibrational phase diagrams, PBE | PBE0.
 
-Former Figure 7. 2×2 quadrant layout (PBE — full vib/ZPE thermo from
-``IryOxPBE.traj``):
-  (0,0) Full (vib + ensemble):         existing x_per_non_o
-  (0,1) No vib/ZPE, with ensemble:     x_per_non_o recomputed without vib
-  (1,0) With vib, no ensemble:         single-minimum stoichiometry (full G)
-  (1,1) No vib/ZPE, no ensemble:       single-minimum stoichiometry (novib G)
+Former Figure 7. Pooled Ir₄–Ir₆ grand-canonical ensembles of each functional, 2×4 layout
+(columns PBE full | PBE no vib | PBE0 full | PBE0 no vib):
+  row 0  with ensemble:     x_per_non_o with vib/ZPE | recomputed without vib
+  row 1  single minimum:    single-minimum stoichiometry with vib (full G) | without (novib G)
 
-Requires figures/cache/gc_variants.npz.
+Requires figures/cache/gc_variants.npz and gc_variants_PBE0.npz.
 
 Output: figures/outputs/supp_vib_vs_novib_quadrants.svg
 """
@@ -25,7 +23,8 @@ for _p in [_ROOT, os.path.join(_ROOT, "analysis")]:
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-from figures.config import GC_NPZ, GC_VARIANTS_NPZ, OUTPUT_DIR, DPI
+from figures.config import OUTPUT_DIR, DPI
+from figures.utils.datasets import DATASETS, dataset_inputs
 from figures.utils.io import ensure_dirs, load_gc_npz
 from figures.utils.cache import ensure_for_supplementary
 from figures.utils.plotting import (
@@ -42,10 +41,10 @@ OUTPUT_PATH = os.path.join(OUTPUT_DIR, "supp_vib_vs_novib_quadrants.svg")
 PHASE_CMAP = "coolwarm"
 
 TITLES = {
-    (0, 0): "Full (vib + ensemble)",
-    (0, 1): "No vib/ZPE, with ensemble",
-    (1, 0): "With vib, single minimum",
-    (1, 1): "No vib/ZPE, single minimum",
+    (0, 0): "full (vib + ensemble)",
+    (0, 1): "no vib/ZPE, ensemble",
+    (1, 0): "with vib, single minimum",
+    (1, 1): "no vib/ZPE, single minimum",
 }
 
 
@@ -77,40 +76,44 @@ def main() -> None:
     ensure_for_supplementary(["supp_vib_vs_novib_quadrants"])
     ensure_dirs(OUTPUT_DIR)
 
-    vd = np.load(GC_VARIANTS_NPZ, allow_pickle=True)
-    Ts = vd["Ts"]
-    Ps = vd["Ps"]
+    data = {}
+    for label in DATASETS:
+        inp = dataset_inputs(label)
+        vd = np.load(inp.variants_npz, allow_pickle=True)
+        gc = load_gc_npz(inp.gc_npz, light=True)
+        data[label] = {
+            "Ts": vd["Ts"],
+            "Ps": vd["Ps"],
+            "stoich": np.asarray(vd["stoich"], dtype=float),
+            "labels": stoichiometry_overlay_labels(gc["formulas"]),
+            "panels": {
+                (0, 0): (vd["full_x_per_non_o"], vd["full_phase_index"]),
+                (0, 1): (vd["novib_x_per_non_o"], vd["novib_phase_index"]),
+                (1, 0): (vd["full_stoich_map"], vd["full_phase_index"]),
+                (1, 1): (vd["novib_stoich_map"], vd["novib_phase_index"]),
+            },
+        }
+    vmin = min(float(d["stoich"].min()) for d in data.values())
+    vmax = max(float(d["stoich"].max()) for d in data.values())
 
-    gc = load_gc_npz(GC_NPZ)
-    overlay_labels = stoichiometry_overlay_labels(gc["formulas"])
-
-    stoich = vd["stoich"]
-    vmin = float(stoich.min())
-    vmax = float(stoich.max())
-
-    panels = {
-        (0, 0): (vd["full_x_per_non_o"], vd["full_phase_index"]),
-        (0, 1): (vd["novib_x_per_non_o"], vd["novib_phase_index"]),
-        (1, 0): (vd["full_stoich_map"], vd["full_phase_index"]),
-        (1, 1): (vd["novib_stoich_map"], vd["novib_phase_index"]),
-    }
-
-    fig, axes = plt.subplots(2, 2, figsize=(180 / 25.4, 120 / 25.4), dpi=DPI)
+    fig, axes = plt.subplots(2, 2 * len(DATASETS), figsize=(180 / 25.4, 100 / 25.4), dpi=DPI)
     mesh_ref = None
-    for (row, col), (z_map, phase_idx) in panels.items():
-        ax = axes[row, col]
-        mesh = _phase_map_panel(
-            ax, Ts, Ps, z_map, phase_idx, overlay_labels,
-            TITLES[(row, col)], vmin, vmax,
-        )
-        if mesh_ref is None:
-            mesh_ref = mesh
+    for i, label in enumerate(DATASETS):
+        d = data[label]
+        for (row, col), (z_map, phase_idx) in d["panels"].items():
+            ax = axes[row, 2 * i + col]
+            mesh = _phase_map_panel(
+                ax, d["Ts"], d["Ps"], z_map, phase_idx, d["labels"],
+                f"{label}\n{TITLES[(row, col)]}", vmin, vmax,
+            )
+            if mesh_ref is None:
+                mesh_ref = mesh
 
-    fig.tight_layout(pad=6 / 25.4, rect=[0, 0, 0.92, 1])
+    fig.tight_layout(pad=6 / 25.4, rect=[0, 0, 0.93, 1])
     if mesh_ref is not None:
         add_phase_colorbar(
             fig, mesh_ref,
-            cax=margin_colorbar_cax(fig, axes[0, 0], axes[1, 1]),
+            cax=margin_colorbar_cax(fig, axes[0, 0], axes[1, -1]),
             label=r"$n_O / n_{Ir}$",
         )
     save_fig(fig, OUTPUT_PATH, dpi=DPI)

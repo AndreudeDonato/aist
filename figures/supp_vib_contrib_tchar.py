@@ -1,6 +1,7 @@
-"""Supplementary – Vibrational contributions and characteristic temperature maps (PBE).
+"""Supplementary – Vibrational contributions and characteristic temperature maps, per functional.
 
-Former Figure 8. PBE structures carry ``atoms.info['frequencies']``; PBE0 vib data are not used.
+Former Figure 8. One figure per functional (PBE, PBE0), each on its pooled Ir₄–Ir₆ grand-canonical
+ensemble (PBE0 without the structures that have no spectrum).
 
 2×2 layout:
   (0,0): ΔG contributions vs T at fixed pO₂ (1D cut from G_contributions_3x2)
@@ -8,7 +9,7 @@ Former Figure 8. PBE structures carry ``atoms.info['frequencies']``; PBE0 vib da
   (1,0): ZPE vs oxygen content
   (1,1): Ensemble energy-weighted cluster Θ_eff(T) map (no O₂)
 
-Output: ``figures/outputs/supp_vib_contrib_tchar.svg``
+Outputs: ``figures/outputs/supp_vib_contrib_tchar_PBE.svg``, ``…_PBE0.svg``
 """
 from __future__ import annotations
 
@@ -24,10 +25,10 @@ from figures.config import (
     DPI,
     FIG08_PRESSURE_PA,
     OUTPUT_DIR,
-    VIB_GC_NPZ,
 )
 from figures.utils.cache import ensure_for_supplementary
-from figures.utils.io import ensure_dirs, load_gc_npz, load_pbe_gc_structures
+from figures.utils.datasets import DATASETS, dataset_inputs, gc_structures
+from figures.utils.io import ensure_dirs, load_gc_npz
 from figures.utils.plotting import (
     TITLE_FONTSIZE,
     AXIS_LABEL_FONTSIZE,
@@ -43,7 +44,7 @@ from figures.utils.plotting import (
 from figures.utils.validation import check_vib_availability
 from figures.utils.vib_metrics import tchar_energy_weighted_ensemble_map
 
-OUTPUT_PATH = os.path.join(OUTPUT_DIR, "supp_vib_contrib_tchar.svg")
+OUTPUT_STEM = "supp_vib_contrib_tchar"
 
 
 def _pin_line_xlim(ax, xmin: float, xmax: float) -> None:
@@ -146,17 +147,15 @@ def _tchar_panel(ax, gc, structures, *, tc_map=None) -> None:
     cbar.ax.tick_params(labelsize=TICK_FONTSIZE)
 
 
-def main() -> None:
-    ensure_for_supplementary(["supp_vib_contrib_tchar"])
-    ensure_dirs(OUTPUT_DIR)
-
-    gc = load_gc_npz(VIB_GC_NPZ)
-    structures = load_pbe_gc_structures()
+def build(label: str) -> None:
+    output_path = os.path.join(OUTPUT_DIR, f"{OUTPUT_STEM}_{label}.svg")
+    gc = load_gc_npz(dataset_inputs(label).gc_npz)
+    structures = gc_structures(label)
     if len(structures) != gc["Pgi"].shape[0]:
         raise ValueError(
-            f"PBE structure count {len(structures)} != GC Pgi rows {gc['Pgi'].shape[0]}"
+            f"{label} structure count {len(structures)} != GC Pgi rows {gc['Pgi'].shape[0]}"
         )
-    check_vib_availability(structures, "PBE", required=False)
+    check_vib_availability(structures, label, required=True)
 
     tc_map = tchar_energy_weighted_ensemble_map(structures, gc["Pgi"], gc["Ts"])
 
@@ -186,13 +185,21 @@ def main() -> None:
     # (1,1): Tchar
     _tchar_panel(axes[1, 1], gc, structures, tc_map=tc_map)
 
-    fig.tight_layout(pad=6 / 25.4)
+    fig.suptitle(label, fontsize=TITLE_FONTSIZE)
+    fig.tight_layout(pad=6 / 25.4, rect=[0, 0, 1, 0.96])
     if dg_xlim is not None:
         _pin_line_xlim(axes[0, 0], *dg_xlim)
     if zpe_xlim is not None:
         _pin_line_xlim(axes[1, 0], *zpe_xlim)
-    save_fig(fig, OUTPUT_PATH, dpi=DPI)
-    print(f"[supp] {OUTPUT_PATH}")
+    save_fig(fig, output_path, dpi=DPI)
+    print(f"[supp] {output_path}")
+
+
+def main() -> None:
+    ensure_for_supplementary(["supp_vib_contrib_tchar"])
+    ensure_dirs(OUTPUT_DIR)
+    for label in DATASETS:
+        build(label)
 
 
 if __name__ == "__main__":

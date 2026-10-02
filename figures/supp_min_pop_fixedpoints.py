@@ -1,9 +1,9 @@
-"""Supplementary – Global-minimum phase map + fixed-point population lines (PBE).
+"""Supplementary – Global-minimum phase map + fixed-point population lines, PBE | PBE0.
 
-Former Figure 9. Novib and full (vib+ZPE) populations come from ``gc_variants.npz``
-on ``IryOxPBE.traj``.
+Former Figure 9. Novib and full (vib+ZPE) populations come from each functional's variants NPZ
+(pooled Ir₄–Ir₆ ensembles).
 
-3×1 vertical layout (88 mm width):
+3×2 layout (180 mm width; columns PBE | PBE0):
   (0): Global-minimum structure population (%) on T × pO₂
   (1): At T=273 K, ambient pO₂ — s1, s2, … (97% novib population)
   (2): Same at T=500 K — s'1, s'2, …
@@ -21,11 +21,10 @@ from matplotlib.gridspec import GridSpec
 from figures.config import (
     DPI,
     FIXED_POINTS,
-    GC_NPZ,
-    GC_VARIANTS_NPZ,
     OUTPUT_DIR,
 )
 from figures.utils.cache import ensure_for_supplementary
+from figures.utils.datasets import DATASETS, dataset_inputs
 from figures.utils.io import ensure_dirs, load_gc_npz
 from figures.utils.join import (
     ranked_cumulative_population_lines,
@@ -43,15 +42,15 @@ from figures.utils.plotting import (
 )
 
 OUTPUT_PATH = os.path.join(OUTPUT_DIR, "supp_min_pop_fixedpoints.svg")
-FIG_W_MM = 88
-FIG_H_MM = 150
+FIG_W_MM = 180
+FIG_H_MM = 165
 CUMULATIVE_FRAC = 0.97
 
 
-def _global_min_pop_panel(ax, gc, overlay_labels: list[str]) -> None:
+def _global_min_pop_panel(ax, gc, overlay_labels: list[str], *, title: str = "Global-minimum population") -> None:
     return draw_global_minimum_population_panel(
         ax, gc, overlay_labels,
-        title="Global-minimum population",
+        title=title,
         title_fontsize=TITLE_FONTSIZE,
     )
 
@@ -105,7 +104,8 @@ def _cumulative_population_panel(
     ax.set_ylabel("Population (%)", fontsize=AXIS_LABEL_FONTSIZE)
     cov = 100.0 * float(lines["cumulative_fraction"])
     ax.set_title(
-        rf"$T={T:.0f}$ K, $p_{{\mathrm{{O_2}}}}={P:.3g}$ Pa — "
+        rf"$T={T:.0f}$ K, $p_{{\mathrm{{O_2}}}}={P:.3g}$ Pa"
+        "\n"
         rf"{n_show} structures ({cov:.0f}% of novib pop.)",
         fontsize=TITLE_FONTSIZE,
     )
@@ -128,45 +128,48 @@ def main() -> None:
     ensure_for_supplementary(["supp_min_pop_fixedpoints"])
     ensure_dirs(OUTPUT_DIR)
 
-    gc_full = load_gc_npz(GC_NPZ)
-
-    vd = np.load(GC_VARIANTS_NPZ, allow_pickle=True)
-    Ts_v, Ps_v = vd["Ts"], vd["Ps"]
-    novib_Pgi = vd["novib_Pgi"]
-    full_Pgi = vd["full_Pgi"]
-
-    overlay_labels = stoichiometry_overlay_labels(gc_full["formulas"])
-
     fig = plt.figure(figsize=(FIG_W_MM / 25.4, FIG_H_MM / 25.4), dpi=DPI)
     gs_main = GridSpec(
-        3, 1, figure=fig,
+        3, len(DATASETS), figure=fig,
         height_ratios=[1.45, 1.0, 1.0],
-        hspace=0.42,
+        hspace=0.62,
+        wspace=0.40,
     )
-    gs_top = gs_main[0].subgridspec(1, 2, width_ratios=[1.0, 0.035], wspace=0.04)
-    ax_phase = fig.add_subplot(gs_top[0, 0])
-    cax = fig.add_subplot(gs_top[0, 1])
-    ax_lines = [
-        fig.add_subplot(gs_main[1]),
-        fig.add_subplot(gs_main[2]),
-    ]
+    for col, label in enumerate(DATASETS):
+        inp = dataset_inputs(label)
+        gc_full = load_gc_npz(inp.gc_npz)
+        vd = np.load(inp.variants_npz, allow_pickle=True)
+        Ts_v, Ps_v = vd["Ts"], vd["Ps"]
+        novib_Pgi = vd["novib_Pgi"]
+        full_Pgi = vd["full_Pgi"]
+        overlay_labels = stoichiometry_overlay_labels(gc_full["formulas"])
 
-    mesh0 = _global_min_pop_panel(ax_phase, gc_full, overlay_labels)
-    if mesh0 is not None:
-        cbar = fig.colorbar(mesh0, cax=cax)
-        cbar.set_label("Population (%)", fontsize=CBAR_LABEL_FONTSIZE)
-        cbar.ax.tick_params(labelsize=TICK_FONTSIZE)
+        gs_top = gs_main[0, col].subgridspec(1, 2, width_ratios=[1.0, 0.035], wspace=0.04)
+        ax_phase = fig.add_subplot(gs_top[0, 0])
+        cax = fig.add_subplot(gs_top[0, 1])
+        ax_lines = [
+            fig.add_subplot(gs_main[1, col]),
+            fig.add_subplot(gs_main[2, col]),
+        ]
 
-    for i, fp in enumerate(FIXED_POINTS[:2]):
-        T, P = fp["T"], fp["P"]
-        pops_novib = structure_populations_at_fixed_point(novib_Pgi, Ts_v, Ps_v, T, P)
-        pops_vib = structure_populations_at_fixed_point(full_Pgi, Ts_v, Ps_v, T, P)
-        _cumulative_population_panel(
-            ax_lines[i], pops_novib, pops_vib, T=T, P=P,
-            primed_ticks=(i == 1),
-        )
+        mesh0 = _global_min_pop_panel(ax_phase, gc_full, overlay_labels,
+                                      title=f"{label}: global-minimum population")
+        if mesh0 is not None:
+            cbar = fig.colorbar(mesh0, cax=cax)
+            cbar.set_label("Population (%)", fontsize=CBAR_LABEL_FONTSIZE)
+            cbar.ax.tick_params(labelsize=TICK_FONTSIZE)
 
-    fig.subplots_adjust(left=0.14, right=0.96, top=0.97, bottom=0.08)
+        for i, fp in enumerate(FIXED_POINTS[:2]):
+            T, P = fp["T"], fp["P"]
+            pops_novib = structure_populations_at_fixed_point(novib_Pgi, Ts_v, Ps_v, T, P)
+            pops_vib = structure_populations_at_fixed_point(full_Pgi, Ts_v, Ps_v, T, P)
+            _cumulative_population_panel(
+                ax_lines[i], pops_novib, pops_vib, T=T, P=P,
+                primed_ticks=(i == 1),
+            )
+        del gc_full, vd
+
+    fig.subplots_adjust(left=0.07, right=0.97, top=0.97, bottom=0.08)
     save_fig(fig, OUTPUT_PATH, dpi=DPI)
     print(f"[supp] {OUTPUT_PATH}")
 

@@ -1,13 +1,15 @@
-"""Supplementary – Thermo-variant oxidation at ambient pO₂ (PBE).
+"""Supplementary – Thermo-variant oxidation at fixed pO₂, one figure per functional (PBE, PBE0).
 
-Former Figure 7 (ambient). 180 mm wide, two columns:
+Former Figure 7. 180 mm wide, two columns:
 
-  Left:  ``Δ(n_O/n_Ir) = variant − VZE`` vs ``T`` (Ir₃…Ir₉ winter lines).
-  Right: Fig. 3 row-2 style gradient bars for Ir₃…Ir₉ at ``AMBIENT_PO2_PA``.
+  Left:  ``Δ(n_O/n_Ir) = variant − VZE`` vs ``T`` (Ir₄…Ir₆ winter lines).
+  Right: Fig. 3 row-2 style gradient bars for Ir₄…Ir₆ at the chosen pO₂.
 
-Thermo code (3 chars): V / Z / E = on; ``\\`` = off.
+Thermo code (3 chars): V / Z / E = on; ``\\`` = off. The PBE and PBE0 figures share y-limits and the
+oxidation colour scale. This module draws the ambient-pO₂ pair; ``supp_oxidation_delta_by_ir_low_po2``
+draws the low-pO₂ pair with ``build``.
 
-Output: figures/outputs/supp_oxidation_delta_by_ir.svg
+Outputs: figures/outputs/supp_oxidation_delta_by_ir_PBE.svg, …_PBE0.svg
 """
 from __future__ import annotations
 
@@ -25,16 +27,15 @@ for _p in [_ROOT, os.path.join(_ROOT, "analysis")]:
         sys.path.insert(0, _p)
 
 from figures.config import (
-    ACE_FEATURES,
     AMBIENT_PO2_PA,
     DPI,
-    GC_VARIANTS_NPZ,
     OUTPUT_DIR,
     PHASE_CMAP,
-    SUPP_IR_COUNTS,
+    THERMO_IR_COUNTS,
 )
 from figures.utils.cache import ensure_for_supplementary
 from figures.utils.comparison import build_comparison_joined_table, load_gc_comparison_view
+from figures.utils.datasets import DATASETS, dataset_inputs
 from figures.utils.gc_gradient_bars import (
     BAR_HEIGHT,
     bar_xlim,
@@ -53,11 +54,11 @@ from figures.utils.plotting import (
     save_fig,
 )
 
-OUTPUT_PATH = os.path.join(OUTPUT_DIR, "supp_oxidation_delta_by_ir.svg")
+OUTPUT_STEM = "supp_oxidation_delta_by_ir"
 FIG_W_MM = 180
 DELTA_ROW_H_MM = 36
-IR_COUNTS = list(SUPP_IR_COUNTS)
-BAR_IR_COUNTS = list(SUPP_IR_COUNTS)  # Ir₃…Ir₉
+IR_COUNTS = list(THERMO_IR_COUNTS)
+BAR_IR_COUNTS = list(THERMO_IR_COUNTS)
 IR_CMAP = "winter"
 LAYOUT_RIGHT = 0.90
 CBAR_GAP = 0.008
@@ -234,19 +235,18 @@ def _draw_variant_gradient_bars(
     ax.tick_params(axis="both", labelsize=TICK_FONTSIZE)
 
 
-def main() -> None:
-    ensure_for_supplementary(["supp_oxidation_delta_by_ir"])
-    ensure_dirs(OUTPUT_DIR)
-
+def _series(label: str, pressure_pa: float) -> dict:
+    """Oxidation lines of every thermo variant and their Δ to VZE, for one functional."""
+    inp = dataset_inputs(label)
     vd = load_npz(
-        GC_VARIANTS_NPZ,
+        inp.variants_npz,
         keys=(
             "Ts", "Ps", "stoich",
             "full_Pgi", "novib_Pgi", "vib_nozpe_Pgi", "zpe_only_Pgi",
         ),
     )
-    gc_ref = load_gc_comparison_view("PBE", light=True)
-    rows = load_ace_features(ACE_FEATURES["PBE"])
+    gc_ref = load_gc_comparison_view(label, light=True)
+    rows = load_ace_features(inp.ace_features)
     n_gc = min(
         len(gc_ref["formulas"]),
         vd["full_Pgi"].shape[0],
@@ -257,13 +257,12 @@ def main() -> None:
     jt = build_comparison_joined_table(
         {**gc_ref, "Pgi": gc_ref["Pgi"][:n_gc]},
         rows,
-        "PBE",
+        label,
     )
     n_ir = np.asarray(jt["n_Ir"], dtype=float)
     n_o = np.asarray(jt["n_O"], dtype=float)
     stoich = np.where(n_ir > 0, n_o / n_ir, np.nan)
 
-    pressure_pa = PRESSURE_PA
     joined_by_branch = {
         "full": _joined_with_pgi(jt, vd["full_Pgi"][:n_gc]),
         "novib": _joined_with_pgi(jt, vd["novib_Pgi"][:n_gc]),
@@ -289,29 +288,24 @@ def main() -> None:
         _delta_lines(ox_cache[(branch, mode)], baseline)
         for branch, mode, _code in VARIANT_ROWS
     ]
+    return {"Ts": Ts, "ox_cache": ox_cache, "row_deltas": row_deltas, "stoich": stoich}
 
-    bar_vals: list[float] = []
-    for branch, mode, _code in VARIANT_ROWS:
-        for n in BAR_IR_COUNTS:
-            y = ox_cache[(branch, mode)].get(n)
-            if y is None:
-                continue
-            finite = y[np.isfinite(y)]
-            if finite.size:
-                bar_vals.extend(finite.tolist())
-    # Same oxidation colour scale as Fig. 3 / other n_O/n_Ir panels: full stoich range.
-    stoich_finite = stoich[np.isfinite(stoich)]
-    if stoich_finite.size:
-        ox_vmin, ox_vmax = float(stoich_finite.min()), float(stoich_finite.max())
-    elif bar_vals:
-        ox_vmin, ox_vmax = float(min(bar_vals)), float(max(bar_vals))
+
+def _ox_range(series: list[dict]) -> tuple[float, float]:
+    """Same oxidation colour scale as Fig. 3 / other n_O/n_Ir panels: full stoich range."""
+    vals = np.concatenate([d["stoich"][np.isfinite(d["stoich"])] for d in series])
+    if vals.size:
+        vmin, vmax = float(vals.min()), float(vals.max())
     else:
-        ox_vmin, ox_vmax = 0.0, 1.0
-    if ox_vmax <= ox_vmin:
-        ox_vmax = ox_vmin + 1.0
+        vmin, vmax = 0.0, 1.0
+    if vmax <= vmin:
+        vmax = vmin + 1.0
+    return vmin, vmax
 
-    ylim_ens = _y_limits(*row_deltas[:N_ENSEMBLE_DELTA])
-    ylim_min = _y_limits(row_deltas[N_ENSEMBLE_DELTA])
+
+def _draw(label: str, d: dict, *, pressure_pa: float, ylim_ens, ylim_min, ox_vmin: float, ox_vmax: float,
+          output_path: str) -> None:
+    Ts, ox_cache, row_deltas = d["Ts"], d["ox_cache"], d["row_deltas"]
     norm, cmap = _ir_colormap()
     last = N_DELTA - 1
 
@@ -322,7 +316,7 @@ def main() -> None:
         height_ratios=[DELTA_ROW_H_MM] * N_DELTA,
         hspace=0.45,
     )
-    # Squeeze all Ir₃…Ir₉ panels into the same vertical span as the left column.
+    # Squeeze all Ir-size panels into the same vertical span as the left column.
     gs_right = gs[0, 1].subgridspec(
         N_BAR, 1,
         hspace=BAR_HSPACE,
@@ -389,16 +383,33 @@ def main() -> None:
     )
 
     fig.suptitle(
-        rf"$p_{{\mathrm{{O_2}}}}={_format_po2(pressure_pa)}$ Pa"
+        rf"{label}: $p_{{\mathrm{{O_2}}}}={_format_po2(pressure_pa)}$ Pa"
         r"  (V/Z/E = on; \ = off)",
         fontsize=TITLE_FONTSIZE,
     )
     fig.subplots_adjust(
         left=0.12, right=LAYOUT_RIGHT, top=0.90, bottom=0.10,
     )
-    save_fig(fig, OUTPUT_PATH, dpi=DPI)
-    print(f"\n[supp] {OUTPUT_PATH}")
+    save_fig(fig, output_path, dpi=DPI)
+    print(f"\n[supp] {output_path}")
+
+
+def build(pressure_pa: float, output_stem: str) -> None:
+    """PBE and PBE0 figures at ``pressure_pa``: ``<output_stem>_PBE.svg`` and ``<output_stem>_PBE0.svg``."""
+    ensure_dirs(OUTPUT_DIR)
+    series = {label: _series(label, pressure_pa) for label in DATASETS}
+    ylim_ens = _y_limits(*[r for d in series.values() for r in d["row_deltas"][:N_ENSEMBLE_DELTA]])
+    ylim_min = _y_limits(*[d["row_deltas"][N_ENSEMBLE_DELTA] for d in series.values()])
+    ox_vmin, ox_vmax = _ox_range(list(series.values()))
+    for label, d in series.items():
+        _draw(label, d, pressure_pa=pressure_pa, ylim_ens=ylim_ens, ylim_min=ylim_min,
+              ox_vmin=ox_vmin, ox_vmax=ox_vmax, output_path=os.path.join(OUTPUT_DIR, f"{output_stem}_{label}.svg"))
     print("  codes:", [code for _b, _m, code in VARIANT_ROWS])
+
+
+def main() -> None:
+    ensure_for_supplementary(["supp_oxidation_delta_by_ir"])
+    build(PRESSURE_PA, OUTPUT_STEM)
 
 
 if __name__ == "__main__":

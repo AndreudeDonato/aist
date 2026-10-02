@@ -1,7 +1,7 @@
-"""Supplementary – PBE vib vs no-vib oxidation maps per Ir size.
+"""Supplementary – vib vs no-vib oxidation maps per Ir size, PBE | PBE0.
 
-7 rows × 2 columns (Ir₃…Ir₉ × PBE with vib | PBE without vib), matching fig 7's
-ensemble ``⟨n_O/n_Ir⟩`` maps but restricted to one ``n_Ir`` bucket per row.
+Rows Ir₄…Ir₆ × columns PBE (+ vib) | PBE (no vib) | PBE0 (+ vib) | PBE0 (no vib): ensemble
+``⟨n_O/n_Ir⟩`` maps restricted to one ``n_Ir`` bucket per row, one colour scale.
 
 Output: ``figures/outputs/supp_ir_size_vib_vs_novib_maps.svg``
 """
@@ -14,15 +14,14 @@ import numpy as np
 from matplotlib.colors import Normalize
 
 from figures.config import (
-    ACE_FEATURES,
     DPI,
-    GC_VARIANTS_NPZ,
     OUTPUT_DIR,
     PHASE_CMAP,
-    SUPP_IR_COUNTS,
+    THERMO_IR_COUNTS,
 )
 from figures.utils.comparison import build_comparison_joined_table, load_gc_comparison_view
 from figures.utils.cache import ensure_for_supplementary
+from figures.utils.datasets import DATASETS, dataset_inputs
 from figures.utils.gc_subset import oxidation_map_by_n_ir
 from figures.utils.io import ensure_dirs, load_ace_features, load_npz
 from figures.utils.plotting import (
@@ -37,16 +36,16 @@ from figures.utils.plotting import (
 
 OUTPUT_PATH = os.path.join(OUTPUT_DIR, "supp_ir_size_vib_vs_novib_maps.svg")
 FIG_W_MM = 180
-ROW_H_MM = 32
-FIG_H_MM = len(SUPP_IR_COUNTS) * ROW_H_MM
-IR_COUNTS = SUPP_IR_COUNTS
-LAYOUT_RECT = [0, 0, 0.84, 1]
+ROW_H_MM = 38
+FIG_H_MM = len(THERMO_IR_COUNTS) * ROW_H_MM
+IR_COUNTS = THERMO_IR_COUNTS
+LAYOUT_RECT = [0, 0, 0.92, 1]
 CBAR_GAP = 0.01
 CBAR_WIDTH = 0.012
 
 COLUMN_SPECS = (
-    ("full_Pgi", "PBE (+ vib)"),
-    ("novib_Pgi", "PBE (no vib)"),
+    ("full_Pgi", "+ vib"),
+    ("novib_Pgi", "no vib"),
 )
 
 
@@ -65,19 +64,17 @@ def _scalar_limits(panels: list[dict]) -> tuple[float, float]:
     return vmin, vmax
 
 
-def main() -> None:
-    ensure_for_supplementary(["supp_ir_size_vib_vs_novib_maps"])
-    ensure_dirs(OUTPUT_DIR)
-
+def _dataset_grid(label: str) -> dict[tuple[int, str], dict]:
+    inp = dataset_inputs(label)
     vd = load_npz(
-        GC_VARIANTS_NPZ,
+        inp.variants_npz,
         keys=("Ts", "Ps", "stoich", "full_Pgi", "novib_Pgi"),
     )
     Ts, Ps = vd["Ts"], vd["Ps"]
     stoich = np.asarray(vd["stoich"], dtype=float)
 
-    gc_ref = load_gc_comparison_view("PBE", light=True)
-    rows = load_ace_features(ACE_FEATURES["PBE"])
+    gc_ref = load_gc_comparison_view(label, light=True)
+    rows = load_ace_features(inp.ace_features)
     n_gc = min(
         len(gc_ref["formulas"]),
         vd["full_Pgi"].shape[0],
@@ -86,7 +83,7 @@ def main() -> None:
     jt = build_comparison_joined_table(
         {**gc_ref, "Pgi": gc_ref["Pgi"][:n_gc]},
         rows,
-        "PBE",
+        label,
     )
     n_ir = np.asarray(jt["n_Ir"], dtype=int)
     formulas = np.asarray(jt["formulas_gc"], dtype=object)
@@ -100,15 +97,25 @@ def main() -> None:
             )
             if panel is not None:
                 panel["stoich_labels"] = stoichiometry_overlay_labels(panel["formulas"])
-                grid[(n_ir_target, col_label)] = panel
+                grid[(n_ir_target, f"{label} ({col_label})")] = panel
+    return grid
 
+
+def main() -> None:
+    ensure_for_supplementary(["supp_ir_size_vib_vs_novib_maps"])
+    ensure_dirs(OUTPUT_DIR)
+
+    grid: dict[tuple[int, str], dict] = {}
+    for label in DATASETS:
+        grid.update(_dataset_grid(label))
     if not grid:
         raise RuntimeError("[supp] No Ir-size panels for vib vs novib maps.")
 
     vmin, vmax = _scalar_limits(list(grid.values()))
+    col_labels = [f"{label} ({col_label})" for label in DATASETS for _, col_label in COLUMN_SPECS]
 
     fig, axes = plt.subplots(
-        len(IR_COUNTS), 2,
+        len(IR_COUNTS), len(col_labels),
         figsize=(FIG_W_MM / 25.4, FIG_H_MM / 25.4),
         dpi=DPI,
         sharex=True,
@@ -117,7 +124,6 @@ def main() -> None:
 
     mesh_ref = None
     last_row = len(IR_COUNTS) - 1
-    col_labels = [label for _, label in COLUMN_SPECS]
 
     for row, n_ir_target in enumerate(IR_COUNTS):
         for col, col_label in enumerate(col_labels):
@@ -151,7 +157,7 @@ def main() -> None:
         add_phase_colorbar(
             fig, mesh_ref,
             cax=margin_colorbar_cax(
-                fig, axes[0, 0], axes[-1, 1],
+                fig, axes[0, -1], axes[-1, -1],
                 gap=CBAR_GAP, width=CBAR_WIDTH,
             ),
             label=r"$n_O/n_{Ir}$",

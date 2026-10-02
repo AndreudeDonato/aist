@@ -18,6 +18,7 @@ import numpy as np
 from matplotlib.colors import Normalize
 
 from figures.config import (
+    THERMO_IR_COUNTS,
     ACE_FEATURES,
     AMBIENT_PO2_PA,
     DPI,
@@ -53,7 +54,7 @@ OUTPUT_PATH = os.path.join(OUTPUT_DIR, "supp_ir_size_oxidation_at_po2.svg")
 FIG_W_MM = 180
 ROW_H_MM = 60
 FIG_H_MM = 2 * ROW_H_MM
-IR_COUNTS = list(range(3, 10))
+IR_COUNTS = list(THERMO_IR_COUNTS)
 ZPE_CMAP = "winter"
 
 ROW_SPECS = (
@@ -72,7 +73,7 @@ def _load_dataset(label: str) -> tuple[dict, np.ndarray, np.ndarray, np.ndarray]
     else:
         stoich = np.asarray(gc["stoich"], dtype=float)
     n_ir = np.asarray(jt["n_Ir"], dtype=int)
-    gaps = homo_lumo_gaps_for_comparison(label, traj, jt["n"])
+    gaps = homo_lumo_gaps_for_comparison(label, traj, jt["n"], frame_index=jt["frame_index"])
     return gc, stoich, n_ir, gaps
 
 

@@ -2,7 +2,8 @@
 
 7×2 panels (Ir₃…Ir₉ × PBE | PBE0):
   one ``G_i`` line per structure vs ``μ_O₂``, coloured by that structure's
-  ``n_O/n_Ir`` (novib / electronic level for PBE, as supp Ir-size oxidation maps).
+  ``n_O/n_Ir``. Both functionals at ``GC_COMPARISON_LEVEL``: "full" = G and μ_O₂ with vibrations
+  (grand-canonical NPZs), "novib" = without (variants NPZs).
 
 Outputs:
   ``figures/outputs/supp_gc_g_vs_mu_273K.svg``
@@ -18,18 +19,15 @@ from matplotlib.collections import LineCollection
 from matplotlib.colors import Normalize
 
 from figures.config import (
-    ACE_FEATURES,
     DPI,
-    GC_NPZ_PBE0,
-    GC_VARIANTS_NPZ,
-    O2_REF_PBE,
-    O2_REF_PBE0,
+    GC_COMPARISON_LEVEL,
     OUTPUT_DIR,
     PHASE_CMAP,
-    SUPP_IR_COUNTS,
+    THERMO_IR_COUNTS,
 )
 from figures.utils.comparison import build_comparison_joined_table, load_gc_comparison_view
 from figures.utils.cache import ensure_for_supplementary
+from figures.utils.datasets import dataset_inputs
 from figures.utils.gc_subset import ir_size_reservoir_mask, structure_g_curves_by_ir_at_temperature
 from figures.utils.gc_thermo import o2_chemical_potential_grid
 from figures.utils.io import (
@@ -50,8 +48,8 @@ from figures.utils.plotting import (
 
 FIG_W_MM = 180
 ROW_H_MM = 32
-FIG_H_MM = len(SUPP_IR_COUNTS) * ROW_H_MM
-IR_COUNTS = SUPP_IR_COUNTS
+FIG_H_MM = len(THERMO_IR_COUNTS) * ROW_H_MM
+IR_COUNTS = THERMO_IR_COUNTS
 TEMPERATURES_K = (273.0, 500.0)
 LINE_WIDTH = 0.7
 ENVELOPE_LINE_WIDTH = 0.35
@@ -338,66 +336,58 @@ def _build_figure(
     print(f"\n[supp] {out}")
 
 
+def _g_vs_mu_inputs(label: str) -> dict:
+    """G tensor, grid, stoichiometry, μ_O₂ − E_O₂ and per-row n_Ir / formulas of one functional."""
+    inp = dataset_inputs(label)
+    novib = GC_COMPARISON_LEVEL != "full"
+    if novib:
+        G, gc = load_gc_pbe_novib_g_tensor(inp.variants_npz)
+        stoich = load_npz(inp.variants_npz, keys=("stoich",))["stoich"]
+    else:
+        gc = load_gc_npz(inp.gc_npz)
+        G, stoich = gc["G_tensor"], gc["stoich"]
+    jt = build_comparison_joined_table(load_gc_comparison_view(label), load_ace_features(inp.ace_features), label)
+    return {
+        "G": G,
+        "Ts": gc["Ts"],
+        "stoich": np.asarray(stoich, dtype=float),
+        "mu": o2_chemical_potential_grid(inp.o2_ref, gc["Ts"], gc["Ps"], novib=novib, relative_to_molecule=True),
+        "n_ir": np.asarray(jt["n_Ir"], dtype=int),
+        "formulas": jt["formulas_gc"],
+    }
+
+
 def main() -> None:
     ensure_for_supplementary(["supp_gc_g_vs_mu"])
     ensure_dirs(OUTPUT_DIR)
 
-    grid = load_npz(GC_VARIANTS_NPZ, keys=("Ts", "Ps"))
-    Ts, Ps = grid["Ts"], grid["Ps"]
-    mu_pbe = o2_chemical_potential_grid(
-        O2_REF_PBE, Ts, Ps, novib=True, relative_to_molecule=True,
-    )
-
-    G_pbe, gc_pbe = load_gc_pbe_novib_g_tensor(GC_VARIANTS_NPZ)
-    stoich_pbe = np.asarray(load_npz(GC_VARIANTS_NPZ, keys=("stoich",))["stoich"], dtype=float)
-    rows_pbe = load_ace_features(ACE_FEATURES["PBE"])
-    jt_pbe = build_comparison_joined_table(
-        load_gc_comparison_view("PBE"), rows_pbe, "PBE",
-    )
-    n_ir_pbe = np.asarray(jt_pbe["n_Ir"], dtype=int)
-
-    gc0_data = load_gc_npz(GC_NPZ_PBE0)
-    mu_pbe0 = o2_chemical_potential_grid(
-        O2_REF_PBE0, gc0_data["Ts"], gc0_data["Ps"],
-        novib=True, relative_to_molecule=True,
-    )
-    stoich_pbe0 = np.asarray(gc0_data["stoich"], dtype=float)
-    rows_pbe0 = load_ace_features(ACE_FEATURES["PBE0"])
-    jt_pbe0 = build_comparison_joined_table(gc0_data, rows_pbe0, "PBE0")
-    n_ir_pbe0 = np.asarray(jt_pbe0["n_Ir"], dtype=int)
-
-    vmin, vmax = _stoich_limits(stoich_pbe, n_ir_pbe, jt_pbe["formulas_gc"])
-    vmin0, vmax0 = _stoich_limits(stoich_pbe0, n_ir_pbe0, jt_pbe0["formulas_gc"])
+    pbe, pbe0 = _g_vs_mu_inputs("PBE"), _g_vs_mu_inputs("PBE0")
+    vmin, vmax = _stoich_limits(pbe["stoich"], pbe["n_ir"], pbe["formulas"])
+    vmin0, vmax0 = _stoich_limits(pbe0["stoich"], pbe0["n_ir"], pbe0["formulas"])
     norm = Normalize(vmin=min(vmin, vmin0), vmax=max(vmax, vmax0))
     cmap = plt.get_cmap(PHASE_CMAP)
 
     from aist.core.grandcanonical import temperature_grid_index
 
     for temperature_k in TEMPERATURES_K:
-        t_idx_pbe, t_used = temperature_grid_index(Ts, temperature_k)
-        mu = np.asarray(mu_pbe[:, t_idx_pbe], dtype=float)
-        pbe_panels = _panel_data(
-            G_pbe, stoich_pbe, n_ir_pbe, mu, t_idx_pbe, jt_pbe["formulas_gc"],
-        )
-
-        t_idx_pbe0, _ = temperature_grid_index(gc0_data["Ts"], temperature_k)
-        mu0 = np.asarray(mu_pbe0[:, t_idx_pbe0], dtype=float)
-        pbe0_panels = _panel_data(
-            gc0_data["G_tensor"], stoich_pbe0, n_ir_pbe0, mu0, t_idx_pbe0,
-            jt_pbe0["formulas_gc"],
-        )
+        panels, mus, t_used = {}, {}, None
+        for key, d in (("PBE", pbe), ("PBE0", pbe0)):
+            t_idx, t = temperature_grid_index(d["Ts"], temperature_k)
+            t_used = t if t_used is None else t_used
+            mus[key] = np.asarray(d["mu"][:, t_idx], dtype=float)
+            panels[key] = _panel_data(d["G"], d["stoich"], d["n_ir"], mus[key], t_idx, d["formulas"])
         _build_figure(
             temperature_k,
-            pbe_panels,
-            pbe0_panels,
+            panels["PBE"],
+            panels["PBE0"],
             t_used,
             norm,
             cmap,
-            xlim_pbe=_mu_span(mu),
-            xlim_pbe0=_mu_span(mu0),
+            xlim_pbe=_mu_span(mus["PBE"]),
+            xlim_pbe0=_mu_span(mus["PBE0"]),
         )
 
-    del G_pbe, gc_pbe, gc0_data
+    del pbe, pbe0
 
 
 if __name__ == "__main__":

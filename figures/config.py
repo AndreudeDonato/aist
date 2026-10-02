@@ -125,6 +125,12 @@ GC_N_P = 150
 CACHE_DIR = os.path.join(FIGURES_DIR, "cache")
 OUTPUT_DIR = os.path.join(FIGURES_DIR, "outputs")
 
+# The manuscript repo, next to this one. build_all.py also writes every figure the paper uses into
+# its figures/{main,supplementary}/ (SVG + PNG), so recompiling the paper picks up the latest version.
+# Override with AIST_PAPER_FIGURES=<dir>; skip with build_all.py --no-paper.
+PAPER_FIGURES_DIR = os.environ.get("AIST_PAPER_FIGURES", os.path.join(os.path.dirname(ROOT), "aist_paper", "figures"))
+PAPER_EXPORT_DPI = 150   # as aist_paper/convert_svgs.sh
+
 ACE_ROOT = os.path.join(CACHE_DIR, "ace")
 ACE_DIR = os.path.join(ACE_ROOT, "atoms")
 ACE_PLOTS_DIR = os.path.join(ACE_ROOT, "plots")
@@ -158,6 +164,8 @@ GC_NPZ = os.path.join(CACHE_DIR, "grandcanonical_results.npz")
 GC_NPZ_PBE0 = os.path.join(CACHE_DIR, "grandcanonical_PBE0.npz")
 GC_NPZ_BY_DATASET = {"PBE": GC_NPZ, "PBE0": GC_NPZ_PBE0}
 GC_VARIANTS_NPZ = os.path.join(CACHE_DIR, "gc_variants.npz")
+GC_VARIANTS_NPZ_PBE0 = os.path.join(CACHE_DIR, "gc_variants_PBE0.npz")
+GC_VARIANTS_NPZ_BY_DATASET = {"PBE": GC_VARIANTS_NPZ, "PBE0": GC_VARIANTS_NPZ_PBE0}
 
 # Rutile + gas reservoir supplementary GC (3-species: IrO₂ rutile, IrO₂(g), IrO₃(g))
 RUTILE_GC_CACHE_DIR = os.path.join(CACHE_DIR, "rutile_gc")
@@ -171,10 +179,14 @@ RUTILE_GC_STRUCTURES = {
 }
 
 # Grand-canonical vib/ZPE on product and μ terms (per dataset NPZ cache).
-# PBE full NPZ (grandcanonical_results.npz) includes vib for PBE-only figures (7–9).
-# PBE | PBE0 comparisons use novib PBE (gc_variants) and electronic PBE0.
-# Gas oxides: rot/trans at trace P; vib only on PBE full NPZ, not in comparison views.
-GC_USE_VIB_ZPE_BY_DATASET = {"PBE": True, "PBE0": False}
+# 2026-10-01: vibrations for both functionals (PBE0 from the re-relaxed dataset, best available spectrum).
+# With vibrations on, structures without frequencies are left out of that dataset's ensembles
+# (cache/gc_excluded_<label>.tsv lists them) instead of entering without vib/rot terms.
+GC_USE_VIB_ZPE_BY_DATASET = {"PBE": True, "PBE0": True}
+# Level of the PBE | PBE0 comparison views (figures 3–5 and their supplementary versions):
+#   "full"  — both functionals with vibrations (grandcanonical NPZs)
+#   "novib" — electronic + rot/trans only, the paper-1 comparison level (from the variants NPZs)
+GC_COMPARISON_LEVEL = "full"
 
 MINIMA_TRAJ = {
     "PBE": os.path.join(CACHE_DIR, "minima_PBE.traj"),
@@ -203,17 +215,24 @@ FIXED_POINTS = [
     {"label": "500K_ambient_pO2", "T": 500.0, "P": AMBIENT_PO2_PA},
 ]
 
-# Per-Ir supplementary rows: Ir₃…Ir₉ cluster buckets (gas oxides appear in every row)
+# Per-Ir supplementary rows: Ir₃…Ir₉ cluster buckets (gas oxides appear in every row) — structure figures
 SUPP_IR_COUNTS = list(range(3, 10))
+# Thermodynamics (anything grand-canonical, i.e. needing vibrations) is shown only for the Ir sizes whose
+# vibrations are (nearly) complete in both functionals (Andreu, 2026-10-01).
+THERMO_IR_COUNTS = (4, 5, 6)
+# Ir sizes that enter the grand-canonical ensembles (both functionals; GC, variants and Fig. 6 caches), so
+# pooled maps and populations are Ir4–Ir6 ensembles too. The SOAP/ACE clustering keeps every size.
+GC_IR_COUNTS = THERMO_IR_COUNTS
 
 # Figure 4: motif populations vs T at fixed pO₂ (Pa)
 FIG04_PRESSURE_PA = AMBIENT_PO2_PA
 FIG04_LOW_PRESSURE_PA = 1.0e-5
 FIG04_HIGH_PRESSURE_PA = AMBIENT_PO2_PA
 FIG04_SMOOTH_SIGMA = 1.0
-FIG04_IR_COUNTS = (3, 6, 9)   # main Fig. 4 atom-motif rows
+FIG04_IR_COUNTS = THERMO_IR_COUNTS   # main Fig. 4 atom-motif rows (was Ir3 | Ir6 | Ir9)
 FIG04_POP_ZOOM_MIN = 60.0   # O terminal/bridging panel: y from 60% to 100%
-# O motif indices (SOAP–UMAP clustering): O-A1 ≈ terminal, O-A0 ≈ bridging
+# O motif indices: O-A0 bridging, O-A1 terminal, O-A2 molecular — fixed by aist.ace.clustering.
+# reorder_o_atom_clusters_by_bonding, which names the SOAP–UMAP clusters by bonding and stops if they are not these three
 FIG04_O_TERMINAL_IDX = 1
 FIG04_O_BRIDGING_IDX = 0
 FIG04_SPIN_XMAX = 1.0   # |Hirshfeld spin| display limit for O-spin KDE panels

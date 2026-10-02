@@ -495,3 +495,65 @@ def assign_atom_clusters_to_structures(
         per_struct[si][pos] = int(flat_labels[row])
 
     return [np.array(lst, dtype=int) for lst in per_struct]
+
+
+# O atom motifs are reported as three physical types, always in this order (O-A0, O-A1, O-A2);
+# figures/config.py FIG04_O_BRIDGING_IDX / FIG04_O_TERMINAL_IDX rely on it.
+O_MOTIF_ORDER = ("bridging", "terminal", "molecular")
+O_IR_BOND_MAX = 2.3   # A, Ir-O bond for counting the Ir neighbours of an O atom
+O_O_BOND_MAX = 1.6    # A, O-O contact that makes an O atom molecular (O2, peroxo, superoxo)
+
+
+def o_bonding_type(atoms, index: int) -> str:
+    """Geometric type of O atom ``index``: molecular (an O within 1.6 A), terminal (one Ir), bridging (2+)."""
+    sym = np.asarray(atoms.get_chemical_symbols())
+    d = np.linalg.norm(atoms.positions - atoms.positions[index], axis=1)
+    if np.any((sym == "O") & (d < O_O_BOND_MAX) & (np.arange(len(sym)) != index)):
+        return "molecular"
+    n_ir = int(np.sum((sym == "Ir") & (d < O_IR_BOND_MAX)))
+    return "terminal" if n_ir == 1 else "bridging" if n_ir >= 2 else "unbound"
+
+
+def reorder_o_atom_clusters_by_bonding(o_fit, provenance, structures, *, min_purity: float = 0.9,
+                                       label_for_print: str = ""):
+    """Name the O atom clusters by bonding and renumber them bridging, terminal, molecular.
+
+    The O clustering is unsupervised, so nothing forces its three clusters to be the three physical O
+    motifs, and size-ordered labels can swap when the data change. Each O atom is typed from its geometry
+    (``o_bonding_type``); every cluster must be at least ``min_purity`` one type and the clusters must cover
+    terminal, bridging and molecular one-to-one, otherwise this raises.
+    """
+    labels = o_fit["labels"]
+    k = int(o_fit["k"])
+    types = np.array([o_bonding_type(structures[si], ai) for si, ai in provenance], dtype=object)
+    names, purity = [], []
+    for c in range(k):
+        t = types[labels == c]
+        vals, counts = np.unique(t, return_counts=True)
+        best = int(np.argmax(counts))
+        names.append(str(vals[best]))
+        purity.append(float(counts[best] / max(1, t.size)))
+    report = ", ".join(f"cluster {c}: {names[c]} {100 * purity[c]:.1f}%" for c in range(k))
+    if sorted(names) != sorted(O_MOTIF_ORDER) or min(purity) < min_purity:
+        raise RuntimeError(
+            f"O atom clusters are not the three O motifs (terminal, bridging, molecular): {report}. "
+            "Check the O clustering settings (o_atom_k, UMAP neighbours) before using these labels."
+        )
+    order = [names.index(n) for n in O_MOTIF_ORDER]
+    remap = np.empty(k, dtype=int)
+    for new_id, old_id in enumerate(order):
+        remap[old_id] = new_id
+    o_fit["labels"] = remap[labels]
+    for key in ("centroids_umap", "centroids_pca"):
+        if key in o_fit:
+            o_fit[key] = o_fit[key][order]
+    o_fit["cluster_sizes"] = np.array([(o_fit["labels"] == c).sum() for c in range(k)], dtype=int)
+    if o_fit.get("kmeans") is not None:
+        o_fit["kmeans"].cluster_centers_ = o_fit["kmeans"].cluster_centers_[order]
+    o_fit["motif_names"] = list(O_MOTIF_ORDER)
+    o_fit["motif_purity"] = [purity[i] for i in order]
+    if label_for_print:
+        print(f"[{label_for_print}] motifs by bonding -> " + ", ".join(
+            f"O-A{i}: {n} ({100 * o_fit['motif_purity'][i]:.1f}% pure, n={o_fit['cluster_sizes'][i]})"
+            for i, n in enumerate(O_MOTIF_ORDER)))
+    return o_fit

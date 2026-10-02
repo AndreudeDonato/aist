@@ -1,0 +1,13 @@
+# Imported by aist/, figures/ and analysis/ (2026-10-01)
+ase
+numpy
+scipy
+matplotlib
+sympy
+pandas
+pymatgen
+scikit-learn
+umap-learn
+pillow
+dscribe
+mace-torch

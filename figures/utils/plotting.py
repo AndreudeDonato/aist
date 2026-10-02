@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.cm import ScalarMappable
 from matplotlib.colors import BoundaryNorm, ListedColormap, Normalize, to_rgb
+from matplotlib.ticker import MaxNLocator
 
 from aist.ace.common import (
     discrete_palette,
@@ -119,6 +120,7 @@ def style_gradient_bar_panel_ax(
 ) -> None:
     """Shared-axis layout for per-size gradient-bar panels (linear ``n_Ir`` axis)."""
     ax.set_yscale("linear")
+    ax.yaxis.set_major_locator(MaxNLocator(integer=True))   # n_Ir rows, not 3.5, 4.0, …
     if row == 0 and title:
         ax.set_title(title, fontsize=TITLE_FONTSIZE, pad=3)
     if col == 0:

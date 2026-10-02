@@ -52,6 +52,7 @@ from aist.ace.clustering import (
     cluster_structures_pca_kmeans,
     distribute_struct_labels_to_datasets,
     reorder_ir_atom_clusters_by_oxidation,
+    reorder_o_atom_clusters_by_bonding,
     reorder_struct_clusters_by_oxidation,
 )
 from aist.ace.common import composition_features_for_struct
@@ -355,6 +356,9 @@ def main(
     # --- Distribute pooled atom labels back to per-structure per-atom lists
     reorder_ir_atom_clusters_by_oxidation(
         ir_fit, ir_prov, pooled_n_O, pooled_n_Ir, label_for_print="Ir-atom",
+    )
+    reorder_o_atom_clusters_by_bonding(
+        o_fit, o_prov, pooled_structures, label_for_print="O-atom",
     )
     per_struct_ir_pooled = assign_atom_clusters_to_structures(
         pooled_structures, ir_prov, ir_fit["labels"], "Ir",

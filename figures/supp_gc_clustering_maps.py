@@ -40,6 +40,7 @@ from figures.utils.io import (
     load_ace_features,
 )
 from figures.utils.comparison import (
+    per_frame_rows,
     atom_motif_colors_labels,
     build_comparison_joined_table,
     ensemble_shape_rgb_map_with_gas,
@@ -157,9 +158,7 @@ def _load_column(ds: dict) -> dict | None:
         extent_normalization=ACE_EXTENT_NORMALIZATION,
         extent_blend=ACE_EXTENT_BLEND,
     )
-    if n > n_traj:
-        pad = np.full((n - n_traj, 3), np.nan, dtype=float)
-        inertia_rgb = np.vstack([inertia_rgb, pad])
+    inertia_rgb = per_frame_rows(inertia_rgb, jt["frame_index"])   # GC row order, gas rows NaN
     gas_mask = gas_structure_mask(jt["formulas_gc"])
     inertia_field = ensemble_shape_rgb_map_with_gas(jt["Pgi"], inertia_rgb, gas_mask)
     struct_colors, cluster_labels = structure_cluster_colors_labels(jt)

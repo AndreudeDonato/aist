@@ -47,26 +47,26 @@ from figures.utils.io import ensure_dirs
 from figures.utils.plotting import ir_motif_colors, o_motif_colors, save_fig
 
 OUTPUT_PATH = os.path.join(OUTPUT_DIR, "supp_momentsofinertia.svg")
-FIG_W_MM = 160
-FIG_H_MM = 300  # three rows (taller → more extent-axis separation)
+FIG_W_MM = 180
+FIG_H_MM = 220  # compact vs prior 300 mm; keep rows visually separated
 COL_WSPACE = 0.06
 EXTENT_NORMALIZATION = "partial"
 EXTENT_BLEND = 0.1
-PANEL_HSPACE = -0.18  # overlap 3D panel gaps (matplotlib leaves empty rows otherwise)
-PANEL_HSPACE_2D = 0.04
-PANEL_GRID_LEFT = -0.12  # extend axes left to trim SVG margin
-PANEL_GRID_RIGHT = 1.02
+# Trim empty Axes3D margins only; keep 2D gaps positive so triangle labels do not collide.
+PANEL_HSPACE = -0.18
+PANEL_HSPACE_2D = 0.08
+PANEL_GRID_LEFT = 0.0
+PANEL_GRID_RIGHT = 1.0
 # Expand axes box into margins after layout (embedded multipanel figures).
-MOMENT_RATIO_AXES_LEFT_EXPAND = 0.20
-MOMENT_RATIO_AXES_RIGHT_EXPAND = 0.05
+MOMENT_RATIO_AXES_LEFT_EXPAND = 0.12
+MOMENT_RATIO_AXES_RIGHT_EXPAND = 0.04
 # Fig. 2 moment-ratio column (shared with ``fig02_motif_clustering_panel``).
 MOMENT_RATIO_EMBED_MARKER_SCALE = 0.13
 MOMENT_RATIO_EMBED_MARKER_S = 11.0
-MOMENT_RATIO_EMBED_LEFT_EXPAND = 0.40
-MOMENT_RATIO_EMBED_RIGHT_EXPAND = 0.06
+MOMENT_RATIO_EMBED_LEFT_EXPAND = 0.22
+MOMENT_RATIO_EMBED_RIGHT_EXPAND = 0.05
 MOMENT_RATIO_EMBED_AZIM = -50.0
 FLOOR_MARKER_SCALE = 0.10
-SAVE_PAD_INCHES = 0.01
 MARKER_SCALE = MOMENT_RATIO_EMBED_MARKER_SCALE
 MARKER_S = MOMENT_RATIO_EMBED_MARKER_S
 ATOM_ALPHA = 0.35
@@ -454,6 +454,13 @@ def adjust_moment_ratio_panel_positions(
         ax.set_position([pos.x0 - dl, pos.y0, pos.width + dl + dr, pos.height])
 
 
+def _clear_axes_background(axes) -> None:
+    """Disable opaque axes patches so packed rows cannot paint white over neighbours."""
+    for ax in axes:
+        ax.set_facecolor("none")
+        ax.patch.set_alpha(0.0)
+
+
 def build_figure(data, *, interactive: bool = False):
     if interactive:
         ox, oy, oz, o_rgb, od = data["o"]
@@ -489,18 +496,19 @@ def build_figure(data, *, interactive: bool = False):
     fig = plt.figure(figsize=(fig_w / 25.4, fig_h / 25.4), dpi=fig_dpi)
     plt.rcParams["svg.fonttype"] = "none"
 
+    # 1×2 outer grid so column subgridspecs own the full height (no outer row gaps).
     outer = fig.add_gridspec(
-        3, 2,
+        1, 2,
         left=PANEL_GRID_LEFT if not interactive else 0.0,
         right=PANEL_GRID_RIGHT if not interactive else 1.0,
         top=1.0, bottom=0.0,
         wspace=COL_WSPACE if not interactive else 0.08,
     )
-    gs_3d = outer[:, 0].subgridspec(
+    gs_3d = outer[0, 0].subgridspec(
         3, 1,
         hspace=PANEL_HSPACE if not interactive else 0.04,
     )
-    gs_2d = outer[:, 1].subgridspec(
+    gs_2d = outer[0, 1].subgridspec(
         3, 1,
         hspace=PANEL_HSPACE_2D if not interactive else 0.04,
     )
@@ -518,6 +526,7 @@ def build_figure(data, *, interactive: bool = False):
         atom_marker_s=atom_marker_s,
         struct_marker_s=struct_marker_s,
     )
+    _clear_axes_background(axes_3d + axes_2d)
 
     if not interactive:
         adjust_moment_ratio_panel_positions(
@@ -567,8 +576,10 @@ def main(*, interactive: bool = False) -> None:
         plt.show()
         return
 
-    save_fig(fig, OUTPUT_PATH, dpi=DPI, pad_inches=SAVE_PAD_INCHES)
+    # Fixed canvas (180 mm wide): do not use bbox_inches='tight'.
+    save_fig(fig, OUTPUT_PATH, dpi=DPI, bbox_inches=None, pad_inches=0)
     print(f"\n[supp] {OUTPUT_PATH}")
+    print(f"  canvas={FIG_W_MM}×{FIG_H_MM} mm")
     print(f"  structures={n_struct}  O atoms={n_o}  Ir atoms={n_ir}  clusters={k_c}")
     print(f"  extent range: [{z_lim[0]:.3f}, {z_lim[1]:.3f}]")
 

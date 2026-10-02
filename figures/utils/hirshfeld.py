@@ -193,6 +193,8 @@ def motif_spin_kde_panel(
     show_xlabel: bool = True,
     show_ylabel: bool = True,
     corner_label: str | None = None,
+    linewidth: float = 1.2,
+    outline_width: float = 0.0,
 ) -> float:
     """|Hirshfeld spin| KDE for the given motif tags. Returns peak density (0 if empty)."""
     palette = motif.get("colors", {})
@@ -206,8 +208,20 @@ def motif_spin_kde_panel(
             continue
         x, y = curve
         ymax = max(ymax, float(y.max()))
-        ax.plot(x, y, color=palette.get(tag, "#888888"), linewidth=1.2,
-                label=ace_atom_display_from_key(tag))
+        color = palette.get(tag, "#888888")
+        if outline_width > 0:
+            ax.plot(
+                x, y, color="black",
+                linewidth=linewidth + 2.0 * outline_width,
+                solid_capstyle="round", solid_joinstyle="round",
+                zorder=2,
+            )
+        ax.plot(
+            x, y, color=color, linewidth=linewidth,
+            label=ace_atom_display_from_key(tag),
+            solid_capstyle="round", solid_joinstyle="round",
+            zorder=3,
+        )
         plotted += 1
 
     if plotted == 0:

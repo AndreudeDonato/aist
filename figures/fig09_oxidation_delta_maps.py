@@ -1,9 +1,9 @@
-"""Figure 9 – Per-Ir Δ(n_O/n_Ir) phase maps (PBE thermo variants).
+"""Figure 9 – Per-Ir Δ(n_O/n_Ir) phase maps (thermo variants), PBE | PBE0.
 
-180 mm wide, 3×2 (Ir₃|Ir₆|Ir₉ × two differences), PiYG divergent:
+180 mm wide, 3×4 (Ir₄|Ir₅|Ir₆ × two differences per functional), PiYG divergent, one colour scale:
 
-  Left:  full (vib + ZPE + ensemble) − no vib/ZPE, single minimum
-  Right: full (vib + ZPE + ensemble) − no vib/ZPE, with ensemble
+  per functional — full (vib + ZPE + ensemble) − no vib/ZPE, single minimum
+                 | full (vib + ZPE + ensemble) − no vib/ZPE, with ensemble
 
 Layout follows ``supp_vib_vs_novib_quadrants`` / per-Ir vib maps.
 
@@ -18,14 +18,13 @@ import numpy as np
 from matplotlib.colors import TwoSlopeNorm
 
 from figures.config import (
-    ACE_FEATURES,
     DPI,
     FIG04_IR_COUNTS,
-    GC_VARIANTS_NPZ,
     OUTPUT_DIR,
 )
 from figures.utils.cache import ensure_for_figures
 from figures.utils.comparison import build_comparison_joined_table, load_gc_comparison_view
+from figures.utils.datasets import DATASETS, dataset_inputs
 from figures.utils.gc_subset import oxidation_map_by_n_ir, stoich_winner_map_by_n_ir
 from figures.utils.io import ensure_dirs, load_ace_features, load_npz
 from figures.utils.plotting import (
@@ -40,18 +39,18 @@ from figures.utils.plotting import (
 
 OUTPUT_PATH = os.path.join(OUTPUT_DIR, "fig09_oxidation_delta_maps.svg")
 FIG_W_MM = 180
-ROW_H_MM = 55
+ROW_H_MM = 48
 IR_COUNTS = FIG04_IR_COUNTS
 FIG_H_MM = len(IR_COUNTS) * ROW_H_MM
-LAYOUT_RECT = [0, 0, 0.90, 1]
+LAYOUT_RECT = [0, 0, 0.93, 1]
 CBAR_GAP = 0.012
 CBAR_WIDTH = 0.014
 DELTA_CMAP = "PiYG"
 
 COLUMN_TITLES = (
-    r"Full − no vib/ZPE, single min",
-    r"Full − no vib/ZPE, ensemble",
-)
+    r"full − no vib, single min",
+    r"full − no vib, ensemble",
+)   # shown under the functional's name (two-line column titles)
 
 
 def _symmetric_limit(deltas: list[np.ndarray]) -> float:
@@ -66,19 +65,18 @@ def _symmetric_limit(deltas: list[np.ndarray]) -> float:
     return peak
 
 
-def main() -> None:
-    ensure_for_figures([9])
-    ensure_dirs(OUTPUT_DIR)
-
+def _dataset_panels(label: str) -> dict[tuple[int, int], dict]:
+    """{(n_Ir, difference index): panel} of one functional."""
+    inp = dataset_inputs(label)
     vd = load_npz(
-        GC_VARIANTS_NPZ,
+        inp.variants_npz,
         keys=("Ts", "Ps", "stoich", "full_Pgi", "novib_Pgi"),
     )
     Ts, Ps = vd["Ts"], vd["Ps"]
     stoich = np.asarray(vd["stoich"], dtype=float)
 
-    gc_ref = load_gc_comparison_view("PBE", light=True)
-    rows = load_ace_features(ACE_FEATURES["PBE"])
+    gc_ref = load_gc_comparison_view(label, light=True)
+    rows = load_ace_features(inp.ace_features)
     n_gc = min(
         len(gc_ref["formulas"]),
         vd["full_Pgi"].shape[0],
@@ -87,7 +85,7 @@ def main() -> None:
     jt = build_comparison_joined_table(
         {**gc_ref, "Pgi": gc_ref["Pgi"][:n_gc]},
         rows,
-        "PBE",
+        label,
     )
     n_ir = np.asarray(jt["n_Ir"], dtype=int)
     formulas = np.asarray(jt["formulas_gc"], dtype=object)
@@ -111,30 +109,31 @@ def main() -> None:
 
         labels = stoichiometry_overlay_labels(full["formulas"])
         z_full = np.asarray(full["x_per_non_o"], dtype=float)
-        panels[(n_ir_target, 0)] = {
-            "Ts": full["Ts"],
-            "Ps": full["Ps"],
-            "delta": z_full - np.asarray(novib_min["stoich_map"], dtype=float),
-            "phase_index": full["phase_index"],
-            "stoich_labels": labels,
-        }
-        panels[(n_ir_target, 1)] = {
-            "Ts": full["Ts"],
-            "Ps": full["Ps"],
-            "delta": z_full - np.asarray(novib_ens["x_per_non_o"], dtype=float),
-            "phase_index": full["phase_index"],
-            "stoich_labels": labels,
-        }
+        for j, ref in enumerate((novib_min["stoich_map"], novib_ens["x_per_non_o"])):
+            panels[(n_ir_target, j)] = {
+                "Ts": full["Ts"],
+                "Ps": full["Ps"],
+                "delta": z_full - np.asarray(ref, dtype=float),
+                "phase_index": full["phase_index"],
+                "stoich_labels": labels,
+            }
+    return panels
 
-    if not panels:
-        raise RuntimeError("[fig09] No Ir-size Δ oxidation panels.")
 
-    vlim = _symmetric_limit([p["delta"] for p in panels.values()])
+def build(output_path: str = OUTPUT_PATH, *, row_h_mm: float = ROW_H_MM, tag: str = "fig09") -> None:
+    """Draw the PBE | PBE0 Δ maps into ``output_path`` (also used by supp_ir_size_oxidation_delta_maps)."""
+    ensure_dirs(OUTPUT_DIR)
+    panels = {label: _dataset_panels(label) for label in DATASETS}
+    if not any(panels.values()):
+        raise RuntimeError(f"[{tag}] No Ir-size Δ oxidation panels.")
+
+    vlim = _symmetric_limit([p["delta"] for d in panels.values() for p in d.values()])
     norm = TwoSlopeNorm(vmin=-vlim, vcenter=0.0, vmax=vlim)
+    columns = [(label, j) for label in DATASETS for j in range(len(COLUMN_TITLES))]
 
     fig, axes = plt.subplots(
-        len(IR_COUNTS), 2,
-        figsize=(FIG_W_MM / 25.4, FIG_H_MM / 25.4),
+        len(IR_COUNTS), len(columns),
+        figsize=(FIG_W_MM / 25.4, len(IR_COUNTS) * row_h_mm / 25.4),
         dpi=DPI,
         sharex=True,
         sharey=True,
@@ -143,9 +142,9 @@ def main() -> None:
     mesh_ref = None
     last_row = len(IR_COUNTS) - 1
     for row, n_ir_target in enumerate(IR_COUNTS):
-        for col in range(2):
+        for col, (label, j) in enumerate(columns):
             ax = axes[row, col]
-            panel = panels.get((n_ir_target, col))
+            panel = panels[label].get((n_ir_target, j))
             if panel is None:
                 ax.text(
                     0.5, 0.5, "No data", ha="center", va="center",
@@ -165,7 +164,7 @@ def main() -> None:
             if mesh_ref is None:
                 mesh_ref = mesh
 
-            title = COLUMN_TITLES[col] if row == 0 else ""
+            title = f"{label}\n{COLUMN_TITLES[j]}" if row == 0 else ""
             style_ir_size_panel_ax(
                 ax, n_ir_target, col, row, last_row, title=title,
             )
@@ -175,15 +174,20 @@ def main() -> None:
         add_phase_colorbar(
             fig, mesh_ref,
             cax=margin_colorbar_cax(
-                fig, axes[0, 0], axes[-1, 1],
+                fig, axes[0, -1], axes[-1, -1],
                 gap=CBAR_GAP, width=CBAR_WIDTH,
             ),
             label=r"$\Delta(n_O/n_{Ir})$",
         )
 
-    save_fig(fig, OUTPUT_PATH, dpi=DPI)
-    print(f"\n[fig09] {OUTPUT_PATH}")
+    save_fig(fig, output_path, dpi=DPI)
+    print(f"\n[{tag}] {output_path}")
     print(f"  Δ colour scale: ±{vlim:.3g}")
+
+
+def main() -> None:
+    ensure_for_figures([9])
+    build()
 
 
 if __name__ == "__main__":

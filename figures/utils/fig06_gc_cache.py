@@ -27,7 +27,13 @@ from figures.config import (
     TRAJ_PBE0,
     gc_fig06_cache_config,
 )
-from figures.utils.cache import _any_newer_than
+from figures.utils.cache import (
+    _any_newer_than,
+    _gc_frames_stale,
+    _gc_input_structures,
+    _gc_kept_frames,
+    _write_gc_frames,
+)
 from figures.utils.gc_gas_oxides import (
     _reensemble_from_g,
     merge_gas_oxides,
@@ -93,10 +99,11 @@ def ensure_fig06_gc(*, force: bool = False) -> None:
     merged_path = os.path.join(FIG06_CACHE_DIR, "gc_structures_PBE0_with_gas.traj")
     gas_specs = _gas_specs()
     os.makedirs(FIG06_CACHE_DIR, exist_ok=True)
-    gc_structures, gas_rows = merge_gas_oxides(TRAJ_PBE0, gas_specs, merged_path)
+    gc_structures, gas_rows = merge_gas_oxides(_gc_input_structures("PBE0", TRAJ_PBE0), gas_specs, merged_path)
     sources = [TRAJ_PBE0, O2_REF_PBE0, IR_REF_PBE0] + [p for p, _ in gas_specs]
     output_npz = FIG06_GC_NPZ_PBE0
-    stale = _fig06_npz_stale(output_npz)
+    kept = _gc_kept_frames("PBE0", TRAJ_PBE0)
+    stale = _fig06_npz_stale(output_npz) or _gc_frames_stale(output_npz, kept, len(gas_rows))
     p_gas = float(GC_GAS_P["PBE0"])
 
     if not force and not stale and os.path.exists(output_npz) and not _any_newer_than(
@@ -123,6 +130,7 @@ def ensure_fig06_gc(*, force: bool = False) -> None:
         output_minima_traj=os.path.join(FIG06_CACHE_DIR, "phase_minima_PBE0.traj"),
         config=gc_fig06_cache_config(reference_file=IR_REF_PBE0, use_vib_zpe=use_vib),
     )
+    _write_gc_frames(output_npz, kept, len(gas_rows))
     if gas_rows:
         if not GC_GAS_INCLUDE_VIB:
             patch_gas_strip_vib_zpe(output_npz, gas_rows)
@@ -147,7 +155,7 @@ def load_fig06_gc_view(
     stoich = np.asarray(data["stoich"], dtype=float)
 
     merged_path = os.path.join(FIG06_CACHE_DIR, "gc_structures_PBE0_with_gas.traj")
-    _, gas_rows = merge_gas_oxides(TRAJ_PBE0, _gas_specs(), merged_path)
+    _, gas_rows = merge_gas_oxides(_gc_input_structures("PBE0", TRAJ_PBE0), _gas_specs(), merged_path)
     gas_idx = [row for row, _, _ in gas_rows]
     corr = support_corrections_per_ir(
         merged_path, gas_idx, ev_per_ir=ev_per_ir, ev_per_o=ev_per_o,
@@ -161,4 +169,5 @@ def load_fig06_gc_view(
         "phase_index": ens["phase_index"],
         "x_per_non_o": ens["x_per_non_o"],
         "formulas": data["formulas"],
+        "source_frames": np.load(FIG06_GC_NPZ_PBE0[:-4] + "_frames.npy"),
     }

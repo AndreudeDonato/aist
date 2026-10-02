@@ -32,12 +32,13 @@ from figures.config import (
     DPI,
     OUTPUT_DIR,
     PHASE_CMAP,
-    SUPP_IR_COUNTS,
+    THERMO_IR_COUNTS,
     TRAJ_PBE,
     TRAJ_PBE0,
 )
 from figures.utils.cache import ensure_for_supplementary
 from figures.utils.comparison import (
+    per_frame_rows,
     atom_motif_colors_labels,
     build_comparison_joined_table,
     ensemble_shape_rgb_map_with_gas,
@@ -75,8 +76,8 @@ from figures.utils.plotting import (
 
 FIG_W_MM = 180
 ROW_H_MM = 32
-FIG_H_MM = len(SUPP_IR_COUNTS) * ROW_H_MM
-IR_COUNTS = SUPP_IR_COUNTS
+FIG_H_MM = len(THERMO_IR_COUNTS) * ROW_H_MM
+IR_COUNTS = THERMO_IR_COUNTS
 ACE_EXTENT_NORMALIZATION = "partial"
 LAYOUT_RECT = [0, 0, 0.84, 1]
 CBAR_GAP = 0.01
@@ -155,9 +156,7 @@ def _load_dataset(ds: dict) -> DatasetBundle | None:
         extent_normalization=ACE_EXTENT_NORMALIZATION,
         extent_blend=ACE_EXTENT_BLEND,
     )
-    if n > n_traj:
-        pad = np.full((n - n_traj, 3), np.nan, dtype=float)
-        inertia_rgb = np.vstack([inertia_rgb, pad])
+    inertia_rgb = per_frame_rows(inertia_rgb, jt["frame_index"])   # GC row order, gas rows NaN
     struct_colors, cluster_labels = structure_cluster_colors_labels(jt)
     ir_colors, ir_labels = atom_motif_colors_labels(jt, "Ir")
     o_colors, o_labels = atom_motif_colors_labels(jt, "O")
@@ -165,7 +164,7 @@ def _load_dataset(ds: dict) -> DatasetBundle | None:
         label=ds["label"],
         jt=jt,
         inertia_rgb=inertia_rgb,
-        gaps=homo_lumo_gaps_for_comparison(ds["label"], traj_path, n),
+        gaps=homo_lumo_gaps_for_comparison(ds["label"], traj_path, n, frame_index=jt["frame_index"]),
         struct_colors=struct_colors,
         cluster_labels=cluster_labels,
         ir_motif_colors=ir_colors,

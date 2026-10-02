@@ -1,4 +1,4 @@
-"""PBE | PBE0 comparison views (electronic / novib level, incl. gas oxides)."""
+"""PBE | PBE0 comparison views (incl. gas oxides), at the level set by ``GC_COMPARISON_LEVEL``."""
 from __future__ import annotations
 
 import os
@@ -7,15 +7,19 @@ import numpy as np
 from ase.io import read
 
 from figures.config import (
+    GC_COMPARISON_LEVEL,
     GC_INCLUDE_GAS_RESERVOIR,
     GC_NPZ,
+    GC_NPZ_BY_DATASET,
     GC_NPZ_PBE0,
     GC_VARIANTS_NPZ,
+    GC_VARIANTS_NPZ_BY_DATASET,
     gc_gas_reservoir_specs,
 )
 from figures.utils.homo_lumo import homo_lumo_gaps
 from figures.utils.io import load_ace_features, load_gc_npz, load_gc_pbe_novib_view
 from figures.utils.join import build_joined_table, ensemble_weighted_rgb_map
+from aist.ace.join import align_ace_rows_to_gc
 
 GAS_CLUSTER_LABEL = "GAS"
 GAS_CLUSTER_COLOR = "#ffffff"
@@ -32,25 +36,45 @@ def gas_structure_mask(formulas) -> np.ndarray:
 
 
 def load_gc_comparison_view(dataset: str, *, light: bool = False) -> dict:
-    """Novib PBE (from variants) or electronic PBE0 NPZ, keyed like ``load_gc_npz``."""
-    if dataset == "PBE":
-        return load_gc_pbe_novib_view(GC_VARIANTS_NPZ, GC_NPZ)
-    return load_gc_npz(GC_NPZ_PBE0, light=light)
+    """PBE or PBE0 grand-canonical view keyed like ``load_gc_npz``: with vibrations ("full", the
+    grand-canonical NPZ) or without ("novib", from that dataset's variants NPZ), per GC_COMPARISON_LEVEL."""
+    if GC_COMPARISON_LEVEL == "full":
+        return load_gc_npz(GC_NPZ_BY_DATASET[dataset], light=light)
+    return load_gc_pbe_novib_view(GC_VARIANTS_NPZ_BY_DATASET[dataset], GC_NPZ_BY_DATASET[dataset])
 
 
 def count_gas_structures(dataset: str) -> int:
     return sum(1 for path, _ in gc_gas_reservoir_specs(dataset) if os.path.exists(path))
 
 
-def homo_lumo_gaps_for_comparison(dataset: str, traj_path: str, n_gc: int) -> np.ndarray:
-    """Per-structure HOMO–LUMO gaps aligned with comparison GC (incl. gas tail)."""
-    gaps = list(homo_lumo_gaps(list(read(traj_path, ":"))))
+def per_frame_rows(values, frame_index) -> np.ndarray:
+    """Rows of a per-trajectory-frame array in joined-table order (``jt["frame_index"]``); gas rows -> NaN."""
+    values = np.asarray(values, dtype=float)
+    frame_index = np.asarray(frame_index, dtype=int)
+    out = np.full((frame_index.size,) + values.shape[1:], np.nan)
+    ok = frame_index >= 0
+    out[ok] = values[frame_index[ok]]
+    return out
+
+
+def homo_lumo_gaps_for_comparison(dataset: str, traj_path: str, n_gc: int, frame_index=None) -> np.ndarray:
+    """Per-structure HOMO–LUMO gaps aligned with comparison GC (incl. gas tail).
+
+    With ``frame_index`` (``jt["frame_index"]``) structures are picked by frame, so the gaps stay aligned
+    when the GC ensemble holds only part of the trajectory; gas rows (-1) take the gas-oxide gaps in order."""
+    struct_gaps = list(homo_lumo_gaps(list(read(traj_path, ":"))))
+    gas_gaps = []
     for path, _ in gc_gas_reservoir_specs(dataset):
         if not os.path.exists(path):
             continue
         mol = read(path)
         atoms = mol[0] if isinstance(mol, list) else mol
-        gaps.append(float(atoms.info.get("HOMO-LUMO", np.nan)))
+        gas_gaps.append(float(atoms.info.get("HOMO-LUMO", np.nan)))
+    if frame_index is not None:
+        fi = np.asarray(frame_index, dtype=int)
+        gas_iter = iter(gas_gaps)
+        return np.array([struct_gaps[f] if f >= 0 else next(gas_iter, np.nan) for f in fi], dtype=float)
+    gaps = struct_gaps + gas_gaps
     out = np.asarray(gaps[:n_gc], dtype=float)
     if out.size < n_gc:
         out = np.pad(out, (0, n_gc - out.size), constant_values=np.nan)
@@ -253,6 +277,7 @@ def build_comparison_joined_table(
     """Join GC comparison data with ACE rows, synthesising rows for GC-only gas oxides."""
     if include_gas_reservoir is None:
         include_gas_reservoir = GC_INCLUDE_GAS_RESERVOIR
+    ace_rows = align_ace_rows_to_gc(gc_data, ace_rows)
     n_gc = gc_data["Pgi"].shape[0]
     n_ace = len(ace_rows)
     n_ace_clusters = max(int(r["cluster"]) for r in ace_rows) + 1

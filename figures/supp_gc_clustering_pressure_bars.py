@@ -18,6 +18,7 @@ import numpy as np
 from ase.io import read
 from matplotlib.colors import Normalize
 from matplotlib.cm import ScalarMappable
+from matplotlib.ticker import MaxNLocator
 
 from aist.ace.pipeline import extent_blend as ACE_EXTENT_BLEND
 from aist.inertia import per_structure_shape_extent_rgb
@@ -30,12 +31,13 @@ from figures.config import (
     FIG04_LOW_PRESSURE_PA,
     OUTPUT_DIR,
     PHASE_CMAP,
-    SUPP_IR_COUNTS,
+    THERMO_IR_COUNTS,
     TRAJ_PBE,
     TRAJ_PBE0,
 )
 from figures.utils.cache import ensure_for_supplementary
 from figures.utils.comparison import (
+    per_frame_rows,
     atom_motif_colors_labels,
     build_comparison_joined_table,
     homo_lumo_gaps_for_comparison,
@@ -115,9 +117,7 @@ def _load_column(ds: dict) -> dict | None:
         extent_blend=ACE_EXTENT_BLEND,
     )
     n_traj = len(structures)
-    if jt["n"] > n_traj:
-        pad = np.full((jt["n"] - n_traj, 3), np.nan, dtype=float)
-        inertia_rgb = np.vstack([inertia_rgb, pad])
+    inertia_rgb = per_frame_rows(inertia_rgb, jt["frame_index"])   # GC row order, gas rows NaN
 
     struct_colors, _ = structure_cluster_colors_labels(jt)
     ir_colors, ir_labels = atom_motif_colors_labels(jt, "Ir")
@@ -129,7 +129,7 @@ def _load_column(ds: dict) -> dict | None:
     return {
         "label": ds["label"],
         "joined": jt,
-        "gaps": homo_lumo_gaps_for_comparison(ds["label"], traj_path, jt["n"]),
+        "gaps": homo_lumo_gaps_for_comparison(ds["label"], traj_path, jt["n"], frame_index=jt["frame_index"]),
         "stoich": stoich,
         "cluster_rgb": per_structure_cluster_rgb(jt["cluster"], struct_colors),
         "ir_rgb": per_structure_rgb_from_fractions(jt["ir_frac"], ir_colors),
@@ -154,7 +154,7 @@ def _scalar_field_limits(
         if col is None:
             continue
         per_structure = col[field_key]
-        for n in SUPP_IR_COUNTS:
+        for n in THERMO_IR_COUNTS:
             curve = ensemble_scalar_vs_T_at_pressure(
                 col["joined"], n, per_structure, pressure_pa,
             )
@@ -185,13 +185,13 @@ def _draw_bar_row(
 ) -> None:
     if cmap is None:
         draw_rgb_gradient_bars(
-            ax, col["joined"], pressure_pa, SUPP_IR_COUNTS, per_structure,
+            ax, col["joined"], pressure_pa, THERMO_IR_COUNTS, per_structure,
             section_kind=section_kind,
             section_labels=section_labels,
         )
     else:
         draw_scalar_gradient_bars(
-            ax, col["joined"], pressure_pa, SUPP_IR_COUNTS, per_structure,
+            ax, col["joined"], pressure_pa, THERMO_IR_COUNTS, per_structure,
             cmap=cmap, vmin=float(vmin), vmax=float(vmax),
             section_kind=section_kind,
             section_labels=section_labels,
@@ -209,6 +209,7 @@ def _apply_shared_axis_style(axes: np.ndarray) -> None:
             if row == 0:
                 ax.set_title(col_titles[col_idx], fontsize=TITLE_FONTSIZE, pad=3)
             ax.set_yscale("linear")
+            ax.yaxis.set_major_locator(MaxNLocator(integer=True))   # n_Ir rows, not 3.5, 4.0, …
             if col_idx == 0:
                 ax.set_ylabel(r"$n_{\mathrm{Ir}}$", fontsize=AXIS_LABEL_FONTSIZE)
             else:

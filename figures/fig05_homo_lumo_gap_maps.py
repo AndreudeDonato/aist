@@ -17,6 +17,7 @@ from matplotlib.colors import Normalize
 from matplotlib.cm import ScalarMappable
 from matplotlib.gridspec import GridSpec
 from matplotlib.lines import Line2D
+from matplotlib.ticker import MaxNLocator
 
 from figures.config import (
     ACE_FEATURES,
@@ -24,7 +25,7 @@ from figures.config import (
     DPI,
     FIG04_LOW_PRESSURE_PA,
     OUTPUT_DIR,
-    SUPP_IR_COUNTS,
+    THERMO_IR_COUNTS,
     TRAJ_PBE,
     TRAJ_PBE0,
 )
@@ -96,7 +97,7 @@ def _load_column(ds: dict) -> dict | None:
         return None
     rows = load_ace_features(ds["ace_csv"])
     jt = build_comparison_joined_table(gc, rows, ds.get("join_tag", "PBE"))
-    gaps = homo_lumo_gaps_for_comparison(ds["label"], traj_path, jt["n"])
+    gaps = homo_lumo_gaps_for_comparison(ds["label"], traj_path, jt["n"], frame_index=jt["frame_index"])
     if not np.isfinite(gaps).any():
         raise RuntimeError(
             f"[{ds['label']}] No {HOMO_LUMO_KEY} in {traj_path}. "
@@ -110,7 +111,7 @@ def _gap_limits(columns: list[dict | None], pressure_pa: float) -> tuple[float, 
     for col in columns:
         if col is None:
             continue
-        for n in SUPP_IR_COUNTS:
+        for n in THERMO_IR_COUNTS:
             curve = ensemble_scalar_vs_T_at_pressure(
                 col["joined"], n, col["gaps"], pressure_pa,
             )
@@ -130,6 +131,7 @@ def _gap_limits(columns: list[dict | None], pressure_pa: float) -> tuple[float, 
 def _style_bar_axis(ax, title: str) -> None:
     ax.set_title(title, fontsize=TITLE_FONTSIZE, pad=3)
     ax.set_yscale("linear")
+    ax.yaxis.set_major_locator(MaxNLocator(integer=True))   # n_Ir rows, not 3.5, 4.0, …
     ax.set_ylabel(r"$n_{\mathrm{Ir}}$", fontsize=AXIS_LABEL_FONTSIZE)
     ax.tick_params(axis="y", labelsize=TICK_FONTSIZE)
 
@@ -144,7 +146,7 @@ def _lines_panel(
     x_grid: np.ndarray,
     line_data: list[tuple[str, dict[int, np.ndarray]]],
 ) -> None:
-    ir_norm = Normalize(vmin=float(min(SUPP_IR_COUNTS)), vmax=float(max(SUPP_IR_COUNTS)))
+    ir_norm = Normalize(vmin=float(min(THERMO_IR_COUNTS)), vmax=float(max(THERMO_IR_COUNTS)))
     blue_cmap = plt.get_cmap("Blues")
     red_cmap = plt.get_cmap("Reds")
     cmap_lookup = {"PBE": blue_cmap, "PBE0": red_cmap}
@@ -202,7 +204,7 @@ def main() -> None:
     x_grid = oxidation_ratio_xgrid(np.concatenate(ratio_chunks))
 
     line_data = [
-        (label, homo_lumo_gap_lines_by_ir_size(structures, SUPP_IR_COUNTS, x_grid))
+        (label, homo_lumo_gap_lines_by_ir_size(structures, THERMO_IR_COUNTS, x_grid))
         for label, structures in loaded
     ]
 
@@ -225,7 +227,7 @@ def main() -> None:
             ax.set_axis_off()
             continue
         draw_scalar_gradient_bars(
-            ax, col["joined"], pressure_pa, SUPP_IR_COUNTS, col["gaps"],
+            ax, col["joined"], pressure_pa, THERMO_IR_COUNTS, col["gaps"],
             cmap=HOMO_LUMO_CMAP, vmin=hl_vmin, vmax=hl_vmax,
             section_kind="none",
         )

@@ -26,7 +26,7 @@ from figures.config import (
     PHASE_CMAP,
     RUTILE_GC_CALIBRATION_T_K,
     RUTILE_GC_NPZ,
-    SUPP_IR_COUNTS,
+    THERMO_IR_COUNTS,
 )
 from figures.utils.comparison import (
     build_comparison_joined_table,
@@ -160,7 +160,7 @@ def _oxidation_scale(rutile_gc: dict, columns: list[dict], pressure_pa: float) -
         finite = stoich[np.isfinite(stoich)]
         if finite.size:
             vals.append(float(finite.max()))
-        for n in SUPP_IR_COUNTS:
+        for n in THERMO_IR_COUNTS:
             curve = ensemble_scalar_vs_T_at_pressure(
                 col["joined"], n, col["stoich"], pressure_pa,
                 include_gas_reservoir=True,
@@ -207,7 +207,7 @@ def main() -> None:
             ax,
             col["joined"],
             FIG06_PRESSURE_PA,
-            SUPP_IR_COUNTS,
+            THERMO_IR_COUNTS,
             col["stoich"],
             cmap=PHASE_CMAP,
             vmin=ox_vmin,

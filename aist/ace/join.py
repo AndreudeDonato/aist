@@ -7,6 +7,29 @@ from scipy.ndimage import gaussian_filter1d
 from aist.core.grandcanonical import pressure_grid_index
 
 
+def align_ace_rows_to_gc(gc_data: dict, ace_rows: list[dict]) -> list[dict]:
+    """ACE rows in the order of the GC structure rows.
+
+    When a GC ensemble holds only part of a trajectory (e.g. only structures with vibrational
+    frequencies), ``gc_data["source_frames"]`` gives each GC row's frame index (-1 = gas oxide) and
+    ACE rows are picked by their ``frame_index``; rows with ``frame_index < 0`` (synthetic gas rows) are
+    kept at the end. Without ``source_frames`` the rows are returned unchanged (positional join).
+    """
+    src = gc_data.get("source_frames")
+    if src is None:
+        return ace_rows
+    frames = [int(s) for s in np.asarray(src) if int(s) >= 0]
+    struct_rows = [r for r in ace_rows if int(r.get("frame_index", -1)) >= 0]
+    gas_rows = [r for r in ace_rows if int(r.get("frame_index", -1)) < 0]
+    if [int(r["frame_index"]) for r in struct_rows] == frames:
+        return list(ace_rows)
+    by_frame = {int(r["frame_index"]): r for r in struct_rows}
+    missing = [f for f in frames if f not in by_frame]
+    if missing:
+        raise ValueError(f"GC structures without an ACE row (frames {missing[:5]}…); rebuild the cache")
+    return [by_frame[f] for f in frames] + gas_rows
+
+
 def build_joined_table(
     gc_data: dict,
     ace_rows: list[dict],
@@ -15,6 +38,7 @@ def build_joined_table(
     strict: bool = True,
 ) -> dict:
     """Align GC ensemble weights with per-structure ACE labels."""
+    ace_rows = align_ace_rows_to_gc(gc_data, ace_rows)
     n_gc = gc_data["Pgi"].shape[0]
     n_ace = len(ace_rows)
     if n_gc != n_ace:

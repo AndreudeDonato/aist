@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from figures.config import THERMO_IR_COUNTS
 from figures.config import GC_INCLUDE_GAS_RESERVOIR
 from figures.utils.comparison import gas_structure_mask
 
@@ -220,7 +221,7 @@ def oxidation_vs_t_by_ir_at_pressure(
     from aist.core.grandcanonical import pressure_grid_index
 
     if ir_counts is None:
-        ir_counts = range(3, 10)
+        ir_counts = THERMO_IR_COUNTS
     p_idx, pressure_used = pressure_grid_index(gc["Ps"], pressure_pa)
     Ts = np.asarray(gc["Ts"], dtype=float)
     lines: dict[int, np.ndarray] = {}
@@ -250,7 +251,7 @@ def single_min_stoich_vs_t_by_ir_at_pressure(
     from aist.core.grandcanonical import pressure_grid_index
 
     if ir_counts is None:
-        ir_counts = range(3, 10)
+        ir_counts = THERMO_IR_COUNTS
     p_idx, pressure_used = pressure_grid_index(Ps, pressure_pa)
     Ts = np.asarray(Ts, dtype=float)
     stoich = np.asarray(stoich, dtype=float)
@@ -278,7 +279,7 @@ def homo_lumo_vs_t_by_ir_at_pressure(
     from aist.core.grandcanonical import pressure_grid_index
 
     if ir_counts is None:
-        ir_counts = range(3, 10)
+        ir_counts = THERMO_IR_COUNTS
     p_idx, pressure_used = pressure_grid_index(gc["Ps"], pressure_pa)
     Ts = np.asarray(gc["Ts"], dtype=float)
     gaps = np.asarray(gaps, dtype=float)
@@ -313,7 +314,7 @@ def global_min_pop_vs_t_by_ir_at_pressure(
     from aist.core.grandcanonical import pressure_grid_index
 
     if ir_counts is None:
-        ir_counts = range(3, 10)
+        ir_counts = THERMO_IR_COUNTS
     p_idx, pressure_used = pressure_grid_index(Ps, pressure_pa)
     Ts = np.asarray(Ts, dtype=float)
     lines: dict[int, np.ndarray] = {}
@@ -361,7 +362,7 @@ def ranked_structure_pops_by_ir_at_fixed_point(
     from aist.core.grandcanonical import pressure_grid_index
 
     if ir_counts is None:
-        ir_counts = range(3, 10)
+        ir_counts = THERMO_IR_COUNTS
     t_idx = int(np.argmin(np.abs(np.asarray(Ts, dtype=float) - float(T))))
     p_idx, p_used = pressure_grid_index(Ps, P)
     t_used = float(Ts[t_idx])

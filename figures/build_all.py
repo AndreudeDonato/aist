@@ -8,8 +8,11 @@ Usage:
     python3 figures/build_all.py --only 3 7       # specific figures
     python3 figures/build_all.py --skip 5         # skip figure 5
     python3 figures/build_all.py --rebuild-cache  # force refresh cache from data/
+    python3 figures/build_all.py --no-paper       # do not write into ../aist_paper/figures
 
-Figure SVGs are written to ``figures/outputs/``.
+Figure SVGs are written to ``figures/outputs/``. Every figure the manuscript uses is also written into
+``../aist_paper/figures/{main,supplementary}/`` (SVG + PNG, see figures/utils/paper.py), so recompiling the
+paper picks up the latest version.
 """
 from __future__ import annotations
 
@@ -34,37 +37,38 @@ FIGURE_MODULES = {
     1: ("fig01_minima", "PBE+PBE0 stoichiometry minima tiles (+ supp_minima_PBE/PBE0)"),
     2: ("fig02_motif_clustering_panel", "Motif clustering 3×4 + moment ratios + horizontal centroid strip"),
     3: ("fig03_gc_clustering_maps", "GC oxidation maps + ⟨n_O/n_Ir⟩|cluster|Ir|O gradient bars at low pO₂ (5×2)"),
-    4: ("fig04_gc_pressure_slices", "Per-Ir atom-motif pop. stacks at low pO₂ (Ir₃|Ir₆|Ir₉ × PBE|PBE0)"),
+    4: ("fig04_gc_pressure_slices", "Per-Ir atom-motif pop. stacks at low pO₂ (Ir₄|Ir₅|Ir₆ × PBE|PBE0)"),
     5: ("fig05_homo_lumo_gap_maps", "Per-Ir ⟨HOMO–LUMO⟩ bars at low pO₂ + binned gap lines (3×1, 88 mm)"),
     6: ("fig06_sublimation", "Sublimation: rutile PBE0 + oxidation bars (3 support levels)"),
-    7: ("fig07_vib_zpe_stoichiometry", "PBE ΔZPE vs N_vib + Ir₃|Ir₆|Ir₉ reaction ⟨ΔG_vib⟩(T) by stoichiometry (88×4 mm)"),
-    8: ("fig08_min_pop_at_low_po2", "PBE Ir₃|Ir₆|Ir₉ novib vs vib ranked pop (%) at ambient pO₂ × 273|500 K (3×2, 180 mm)"),
-    9: ("fig09_oxidation_delta_maps", "PBE Ir₃|₆|₉ Δ(n_O/n_Ir) maps: full−single-min | full−novib ens (PiYG, 180 mm, 3×2)"),
+    7: ("fig07_vib_zpe_stoichiometry", "ΔZPE vs N_vib + Ir₄|Ir₅|Ir₆ reaction ⟨ΔG_vib⟩(T) by stoichiometry (PBE | PBE0, 4×2)"),
+    8: ("fig08_min_pop_at_low_po2", "Ir₄|Ir₅|Ir₆ novib vs vib ranked pop (%) at ambient pO₂, PBE|PBE0 × 273|500 K (3×4)"),
+    9: ("fig09_oxidation_delta_maps", "Ir₄|₅|₆ Δ(n_O/n_Ir) maps: full−single-min | full−novib ens, PBE|PBE0 (PiYG, 3×4)"),
 }
 
 SUPPLEMENTARY_MODULES = {
+    "supp_stoichiometry_tilemap": "Dataset composition: structures per stoichiometry + energy range above the minimum (PBE | PBE0)",
     "supp_atom_hirshfeld": "Hirshfeld q vs |spin| by atom motif (1×2)",
     "supp_motif_spin_kde": "O | Ir motif |Hirshfeld spin| KDE (PBE | PBE0, 2×2)",
     "supp_ir_size_o_motif_ratio_maps": "Per-Ir terminal | bridging O / n_Ir maps (7×2 each)",
     "supp_gc_g_vs_mu": "Per-structure G vs μ_O₂ at 273 K & 500 K (7×2 each)",
     "supp_ir_size_gc_maps": "Per-Ir GC maps: min pop | oxidation | cluster | Ir | O | inertia | HOMO–LUMO (7×2 each)",
-    "supp_ir_size_vib_vs_novib_maps": "Per-Ir PBE vib vs no-vib ⟨n_O/n_Ir⟩ maps (7×2)",
-    "supp_ir_size_oxidation_delta_maps": "Per-Ir PBE Δ(n_O/n_Ir) maps: full−single-min | full−novib ens (PiYG, 7×2; same as Fig. 9)",
-    "supp_ir_size_tchar_vs_gvib_maps": "Per-Ir PBE ⟨Θ_eff⟩ | ⟨G_vib⟩ maps (7×2)",
+    "supp_ir_size_vib_vs_novib_maps": "Per-Ir vib vs no-vib ⟨n_O/n_Ir⟩ maps, PBE | PBE0 (3×4)",
+    "supp_ir_size_oxidation_delta_maps": "Per-Ir Δ(n_O/n_Ir) maps, PBE | PBE0 (Fig. 9 with shorter rows)",
+    "supp_ir_size_tchar_vs_gvib_maps": "Per-Ir ⟨Θ_eff⟩ | ⟨G_vib⟩ maps, PBE | PBE0 (3×4)",
     "supp_moments_of_inertia": "Principal moment-ratio 3D + S/L/P floor triangle (O | Ir | structures, 3×2)",
     "supp_pooled_cluster_pop_inertia": "PBE | PBE0 cluster pop vs n_Ir + inertia triangle by n_Ir (88 mm)",
     "supp_rutile_gc_phase_maps": "IrO₂ rutile | IrO₂(g) | IrO₃(g) GC phase maps (1×2)",
     "supp_gc_clustering_maps": "GC phase diagrams + motif overlays (5×2; former Fig. 3)",
     "supp_gc_clustering_pressure_bars": "Clustering gradient bars + ⟨HOMO–LUMO⟩ at low & high pO₂ (6×2 each)",
-    "supp_vib_vs_novib_quadrants": "PBE vib vs no-vib phase diagrams (2×2; former Fig. 7)",
-    "supp_vib_vs_novib_bars": "PBE vib vs no-vib ⟨n_O/n_Ir⟩ gradient bars at ambient pO₂ (2×2; former Fig. 7)",
-    "supp_oxidation_delta_by_ir": "PBE Δ vs VZE + Ir₃…Ir₉ thermo gradient bars at ambient pO₂ (180 mm, 2-col; former Fig. 7)",
-    "supp_oxidation_delta_by_ir_low_po2": "PBE Δ vs VZE + Ir₃…Ir₉ thermo gradient bars at low pO₂ (180 mm, 2-col; former Fig. 7)",
-    "supp_vib_contrib_tchar": "PBE G-contrib 1D + vib map, ZPE, Tchar (2×2; former Fig. 8)",
-    "supp_min_pop_fixedpoints": "PBE global-min map + fixed-point pop lines (1×3; former Fig. 9)",
-    "supp_ranked_pop_by_ir": "PBE ranked structure pop (%) at low pO₂ — novib | vib × 273 | 500 K (2×2; former Fig. 8)",
+    "supp_vib_vs_novib_quadrants": "Vib vs no-vib pooled Ir₄–₆ phase diagrams, PBE | PBE0 (2×4; former Fig. 7)",
+    "supp_vib_vs_novib_bars": "Vib vs no-vib ⟨n_O/n_Ir⟩ gradient bars at ambient pO₂, PBE | PBE0 (2×4; former Fig. 7)",
+    "supp_oxidation_delta_by_ir": "Δ vs VZE + Ir₄…Ir₆ thermo gradient bars at ambient pO₂ (_PBE, _PBE0; former Fig. 7)",
+    "supp_oxidation_delta_by_ir_low_po2": "Δ vs VZE + Ir₄…Ir₆ thermo gradient bars at low pO₂ (_PBE, _PBE0; former Fig. 7)",
+    "supp_vib_contrib_tchar": "G-contrib 1D + vib map, ZPE, Tchar, pooled Ir₄–₆ (2×2; _PBE, _PBE0; former Fig. 8)",
+    "supp_min_pop_fixedpoints": "Global-min map + fixed-point pop lines, PBE | PBE0 (3×2; former Fig. 9)",
+    "supp_ranked_pop_by_ir": "Ranked structure pop (%) at low pO₂ — novib | vib × PBE|PBE0 × 273 | 500 K (2×4; former Fig. 8)",
     "supp_ir_size_oxidation_at_po2": "Per-Ir ⟨n_O/n_Ir⟩ & ⟨HOMO–LUMO⟩ vs T at ambient pO₂ (2×3; former Fig. 12)",
-    "supp_vib_dof_gvib_contrib": "G_vib vs N_vib (273|500 K) + per-Ir vib ΔG vs T (ambient|low pO₂; former Fig. 9 rows 2–5)",
+    "supp_vib_dof_gvib_contrib": "G_vib vs N_vib (273|500 K) + per-Ir vib ΔG vs T (ambient|low pO₂), PBE | PBE0 (4×2)",
 }
 
 
@@ -114,6 +118,7 @@ def main() -> None:
         action="store_true",
         help="Recompute figures/cache from data/ before plotting",
     )
+    parser.add_argument("--no-paper", action="store_true", help="Do not write the figures into ../aist_paper/figures")
     args = parser.parse_args()
 
     to_build = list(FIGURE_MODULES)
@@ -143,6 +148,10 @@ def main() -> None:
         print(f"  Fig {n}  [{'OK  ' if ok else 'FAIL'}]  {FIGURE_MODULES[n][1]}")
     for name, ok in supp_results.items():
         print(f"  Supp  [{'OK  ' if ok else 'FAIL'}]  {SUPPLEMENTARY_MODULES[name]}")
+
+    if not args.no_paper:
+        from figures.utils.paper import publish
+        publish()
 
     if sum(1 for ok in results.values() if not ok) + sum(1 for ok in supp_results.values() if not ok):
         sys.exit(1)

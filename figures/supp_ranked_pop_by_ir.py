@@ -1,10 +1,10 @@
-"""Supplementary – Ranked structure populations by Ir size at low pO₂ (PBE).
+"""Supplementary – Ranked structure populations by Ir size at low pO₂, PBE | PBE0.
 
-Former Figure 8. 2×2 layout (88 mm wide) at ``FIG04_LOW_PRESSURE_PA``:
+Former Figure 8. 2×4 layout (180 mm wide) at ``FIG04_LOW_PRESSURE_PA``:
   Row 0 — no vib; row 1 — vib (same energy order as row 0).
-  Columns — ~273 K | ~500 K (actual grid ``T``).
+  Columns — PBE ~273 K | PBE ~500 K | PBE0 ~273 K | PBE0 ~500 K (actual grid ``T``).
 
-Within each panel, one line per ``n_Ir`` (Ir₃…Ir₉): population (%) vs
+Within each panel, one line per ``n_Ir`` (Ir₄…Ir₆): population (%) vs
 lowest-energy structures s0…s4 (s0 = global minimum; order fixed by novib G).
 
 Output: ``figures/outputs/supp_ranked_pop_by_ir.svg``
@@ -18,15 +18,13 @@ import numpy as np
 from matplotlib.colors import Normalize
 
 from figures.config import (
-    ACE_FEATURES,
     DPI,
     FIG04_LOW_PRESSURE_PA,
-    GC_NPZ,
-    GC_VARIANTS_NPZ,
     OUTPUT_DIR,
-    SUPP_IR_COUNTS,
+    THERMO_IR_COUNTS,
 )
 from figures.utils.cache import ensure_for_supplementary
+from figures.utils.datasets import DATASETS, dataset_inputs
 from figures.utils.gc_subset import ranked_structure_pops_by_ir_at_fixed_point
 from figures.utils.io import ensure_dirs, load_ace_features, load_gc_npz, load_npz
 from figures.utils.join import build_joined_table
@@ -39,10 +37,10 @@ from figures.utils.plotting import (
 )
 
 OUTPUT_PATH = os.path.join(OUTPUT_DIR, "supp_ranked_pop_by_ir.svg")
-FIG_W_MM = 88
+FIG_W_MM = 180
 ROW_H_MM = 48
 FIG_H_MM = 2 * ROW_H_MM
-IR_COUNTS = SUPP_IR_COUNTS
+IR_COUNTS = THERMO_IR_COUNTS
 IR_CMAP = "winter"
 TEMPERATURES = (273.0, 500.0)
 N_STRUCTURES = 5
@@ -133,59 +131,64 @@ def _plot_ranked_panel(
     ax.margins(x=0)
 
 
-def main() -> None:
-    ensure_for_supplementary(["supp_ranked_pop_by_ir"])
-    ensure_dirs(OUTPUT_DIR)
-
+def _dataset_panels(label: str, pressure_pa: float) -> tuple[dict, dict]:
+    inp = dataset_inputs(label)
     vd = load_npz(
-        GC_VARIANTS_NPZ,
+        inp.variants_npz,
         keys=("Ts", "Ps", "novib_Pgi", "full_Pgi", "novib_G_tensor"),
     )
-    Ts, Ps = vd["Ts"], vd["Ps"]
-    novib_Pgi = vd["novib_Pgi"]
-    full_Pgi = vd["full_Pgi"]
-    novib_G = vd["novib_G_tensor"]
-
-    gc = load_gc_npz(GC_NPZ)
-    rows = load_ace_features(ACE_FEATURES["PBE"])
-    jt = build_joined_table(gc, rows, "PBE")
+    gc = load_gc_npz(inp.gc_npz)
+    jt = build_joined_table(gc, load_ace_features(inp.ace_features), label)
     n_ir = np.asarray(jt["n_Ir"], dtype=int)
     formulas = np.asarray(jt["formulas_gc"], dtype=object)
 
-    pressure_pa = FIG04_LOW_PRESSURE_PA
-    panels: dict[tuple[float, str], dict[int, tuple[np.ndarray, np.ndarray]]] = {}
-    meta: dict[float, tuple[float, float]] = {}
+    panels, meta = {}, {}
     for T in TEMPERATURES:
         t_used, p_used, lines_by_ir = ranked_structure_pops_by_ir_at_fixed_point(
-            novib_Pgi, full_Pgi, novib_G, n_ir, Ts, Ps, T, pressure_pa,
+            vd["novib_Pgi"], vd["full_Pgi"], vd["novib_G_tensor"], n_ir, vd["Ts"], vd["Ps"], T, pressure_pa,
             ir_counts=IR_COUNTS,
             formulas=formulas,
             max_structures=N_STRUCTURES,
         )
-        meta[T] = (t_used, p_used)
+        meta[(label, T)] = (t_used, p_used)
         lines_by_ir = _truncate_lines(lines_by_ir)
-        panels[(T, "novib")] = lines_by_ir
-        panels[(T, "vib")] = lines_by_ir
+        panels[(label, T, "novib")] = lines_by_ir
+        panels[(label, T, "vib")] = lines_by_ir
+    return panels, meta
+
+
+def main() -> None:
+    ensure_for_supplementary(["supp_ranked_pop_by_ir"])
+    ensure_dirs(OUTPUT_DIR)
+
+    pressure_pa = FIG04_LOW_PRESSURE_PA
+    panels: dict = {}
+    meta: dict = {}
+    for label in DATASETS:
+        p, m = _dataset_panels(label, pressure_pa)
+        panels.update(p)
+        meta.update(m)
+    columns = [(label, T) for label in DATASETS for T in TEMPERATURES]
 
     norm, cmap = _ir_colormap()
     fig, axes = plt.subplots(
-        2, 2,
+        2, len(columns),
         figsize=(FIG_W_MM / 25.4, FIG_H_MM / 25.4),
         dpi=DPI,
-        sharey="col",
+        sharey="row",
     )
 
     for row, (row_title, row_kind) in enumerate(ROW_SPECS):
         ymax = 1.0
-        for T in TEMPERATURES:
+        for label, T in columns:
             ymax = max(
                 ymax,
-                _panel_limits(panels[(T, row_kind)], row_kind=row_kind),
+                _panel_limits(panels[(label, T, row_kind)], row_kind=row_kind),
             )
-        for col, T in enumerate(TEMPERATURES):
-            lines_by_ir = panels[(T, row_kind)]
-            t_used, _ = meta[T]
-            panel_title = f"{row_title} {_format_temperature(t_used)}"
+        for col, (label, T) in enumerate(columns):
+            lines_by_ir = panels[(label, T, row_kind)]
+            t_used, _ = meta[(label, T)]
+            panel_title = f"{label}, {row_title.lower()}, {_format_temperature(t_used)}"
             _plot_ranked_panel(
                 axes[row, col],
                 lines_by_ir,
@@ -210,7 +213,7 @@ def main() -> None:
             bbox_to_anchor=(0.5, 1.02),
         )
 
-    fig.subplots_adjust(left=0.18, right=0.98, top=0.88, bottom=0.12, hspace=0.42, wspace=0.28)
+    fig.subplots_adjust(left=0.08, right=0.99, top=0.86, bottom=0.12, hspace=0.45, wspace=0.22)
     save_fig(fig, OUTPUT_PATH, dpi=DPI)
     print(f"[supp] {OUTPUT_PATH}")
 
