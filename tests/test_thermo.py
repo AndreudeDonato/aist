@@ -143,3 +143,22 @@ def test_compute_gc_toy_ensemble(tmp_path):
         g_i = a.get_potential_energy() + f_vib - kB * T * np.log(a.info["total_spin"]["J"])
         x = a.get_chemical_symbols().count("O")
         assert gc["G_tensor"][i, k, j] == pytest.approx(g_i / 2 - e_ir - x / 4 * mu, abs=2e-4)
+
+
+def test_stoichiometry_weights_survive_underflow():
+    from aist.core.vibrational import stoichiometry_weights
+
+    Ts = np.array([300.0])
+    # two isomers of one stoichiometry, 3 eV per Ir above the rest of the ensemble: their global
+    # populations underflow in float32, the bucket weights must not
+    G = np.array([0.0, 3.0, 3.02]).reshape(3, 1, 1)
+    deg = np.array([1.0, 1.0, 2.0])
+    w = np.exp(-(G - G.min(axis=0)) / (kB * Ts)) * deg[:, None, None]
+    pgi = (w / w.sum(axis=0)).astype(np.float32)
+    assert pgi[1:, 0, 0].sum() == 0.0
+    gc = {"Ts": Ts, "G_tensor": G, "degeneracy": deg}
+    got = stoichiometry_weights(gc, [1, 2], 0, 0)
+    expect = np.array([1.0, 2.0 * np.exp(-0.02 / (kB * 300.0))])
+    np.testing.assert_allclose(got, expect / expect.sum(), rtol=1e-6)
+    # where nothing underflows the bucket weights equal the renormalized populations
+    np.testing.assert_allclose(stoichiometry_weights(gc, [0], 0, 0), [1.0])
