@@ -11,3 +11,4 @@ umap-learn
 pillow
 dscribe
 mace-torch
+pytest  # tests/

@@ -1,25 +1,23 @@
-from setuptools import setup, find_packages
+from setuptools import find_packages, setup
 
 setup(
-    name="aist",                          # Your package name
-    version="0.1.0",                     # Starting version
-    packages=find_packages(),            # Automatically find packages in your directory
+    name="aist",
+    version="0.1.0",
+    description="Grand-canonical ab initio thermodynamics and motif clustering of gas-phase IryOx clusters",
+    author="Andreu A. de Donato",
+    url="https://github.com/AndreudeDonato/aist",
+    packages=find_packages(include=["aist", "aist.*"]),
+    python_requires=">=3.9",
     install_requires=[
         "ase",
         "numpy",
-        "matplotlib",
-        "sympy",
         "scipy",
+        "sympy",
         "pymatgen",
+        "matplotlib",
+        "scikit-learn",
+        "umap-learn",
+        "dscribe",
     ],
-    author="Your Name",
-    author_email="your.email@example.com",
-    description="A short description of your aist package",
-    url="https://github.com/yourusername/aist",  # Optional, add your repo URL
-    classifiers=[
-        "Programming Language :: Python :: 3",
-        "License :: OSI Approved :: MIT License",  # Change license if needed
-        "Operating System :: OS Independent",
-    ],
-    python_requires='>=3.6',
+    extras_require={"test": ["pytest"]},
 )
