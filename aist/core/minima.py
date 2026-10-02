@@ -49,28 +49,12 @@ def select_stoichiometry_minima(
     orient: bool = True,
 ) -> list[Tuple[int, int, Atoms]]:
     """Return (n_x, n_y, oriented_atoms) for lowest-energy isomer per stoichiometry."""
-    x_group = parse_group_formula(x_group_formula)
-    y_group = parse_group_formula(y_group_formula)
-    tp = ThermoPartitionFunctions()
-
-    minima: dict[Tuple[int, int], Tuple[float, int]] = {}
-    for idx, atoms in enumerate(structures):
-        syms = atoms.get_chemical_symbols()
-        key = (
-            weighted_group_count(syms, x_group),
-            weighted_group_count(syms, y_group),
+    return [
+        (x, y, a)
+        for x, y, a, _ in select_stoichiometry_minima_indexed(
+            structures, x_group_formula=x_group_formula, y_group_formula=y_group_formula, orient=orient,
         )
-        e = float(get_energy(atoms))
-        if key not in minima or e < minima[key][0]:
-            minima[key] = (e, idx)
-
-    selected = []
-    for (x_val, y_val), (_e, idx) in sorted(minima.items()):
-        a = structures[idx]
-        if orient:
-            a = orient_by_inertia_axes(a, tp)
-        selected.append((x_val, y_val, a))
-    return selected
+    ]
 
 
 def select_stoichiometry_minima_indexed(
