@@ -92,6 +92,9 @@ def load_gc_pbe_novib_view(variants_npz: str, formulas_npz: str) -> dict:
         keys=("Ts", "Ps", "stoich", "degeneracy", "novib_Pgi", "novib_phase_index", "novib_x_per_non_o"),
     )
     formulas = load_npz(formulas_npz, keys=("formulas",))["formulas"]
+    if not np.array_equal(_attach_source_frames({}, formulas_npz)["source_frames"],
+                          _attach_source_frames({}, variants_npz)["source_frames"]):
+        raise ValueError(f"{variants_npz} and {formulas_npz} hold different frames; rebuild the cache")
     return _attach_source_frames({
         "Ts": vd["Ts"],
         "Ps": vd["Ps"],

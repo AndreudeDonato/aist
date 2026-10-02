@@ -1,6 +1,6 @@
 """Supplementary – GC phase maps per Ir-atom count (PBE | PBE0).
 
-Seven outputs (7 rows × 2 columns each, Ir₃…Ir₉ × PBE | PBE0), matching the
+Seven outputs (3 rows × 2 columns each, Ir₄…Ir₆ × PBE | PBE0), matching the
 property rows of Figure 3 but restricted to one ``n_Ir`` bucket per row:
 
   ``supp_ir_size_oxidation_maps.svg``   — ⟨n_O/n_Ir⟩
@@ -152,7 +152,7 @@ def _load_dataset(ds: dict) -> DatasetBundle | None:
         label=ds["label"],
         jt=jt,
         inertia_rgb=inertia_rgb,
-        gaps=homo_lumo_gaps_for_comparison(ds["label"], traj_path, n, frame_index=jt["frame_index"]),
+        gaps=homo_lumo_gaps_for_comparison(ds["label"], traj_path, jt["frame_index"]),
         struct_colors=struct_colors,
         cluster_labels=cluster_labels,
         ir_motif_colors=ir_colors,

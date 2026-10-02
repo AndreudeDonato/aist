@@ -2,7 +2,7 @@
 
 Mirrors Fig. 3 (oxidation, cluster, Ir motif, O motif, inertia) plus
 ``⟨HOMO–LUMO⟩`` (Fig. 5 property, not in main Fig. 3). Each panel is
-population-weighted gradient bars vs ``T`` — one band per ``n_Ir`` (Ir₃…Ir₉,
+population-weighted gradient bars vs ``T`` — one band per ``n_Ir`` (Ir₄…Ir₆,
 top → bottom) at fixed pressure.
 
 Outputs (180 × 252 mm each):
@@ -119,7 +119,7 @@ def _load_column(ds: dict) -> dict | None:
     return {
         "label": ds["label"],
         "joined": jt,
-        "gaps": homo_lumo_gaps_for_comparison(ds["label"], traj_path, jt["n"], frame_index=jt["frame_index"]),
+        "gaps": homo_lumo_gaps_for_comparison(ds["label"], traj_path, jt["frame_index"]),
         "stoich": stoich,
         "cluster_rgb": per_structure_cluster_rgb(jt["cluster"], struct_colors),
         "ir_rgb": per_structure_rgb_from_fractions(jt["ir_frac"], ir_colors),

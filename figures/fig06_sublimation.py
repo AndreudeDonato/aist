@@ -14,6 +14,8 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 
+from aist.core.grandcanonical import pressure_grid_index
+
 from figures.config import (
     ACE_FEATURES,
     DPI,
@@ -108,7 +110,7 @@ def _rutile_panel(
         ax, Ts, Ps, gc["phase_index"], overlay_labels,
     )
     ax.axhline(
-        FIG06_PRESSURE_PA,
+        pressure_grid_index(Ps, FIG06_PRESSURE_PA)[1],   # the grid row the bars use
         color="black",
         linewidth=0.8,
         linestyle="--",

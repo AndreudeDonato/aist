@@ -8,6 +8,7 @@ import numpy as np
 from ase.io import read
 
 from figures.config import (
+    ACE_STRUCT_NPZ,
     GC_COMPARISON_LEVEL,
     GC_INCLUDE_GAS_RESERVOIR,
     GC_NPZ_BY_DATASET,
@@ -28,6 +29,12 @@ GAS_CLUSTER_LABEL = "GAS"
 GAS_CLUSTER_COLOR = "#ffffff"
 GAS_RGB = np.array([1.0, 1.0, 1.0], dtype=float)
 GAS_FORMULAS = frozenset({"IrO2", "IrO3"})
+
+
+@lru_cache(maxsize=None)
+def ace_structure_cluster_count() -> int:
+    """Number of structure clusters k of the ACE clustering (not the highest label present in a subset)."""
+    return int(np.load(ACE_STRUCT_NPZ)["k"])
 
 
 def gas_structure_mask(formulas) -> np.ndarray:
@@ -85,11 +92,10 @@ def per_frame_rows(values, frame_index) -> np.ndarray:
     return out
 
 
-def homo_lumo_gaps_for_comparison(dataset: str, traj_path: str, n_gc: int, frame_index=None) -> np.ndarray:
-    """Per-structure HOMO–LUMO gaps aligned with comparison GC (incl. gas tail).
+def homo_lumo_gaps_for_comparison(dataset: str, traj_path: str, frame_index) -> np.ndarray:
+    """Per-structure HOMO–LUMO gaps in joined-table row order (``jt["frame_index"]``).
 
-    With ``frame_index`` (``jt["frame_index"]``) structures are picked by frame, so the gaps stay aligned
-    when the GC ensemble holds only part of the trajectory; gas rows (-1) take the gas-oxide gaps in order."""
+    Structures are picked by trajectory frame; gas rows (-1) take the gas-oxide gaps in order."""
     struct_gaps = list(homo_lumo_gaps(list(read(traj_path, ":"))))
     gas_gaps = []
     for path, _ in gc_gas_reservoir_specs(dataset):
@@ -98,15 +104,9 @@ def homo_lumo_gaps_for_comparison(dataset: str, traj_path: str, n_gc: int, frame
         mol = read(path)
         atoms = mol[0] if isinstance(mol, list) else mol
         gas_gaps.append(float(atoms.info.get("HOMO-LUMO", np.nan)))
-    if frame_index is not None:
-        fi = np.asarray(frame_index, dtype=int)
-        gas_iter = iter(gas_gaps)
-        return np.array([struct_gaps[f] if f >= 0 else next(gas_iter, np.nan) for f in fi], dtype=float)
-    gaps = struct_gaps + gas_gaps
-    out = np.asarray(gaps[:n_gc], dtype=float)
-    if out.size < n_gc:
-        out = np.pad(out, (0, n_gc - out.size), constant_values=np.nan)
-    return out
+    gas_iter = iter(gas_gaps)
+    return np.array([struct_gaps[f] if f >= 0 else next(gas_iter, np.nan) for f in np.asarray(frame_index, dtype=int)],
+                    dtype=float)
 
 
 def _synthetic_gas_ace_row(
@@ -303,7 +303,7 @@ def build_comparison_joined_table(
     ace_rows = align_ace_rows_to_gc(gc_data, ace_rows)
     n_gc = gc_data["Pgi"].shape[0]
     n_ace = len(ace_rows)
-    n_ace_clusters = max(int(r["cluster"]) for r in ace_rows) + 1
+    n_ace_clusters = ace_structure_cluster_count()
     gas_cluster_id = None
     if include_gas_reservoir and n_gc > n_ace:
         gas_cluster_id = n_ace_clusters

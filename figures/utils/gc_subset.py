@@ -114,6 +114,8 @@ def subset_joined_table_by_n_ir(
         "Ps": jt["Ps"],
         "phase_index": lowest_g_index(Pgi_m, np.asarray(jt["degeneracy"])[mask]),
         "x_per_non_o": x_per_non_o,
+        "n_ace_clusters": jt.get("n_ace_clusters"),
+        "gas_cluster_id": jt.get("gas_cluster_id"),
     }
 
 

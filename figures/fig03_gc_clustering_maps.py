@@ -18,6 +18,8 @@ from matplotlib.cm import ScalarMappable
 from matplotlib.colors import Normalize
 from matplotlib.ticker import MaxNLocator
 
+from aist.core.grandcanonical import pressure_grid_index
+
 from figures.config import (
     ACE_FEATURES,
     DPI,
@@ -191,7 +193,7 @@ def _draw_oxidation_map(
         ax, Ts, Ps, gc["phase_index"], col["stoich_labels"],
     )
     ax.axhline(
-        pressure_pa,
+        pressure_grid_index(Ps, pressure_pa)[1],   # the grid row the bars use
         color="black",
         linewidth=0.8,
         linestyle="--",

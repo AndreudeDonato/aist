@@ -456,9 +456,9 @@ def temperature_grid_index(Ts: np.ndarray, temperature_k: float) -> tuple[int, f
 
 
 def pressure_grid_index(Ps: np.ndarray, pressure_pa: float) -> tuple[int, float]:
-    """Nearest pressure-grid index and the grid value used."""
+    """Nearest pressure-grid index (in log p, the grid is logarithmic) and the grid value used."""
     Ps = np.asarray(Ps, dtype=float)
-    p_idx = int(np.argmin(np.abs(Ps - pressure_pa)))
+    p_idx = int(np.argmin(np.abs(np.log(Ps) - np.log(pressure_pa))))
     return p_idx, float(Ps[p_idx])
 
 

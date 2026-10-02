@@ -25,7 +25,7 @@ for _p in [_ROOT, os.path.join(_ROOT, "analysis")]:
 
 from figures.config import OUTPUT_DIR, DPI
 from figures.utils.datasets import DATASETS, dataset_inputs
-from figures.utils.io import ensure_dirs, load_gc_npz
+from figures.utils.io import ensure_dirs, load_gc_npz, load_variants_like
 from figures.utils.cache import ensure_for_supplementary
 from figures.utils.plotting import (
     TITLE_FONTSIZE,
@@ -79,8 +79,11 @@ def main() -> None:
     data = {}
     for label in DATASETS:
         inp = dataset_inputs(label)
-        vd = np.load(inp.variants_npz, allow_pickle=True)
         gc = load_gc_npz(inp.gc_npz, light=True)
+        vd = load_variants_like(inp.variants_npz, gc, (
+            "Ts", "Ps", "stoich", "full_x_per_non_o", "full_phase_index", "novib_x_per_non_o",
+            "novib_phase_index", "full_stoich_map", "novib_stoich_map",
+        ))
         data[label] = {
             "Ts": vd["Ts"],
             "Ps": vd["Ps"],

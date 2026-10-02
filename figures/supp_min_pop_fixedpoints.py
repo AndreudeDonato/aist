@@ -25,7 +25,7 @@ from figures.config import (
 )
 from figures.utils.cache import ensure_for_supplementary
 from figures.utils.datasets import DATASETS, dataset_inputs
-from figures.utils.io import ensure_dirs, load_gc_npz
+from figures.utils.io import ensure_dirs, load_gc_npz, load_variants_like
 from figures.utils.join import (
     ranked_cumulative_population_lines,
     structure_populations_at_fixed_point,
@@ -137,8 +137,8 @@ def main() -> None:
     )
     for col, label in enumerate(DATASETS):
         inp = dataset_inputs(label)
-        gc_full = load_gc_npz(inp.gc_npz)
-        vd = np.load(inp.variants_npz, allow_pickle=True)
+        gc_full = load_gc_npz(inp.gc_npz, light=True)
+        vd = load_variants_like(inp.variants_npz, gc_full, ("Ts", "Ps", "novib_Pgi", "full_Pgi"))
         Ts_v, Ps_v = vd["Ts"], vd["Ps"]
         novib_Pgi = vd["novib_Pgi"]
         full_Pgi = vd["full_Pgi"]

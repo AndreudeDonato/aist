@@ -1,6 +1,6 @@
 """Supplementary – G vs μ_O₂ per structure at fixed T (PBE | PBE0).
 
-7×2 panels (Ir₃…Ir₉ × PBE | PBE0):
+3×2 panels (Ir₄…Ir₆ × PBE | PBE0, THERMO_IR_COUNTS):
   one ``G_i`` line per structure vs ``μ_O₂``, coloured by that structure's
   ``n_O/n_Ir``. Both functionals at ``GC_COMPARISON_LEVEL``: "full" = G and μ_O₂ with vibrations
   (grand-canonical NPZs), "novib" = without (variants NPZs).
@@ -306,14 +306,14 @@ def _build_figure(
             if row == 0:
                 ax.set_title(label, fontsize=TITLE_FONTSIZE, pad=3)
             if col == 0:
-                ax.set_ylabel(f"Ir$_{{{n_ir}}}$\n$G$ (eV)", fontsize=AXIS_LABEL_FONTSIZE)
+                ax.set_ylabel(f"Ir$_{{{n_ir}}}$\n$\\Delta G_{{\\mathrm{{form}}}}$ (eV/Ir)", fontsize=AXIS_LABEL_FONTSIZE)
             else:
                 ax.set_ylabel("")
                 ax.tick_params(labelleft=False)
             if row < last_row:
                 ax.tick_params(labelbottom=False)
             else:
-                ax.set_xlabel(r"$\mu_{\mathrm{O_2}}$ (eV)", fontsize=AXIS_LABEL_FONTSIZE)
+                ax.set_xlabel(r"$\mu_{\mathrm{O_2}} - E_{\mathrm{O_2}}$ (eV)", fontsize=AXIS_LABEL_FONTSIZE)
             ax.tick_params(axis="both", labelsize=TICK_FONTSIZE)
 
     for row in range(len(IR_COUNTS)):

@@ -1,7 +1,7 @@
 """Figure 5 – Per-Ir ⟨HOMO–LUMO⟩ gradient bars at low pO₂ + binned gap lines.
 
 3×1 layout (88 mm wide):
-  (0): PBE — population-weighted gradient bars vs T (Ir₃…Ir₉) at ``FIG04_LOW_PRESSURE_PA``
+  (0): PBE — population-weighted gradient bars vs T (Ir₄…Ir₆) at ``FIG04_LOW_PRESSURE_PA``
   (1): PBE0 — same
   (2): Mean HOMO–LUMO gap vs O fraction — one line per ``n_Ir`` (PBE blues, PBE0 reds)
 
@@ -97,7 +97,7 @@ def _load_column(ds: dict) -> dict | None:
         return None
     rows = load_ace_features(ds["ace_csv"])
     jt = build_comparison_joined_table(gc, rows, ds.get("join_tag", "PBE"))
-    gaps = homo_lumo_gaps_for_comparison(ds["label"], traj_path, jt["n"], frame_index=jt["frame_index"])
+    gaps = homo_lumo_gaps_for_comparison(ds["label"], traj_path, jt["frame_index"])
     if not np.isfinite(gaps).any():
         raise RuntimeError(
             f"[{ds['label']}] No {HOMO_LUMO_KEY} in {traj_path}. "

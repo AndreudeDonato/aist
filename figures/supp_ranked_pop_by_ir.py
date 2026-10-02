@@ -26,7 +26,7 @@ from figures.config import (
 from figures.utils.cache import ensure_for_supplementary
 from figures.utils.datasets import DATASETS, dataset_inputs
 from figures.utils.gc_subset import ranked_structure_pops_by_ir_at_fixed_point
-from figures.utils.io import ensure_dirs, load_ace_features, load_gc_npz, load_npz
+from figures.utils.io import ensure_dirs, load_ace_features, load_gc_npz, load_variants_like
 from figures.utils.join import build_joined_table
 from figures.utils.plotting import (
     AXIS_LABEL_FONTSIZE,
@@ -133,11 +133,8 @@ def _plot_ranked_panel(
 
 def _dataset_panels(label: str, pressure_pa: float) -> tuple[dict, dict]:
     inp = dataset_inputs(label)
-    vd = load_npz(
-        inp.variants_npz,
-        keys=("Ts", "Ps", "novib_Pgi", "full_Pgi", "novib_G_tensor"),
-    )
-    gc = load_gc_npz(inp.gc_npz)
+    gc = load_gc_npz(inp.gc_npz, light=True)
+    vd = load_variants_like(inp.variants_npz, gc, ("Ts", "Ps", "novib_Pgi", "full_Pgi", "novib_G_tensor"))
     jt = build_joined_table(gc, load_ace_features(inp.ace_features), label)
     n_ir = np.asarray(jt["n_Ir"], dtype=int)
     formulas = np.asarray(jt["formulas_gc"], dtype=object)

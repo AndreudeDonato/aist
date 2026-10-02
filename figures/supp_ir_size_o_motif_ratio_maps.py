@@ -1,6 +1,6 @@
 """Supplementary – Terminal / bridging O per Ir phase maps (PBE | PBE0).
 
-Two outputs (7 rows × 2 columns, Ir₃…Ir₉ × PBE | PBE0), matching fig04 phase-map layout but
+Two outputs (3 rows × 2 columns, Ir₄…Ir₆ × PBE | PBE0), matching fig04 phase-map layout but
 restricted to one ``n_Ir`` bucket per row:
 
   ``supp_ir_size_terminal_o_maps.svg``  — ⟨n_O^{terminal} / n_Ir⟩

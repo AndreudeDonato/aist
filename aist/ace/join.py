@@ -107,10 +107,16 @@ def ensemble_weighted_rgb_map(
 
 
 def cluster_population_fractions(joined: dict) -> np.ndarray:
-    """Population fraction per cluster c at each (T, P); shape (k, nP, nT)."""
+    """Population fraction per cluster c at each (T, P); shape (k, nP, nT).
+
+    k is the clustering's ``n_ace_clusters`` (+1 for a synthetic gas cluster) when the joined table carries
+    it, so a subset without the top cluster still gives one row per cluster colour.
+    """
     Pgi = joined["Pgi"]
     cluster = joined["cluster"]
     k = int(cluster.max()) + 1
+    if joined.get("n_ace_clusters") is not None:
+        k = max(k, int(joined["n_ace_clusters"]) + (joined.get("gas_cluster_id") is not None))
     nP, nT = Pgi.shape[1], Pgi.shape[2]
     f_c = np.zeros((k, nP, nT), dtype=float)
     for c in range(k):

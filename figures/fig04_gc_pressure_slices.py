@@ -1,11 +1,10 @@
 """Figure 4 – Per-Ir atom motif populations at low pO₂.
 
 Layout (180 mm wide, 3×2):
-  Row 0: Ir₃ — PBE | PBE0 atom-motif pop. (%) vs T
-  Row 1: Ir₆ — PBE | PBE0
-  Row 2: Ir₉ — PBE | PBE0
+  Rows: Ir₄ | Ir₅ | Ir₆ (FIG04_IR_COUNTS) — PBE | PBE0 atom-motif pop. (%) vs T
 
-O motifs stacked above Ir motifs (black divider); optional GAS band at low pO₂.
+O motifs at the bottom of each stack, Ir motifs above (black divider); one combined GAS band on top only
+when the gas reservoir is on (GC_INCLUDE_GAS_RESERVOIR).
 
 Output: ``figures/outputs/fig04_gc_pressure_slices.svg``
 """

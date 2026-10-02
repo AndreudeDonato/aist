@@ -5,7 +5,7 @@ Former Figure 12. 2×3 layout at ``AMBIENT_PO2_PA``:
   Row 2 — ensemble ``⟨HOMO–LUMO⟩`` vs T (same pressure)
   Columns: PBE, PBE0, PBE0 − PBE (dotted y = 0 behind curves).
 
-Ir₃…Ir₉ curves use the ``winter`` colormap (as the ZPE panel in supp_vib_contrib_tchar).
+Ir₄…Ir₆ curves use the ``winter`` colormap (as the ZPE panel in supp_vib_contrib_tchar).
 
 Output: ``figures/outputs/supp_ir_size_oxidation_at_po2.svg``
 """
@@ -22,7 +22,6 @@ from figures.config import (
     ACE_FEATURES,
     AMBIENT_PO2_PA,
     DPI,
-    GC_VARIANTS_NPZ,
     OUTPUT_DIR,
     TRAJ_PBE,
     TRAJ_PBE0,
@@ -40,7 +39,6 @@ from figures.utils.gc_subset import (
 from figures.utils.io import (
     ensure_dirs,
     load_ace_features,
-    load_npz,
 )
 from figures.utils.plotting import (
     save_fig,
@@ -68,12 +66,9 @@ def _load_dataset(label: str) -> tuple[dict, np.ndarray, np.ndarray, np.ndarray]
     gc = load_gc_comparison_view(label, light=True)
     rows = load_ace_features(ACE_FEATURES[label])
     jt = build_comparison_joined_table(gc, rows, label)
-    if label == "PBE":
-        stoich = np.asarray(load_npz(GC_VARIANTS_NPZ, keys=("stoich",))["stoich"], dtype=float)
-    else:
-        stoich = np.asarray(gc["stoich"], dtype=float)
+    stoich = np.asarray(jt["n_O"], dtype=float) / np.asarray(jt["n_Ir"], dtype=float)
     n_ir = np.asarray(jt["n_Ir"], dtype=int)
-    gaps = homo_lumo_gaps_for_comparison(label, traj, jt["n"], frame_index=jt["frame_index"])
+    gaps = homo_lumo_gaps_for_comparison(label, traj, jt["frame_index"])
     return gc, stoich, n_ir, gaps
 
 
