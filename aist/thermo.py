@@ -1,6 +1,5 @@
 import numpy as np
 from scipy.constants import Planck, Boltzmann, R, speed_of_light, Avogadro, electron_volt, physical_constants
-from aist.utils import get_energy, get_info_value
 from pymatgen.core.structure import Molecule
 from pymatgen.symmetry.analyzer import PointGroupAnalyzer
 

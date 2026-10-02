@@ -7,7 +7,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.cm import ScalarMappable
 from matplotlib.colors import BoundaryNorm, ListedColormap, Normalize, to_rgb
-from matplotlib.ticker import MaxNLocator
 
 from aist.ace.common import (
     discrete_palette,
@@ -76,29 +75,6 @@ def margin_colorbar_cax(
     return fig.add_axes([x, pos_l.y0, width, pos_l.height])
 
 
-def add_fig06_interface_pbe_pbe0_diff_axis(
-    ax,
-    Ts: np.ndarray,
-    pbe_y: np.ndarray,
-    pbe0_y: np.ndarray,
-) -> None:
-    """Twin y-axis: dotted zero line + thin black PBE−PBE0 difference (behind main curves)."""
-    ax2 = ax.twinx()
-    ax2.set_zorder(0)
-    ax.set_zorder(1)
-    ax.patch.set_visible(False)
-
-    diff = np.asarray(pbe_y, dtype=float) - np.asarray(pbe0_y, dtype=float)
-    ax2.axhline(
-        0.0, color="black", linewidth=0.5, linestyle="dotted", zorder=1,
-    )
-    ax2.plot(Ts, diff, color="black", linewidth=0.6, zorder=2)
-    dmin, dmax = float(np.min(diff)), float(np.max(diff))
-    ax2.set_ylim(min(dmin, 0.0), max(dmax, 0.0))
-    ax2.tick_params(axis="y", labelsize=TICK_FONTSIZE, colors="black")
-    ax2.set_ylabel("PBE−PBE0", fontsize=AXIS_LABEL_FONTSIZE)
-
-
 # ---------------------------------------------------------------------------
 # Phase-diagram axis helpers
 # ---------------------------------------------------------------------------
@@ -108,33 +84,6 @@ def apply_gc_temperature_xticks(ax) -> None:
     from figures.config import GC_T_TICKS
 
     ax.set_xticks(GC_T_TICKS)
-
-
-def style_gradient_bar_panel_ax(
-    ax,
-    row: int,
-    col: int,
-    last_row: int,
-    *,
-    title: str = "",
-) -> None:
-    """Shared-axis layout for per-size gradient-bar panels (linear ``n_Ir`` axis)."""
-    ax.set_yscale("linear")
-    ax.yaxis.set_major_locator(MaxNLocator(integer=True))   # n_Ir rows, not 3.5, 4.0, …
-    if row == 0 and title:
-        ax.set_title(title, fontsize=TITLE_FONTSIZE, pad=3)
-    if col == 0:
-        ax.set_ylabel(r"$n_{\mathrm{Ir}}$", fontsize=AXIS_LABEL_FONTSIZE)
-    else:
-        ax.set_ylabel("")
-        ax.tick_params(labelleft=False)
-    if row < last_row:
-        ax.tick_params(labelbottom=False)
-        ax.set_xlabel("")
-    else:
-        ax.set_xlabel("T (K)", fontsize=AXIS_LABEL_FONTSIZE)
-    apply_gc_temperature_xticks(ax)
-    ax.tick_params(axis="both", labelsize=TICK_FONTSIZE)
 
 
 def style_shared_gc_panel_ax(
@@ -257,11 +206,6 @@ def stoichiometry_overlay_labels(formulas) -> list[str]:
         else:
             labels.append(to_latex_formula(s))
     return labels
-
-
-def cluster_overlay_labels(clusters: np.ndarray) -> list[str]:
-    """Per-structure ``C*`` labels aligned with GC structure indices."""
-    return [f"C{int(c)}" for c in np.asarray(clusters, dtype=int)]
 
 
 def majority_category_index(pop_fractions: np.ndarray) -> np.ndarray:

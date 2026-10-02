@@ -1,7 +1,6 @@
 """HOMO–LUMO gap helpers for GC ensemble maps."""
 from __future__ import annotations
 
-from collections import defaultdict
 
 import numpy as np
 from scipy.ndimage import gaussian_filter1d
@@ -53,29 +52,6 @@ def ir_size_homo_lumo_panel(jt: dict, gaps: np.ndarray, n_ir: int) -> dict | Non
         "stoich_labels": stoichiometry_overlay_labels(jt_sub["formulas_gc"]),
         "gap_field": homo_lumo_gap_map(jt_sub["Pgi"], gaps_sub),
     }
-
-
-def homo_lumo_gap_minmax_vs_oxidation(structures) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Min/max HOMO–LUMO gap at each stoichiometry (grouped by n_Ir, n_O)."""
-    by_stoich: dict[tuple[int, int], list[float]] = defaultdict(list)
-    for atoms in structures:
-        syms = atoms.get_chemical_symbols()
-        n_ir = sum(s == "Ir" for s in syms)
-        n_o = sum(s == "O" for s in syms)
-        gap = atoms.info.get(HOMO_LUMO_KEY)
-        if gap is None or n_ir == 0:
-            continue
-        by_stoich[(n_ir, n_o)].append(float(gap))
-
-    rows: list[tuple[float, float, float]] = []
-    for (n_ir, n_o), gs in by_stoich.items():
-        x = n_o / n_ir
-        rows.append((x, min(gs), max(gs)))
-    rows.sort(key=lambda r: r[0])
-    xs = np.asarray([r[0] for r in rows], dtype=float)
-    ymin = np.asarray([r[1] for r in rows], dtype=float)
-    ymax = np.asarray([r[2] for r in rows], dtype=float)
-    return xs, ymin, ymax
 
 
 def oxidation_ratio_xgrid(

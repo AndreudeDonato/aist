@@ -1,6 +1,6 @@
 import numpy as np
 from aist.thermo import ThermoFromAtoms
-from aist.utils import get_energy, get_info_value
+from aist.utils import get_energy
 
 def process_frequencies(thermo, frequencies):
     """Remove translational and rotational modes based on linearity."""

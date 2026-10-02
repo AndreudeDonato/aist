@@ -38,16 +38,14 @@ from figures.utils.comparison import (
     atom_motif_colors_labels,
     build_comparison_joined_table,
     ensemble_shape_rgb_map_with_gas,
-    gas_population_fraction,
     gas_structure_mask,
     homo_lumo_gaps_for_comparison,
     inertia_rgb_rows,
     load_gc_comparison_view,
-    scalar_field_rgb_with_gas,
     structure_cluster_colors_labels,
 )
 from figures.utils.gc_subset import ir_size_reservoir_mask, subset_joined_table_by_n_ir
-from figures.utils.homo_lumo import HOMO_LUMO_CMAP, homo_lumo_gap_map, homo_lumo_gaps, ir_size_homo_lumo_panel
+from figures.utils.homo_lumo import HOMO_LUMO_CMAP, ir_size_homo_lumo_panel
 from figures.utils.io import (
     ensure_dirs,
     load_ace_features,

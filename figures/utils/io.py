@@ -140,16 +140,6 @@ def load_traj(path: str):
     return read(path, ":")
 
 
-def load_pbe_gc_structures(*, include_gas: bool | None = None) -> list:
-    """PBE structures in GC row order (the frames of the grand-canonical NPZ + optional gas oxides)."""
-    from figures.config import GC_INCLUDE_GAS_RESERVOIR
-    from figures.utils.datasets import gc_structures
-
-    if include_gas is None:
-        include_gas = GC_INCLUDE_GAS_RESERVOIR
-    return gc_structures("PBE", include_gas=include_gas)
-
-
 def ensure_dirs(*dirs: str) -> None:
     """Create output directories if they do not exist."""
     for d in dirs:

@@ -42,7 +42,7 @@ from figures.utils.gc_gradient_bars import (
     sync_temperature_xaxis_grid,
     winner_scalar_vs_T_at_pressure,
 )
-from figures.utils.io import ensure_dirs, load_ace_features, load_npz, load_variants_like
+from figures.utils.io import ensure_dirs, load_ace_features, load_variants_like
 from figures.utils.plotting import (
     AXIS_LABEL_FONTSIZE,
     TICK_FONTSIZE,

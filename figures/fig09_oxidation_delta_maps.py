@@ -26,7 +26,7 @@ from figures.utils.cache import ensure_for_figures
 from figures.utils.comparison import build_comparison_joined_table, load_gc_comparison_view
 from figures.utils.datasets import DATASETS, dataset_inputs
 from figures.utils.gc_subset import oxidation_map_by_n_ir, stoich_winner_map_by_n_ir
-from figures.utils.io import ensure_dirs, load_ace_features, load_npz, load_variants_like
+from figures.utils.io import ensure_dirs, load_ace_features, load_variants_like
 from figures.utils.plotting import (
     AXIS_LABEL_FONTSIZE,
     add_phase_colorbar,

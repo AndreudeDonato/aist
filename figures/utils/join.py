@@ -7,7 +7,6 @@ from aist.ace.join import (  # noqa: F401
     ensemble_weighted_mean_map,
     ensemble_weighted_rgb_map,
     ir_motif_population_fractions,
-    o_bridging_terminal_interface_vs_T_at_pressure,
     o_motif_population_fractions,
     ranked_cumulative_population_lines,
     structure_populations_at_fixed_point,

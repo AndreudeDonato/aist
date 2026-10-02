@@ -131,13 +131,6 @@ def save_features_csv(d, struct_fit, path):
     print(f"[save] features ({label}) -> {path}")
 
 
-def _centroid_distance_space(fit):
-    """Embedding coords for centroid distance ranking. Returns (X, centroids)."""
-    if "centroids_umap" in fit:
-        return fit["X_umap"], fit["centroids_umap"]
-    return fit["X_pca"], fit["centroids_pca"]
-
-
 def _result_for_dataset(d, struct_fit):
     """Wrap pooled ``struct_fit`` with per-dataset structure labels."""
     if struct_fit is None:

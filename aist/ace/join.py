@@ -105,20 +105,6 @@ def ensemble_weighted_rgb_map(
     return np.clip(rgb, 0.0, 1.0)
 
 
-def ensemble_mean_cluster_map(joined: dict) -> np.ndarray:
-    """Ensemble-averaged structure-cluster index ⟨C⟩ on (T, P)."""
-    return ensemble_weighted_mean_map(joined["Pgi"], joined["cluster"].astype(float))
-
-
-def ensemble_mean_motif_index_map(joined: dict, motif_key: str = "ir_frac") -> np.ndarray:
-    """Ensemble-averaged mean atom-motif index ⟨m⟩ from per-structure motif fractions."""
-    frac = np.asarray(joined[motif_key], dtype=float)
-    k = frac.shape[1]
-    motif_index = np.arange(k, dtype=float)
-    per_struct = frac @ motif_index
-    return ensemble_weighted_mean_map(joined["Pgi"], per_struct)
-
-
 def cluster_population_fractions(joined: dict) -> np.ndarray:
     """Population fraction per cluster c at each (T, P); shape (k, nP, nT)."""
     Pgi = joined["Pgi"]
@@ -182,60 +168,6 @@ def ensemble_o_motif_per_ir_map(joined: dict, o_motif_index: int) -> np.ndarray:
         return np.where(denominator > 0, numerator / denominator, np.nan)
 
 
-def _smooth_population_stack_along_T(
-    Y: np.ndarray,
-    smooth_sigma: float,
-) -> np.ndarray:
-    if smooth_sigma > 0 and Y.shape[1] > 3:
-        Y = gaussian_filter1d(Y, sigma=float(smooth_sigma), axis=1, mode="nearest")
-        col_sum = Y.sum(axis=0, keepdims=True)
-        np.divide(Y, col_sum, out=Y, where=col_sum > 0)
-        Y *= 100.0
-    return Y
-
-
-def ir_motif_population_vs_T_at_pressure(
-    joined: dict,
-    pressure_pa: float,
-    *,
-    smooth_sigma: float = 0.0,
-) -> tuple[np.ndarray, float, np.ndarray]:
-    """Ir atom-motif population (%) vs ``T`` at fixed ``pO₂``; shape ``(k_Ir, n_T)``."""
-    p_idx, pressure_used = pressure_grid_index(joined["Ps"], pressure_pa)
-    Y = 100.0 * ir_motif_population_fractions(joined)[:, p_idx, :]
-    Y = _smooth_population_stack_along_T(Y, smooth_sigma)
-    return np.asarray(joined["Ts"], dtype=float), pressure_used, Y
-
-
-def o_motif_population_vs_T_at_pressure(
-    joined: dict,
-    pressure_pa: float,
-    *,
-    smooth_sigma: float = 0.0,
-) -> tuple[np.ndarray, float, np.ndarray]:
-    """O atom-motif population (%) vs ``T`` at fixed ``pO₂``; shape ``(k_O, n_T)``."""
-    p_idx, pressure_used = pressure_grid_index(joined["Ps"], pressure_pa)
-    Y = 100.0 * o_motif_population_fractions(joined)[:, p_idx, :]
-    Y = _smooth_population_stack_along_T(Y, smooth_sigma)
-    return np.asarray(joined["Ts"], dtype=float), pressure_used, Y
-
-
-def cluster_population_vs_T_at_pressure(
-    joined: dict,
-    pressure_pa: float,
-    *,
-    smooth_sigma: float = 0.0,
-) -> tuple[np.ndarray, float, np.ndarray]:
-    """Structure-cluster population (%) vs ``T`` at fixed ``pO₂``.
-
-    Returns ``(Ts, pressure_used, Y)`` with ``Y`` shape ``(k, n_T)``.
-    """
-    p_idx, pressure_used = pressure_grid_index(joined["Ps"], pressure_pa)
-    Y = 100.0 * cluster_population_fractions(joined)[:, p_idx, :]
-    Y = _smooth_population_stack_along_T(Y, smooth_sigma)
-    return np.asarray(joined["Ts"], dtype=float), pressure_used, Y
-
-
 def atom_motif_population_vs_T_at_pressure(
     joined: dict,
     pressure_pa: float,
@@ -275,105 +207,6 @@ def atom_motif_population_vs_T_at_pressure(
         Y *= 100.0
 
     return np.asarray(joined["Ts"], dtype=float), pressure_used, Y
-
-
-def o_bridging_terminal_interface_vs_T_at_pressure(
-    joined: dict,
-    pressure_pa: float,
-    bridging_o_index: int,
-    *,
-    smooth_sigma: float = 0.0,
-) -> tuple[np.ndarray, float, np.ndarray]:
-    """Cumulative stack % where bridging O ends and terminal O begins.
-
-    Matches the black Ir|O boundary plus the bridging O motif band in the
-  atom-motif stack (Ir-A* below, O-A* above; interface after ``O-A{bridging}``).
-    """
-    Ts, pressure_used, Y = atom_motif_population_vs_T_at_pressure(
-        joined, pressure_pa, smooth_sigma=smooth_sigma,
-    )
-    k_ir = int(joined["ir_frac"].shape[1])
-    bridge_row = k_ir + int(bridging_o_index)
-    interface = np.sum(Y[:k_ir, :], axis=0) + Y[bridge_row, :]
-    return Ts, pressure_used, interface
-
-
-def population_weighted_o_spins_by_motif_at_pressure(
-    joined: dict,
-    structures: list,
-    motif_json_path: str,
-    pressure_pa: float,
-) -> tuple[dict[str, tuple[np.ndarray, np.ndarray]], dict]:
-    """O-atom |Hirshfeld spin| samples weighted by GC population at fixed ``pO₂``.
-
-    At each ``T`` on the joined grid, structure ``i`` contributes weight
-    ``Pgi[i, p, T]`` for every O atom in that structure. Returns
-    ``{motif_tag: (spins, weights)}`` and the motif JSON dict (colours).
-    """
-    from aist.ace.io import load_motif_atoms_json
-
-    motif = load_motif_atoms_json(motif_json_path)
-    order = list(motif.get("ir_motifs", [])) + list(motif.get("o_motifs", []))
-    buckets: dict[str, list[tuple[float, float]]] = {tag: [] for tag in order}
-
-    p_idx, _ = pressure_grid_index(joined["Ps"], pressure_pa)
-    Pgi = joined["Pgi"]
-    n_T = int(Pgi.shape[2])
-    n = int(joined["n"])
-
-    for i in range(n):
-        fi = int(joined["frame_index"][i])
-        if fi < 0 or fi >= len(structures):
-            continue
-        atoms = structures[fi]
-        labels = motif.get("frames", {}).get(str(fi))
-        if labels is None:
-            continue
-        h = atoms.info.get("hirshfeld")
-        if not isinstance(h, dict) or "spins" not in h:
-            continue
-        spins = np.abs(np.asarray(h["spins"], dtype=float))
-        syms = atoms.get_chemical_symbols()
-        if len(labels) != len(syms) or len(spins) != len(syms):
-            continue
-
-        for ai, (sym, mot) in enumerate(zip(syms, labels)):
-            if sym != "O" or mot not in buckets:
-                continue
-            spin = float(spins[ai])
-            for j in range(n_T):
-                w = float(Pgi[i, p_idx, j])
-                if w > 0:
-                    buckets[mot].append((spin, w))
-
-    points = {
-        tag: (
-            np.array([p[0] for p in pts], dtype=float),
-            np.array([p[1] for p in pts], dtype=float),
-        )
-        for tag, pts in buckets.items()
-    }
-    return points, motif
-
-
-def cluster_population_map(joined: dict) -> np.ndarray:
-    """Dominant cluster id at each (T, P) — legacy; prefer ``ensemble_mean_cluster_map``."""
-    return np.argmax(cluster_population_fractions(joined), axis=0)
-
-
-def motif_population_map(joined: dict, motif_key: str = "ir_frac") -> np.ndarray:
-    """Dominant atom-motif id at each (T, P) — legacy; prefer ``ensemble_mean_motif_index_map``."""
-    Pgi = joined["Pgi"]
-    frac = joined[motif_key]
-    k = frac.shape[1]
-    nP, nT = Pgi.shape[1], Pgi.shape[2]
-    f_m = np.zeros((k, nP, nT), dtype=float)
-    for m in range(k):
-        f_m[m] = np.einsum("i,ijk->jk", frac[:, m], Pgi)
-    den = f_m.sum(axis=0, keepdims=True)
-    with np.errstate(invalid="ignore", divide="ignore"):
-        f_m = np.where(den > 0, f_m / den, 0.0)
-    return np.argmax(f_m, axis=0)
 
 
 def structure_populations_at_fixed_point(
@@ -431,36 +264,3 @@ def ranked_cumulative_population_lines(
         "cumulative_fraction": csum / total,
         "n_total": pops_order.size,
     }
-
-
-def fixed_point_cluster_populations(joined: dict, T: float, P: float) -> np.ndarray:
-    Ts, Ps = joined["Ts"], joined["Ps"]
-    t_idx = int(np.argmin(np.abs(Ts - T)))
-    p_idx = int(np.argmin(np.abs(Ps - P)))
-    Pgi = joined["Pgi"]
-    cluster = joined["cluster"]
-    k = int(cluster.max()) + 1
-    pops = np.zeros(k, dtype=float)
-    for c in range(k):
-        mask = cluster == c
-        pops[c] = float(Pgi[mask, p_idx, t_idx].sum()) * 100.0
-    return pops
-
-
-def fixed_point_cluster_populations_from_pgi(
-    Pgi: np.ndarray,
-    cluster: np.ndarray,
-    Ts: np.ndarray,
-    Ps: np.ndarray,
-    T: float,
-    P: float,
-) -> np.ndarray:
-    """Cluster populations at (T,P) from a standalone Pgi tensor."""
-    t_idx = int(np.argmin(np.abs(Ts - T)))
-    p_idx = int(np.argmin(np.abs(Ps - P)))
-    k = int(cluster.max()) + 1
-    pops = np.zeros(k, dtype=float)
-    for c in range(k):
-        mask = cluster == c
-        pops[c] = float(Pgi[mask, p_idx, t_idx].sum()) * 100.0
-    return pops

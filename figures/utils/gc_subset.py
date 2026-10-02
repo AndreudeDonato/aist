@@ -236,36 +236,6 @@ def oxidation_vs_t_by_ir_at_pressure(
     return Ts, pressure_used, lines
 
 
-def single_min_stoich_vs_t_by_ir_at_pressure(
-    Pgi: np.ndarray,
-    stoich: np.ndarray,
-    n_ir_per_struct: np.ndarray,
-    Ts: np.ndarray,
-    Ps: np.ndarray,
-    pressure_pa: float,
-    *,
-    ir_counts: range | list[int] | None = None,
-    formulas: np.ndarray | None = None,
-) -> tuple[np.ndarray, float, dict[int, np.ndarray]]:
-    """Winning-structure ``n_O/n_Ir`` vs ``T`` at fixed ``pO₂``, one curve per ``n_Ir``."""
-    from aist.core.grandcanonical import pressure_grid_index
-
-    if ir_counts is None:
-        ir_counts = THERMO_IR_COUNTS
-    p_idx, pressure_used = pressure_grid_index(Ps, pressure_pa)
-    Ts = np.asarray(Ts, dtype=float)
-    stoich = np.asarray(stoich, dtype=float)
-    lines: dict[int, np.ndarray] = {}
-    for n in ir_counts:
-        mask = ir_size_reservoir_mask(n_ir_per_struct, int(n), formulas)
-        if not np.any(mask):
-            continue
-        Pgi_n = _renorm_pgi_slab(Pgi, mask, p_idx=p_idx)
-        winner = np.argmax(Pgi_n, axis=0)
-        lines[int(n)] = stoich[mask][winner]
-    return Ts, pressure_used, lines
-
-
 def homo_lumo_vs_t_by_ir_at_pressure(
     gc: dict,
     gaps: np.ndarray,
@@ -290,49 +260,6 @@ def homo_lumo_vs_t_by_ir_at_pressure(
             continue
         Pgi_n = _renorm_pgi_slab(gc["Pgi"], mask, p_idx=p_idx)
         lines[int(n)] = gaps[mask] @ Pgi_n
-    return Ts, pressure_used, lines
-
-
-def global_min_pop_vs_t_by_ir_at_pressure(
-    Pgi: np.ndarray,
-    n_ir_per_struct: np.ndarray,
-    Ts: np.ndarray,
-    Ps: np.ndarray,
-    pressure_pa: float,
-    *,
-    winner_Pgi: np.ndarray | None = None,
-    ir_counts: range | list[int] | None = None,
-    formulas: np.ndarray | None = None,
-    include_gas_reservoir: bool | None = None,
-) -> tuple[np.ndarray, float, dict[int, np.ndarray]]:
-    """Global-minimum population (%) vs ``T`` at fixed ``pO₂``, one curve per ``n_Ir``.
-
-    When ``winner_Pgi`` is set, the winning structure at each ``T`` is
-    ``argmax(winner_Pgi)`` within the Ir bucket, but the reported population is
-    taken from ``Pgi`` (vib population of a novib-fixed minimum).
-    """
-    from aist.core.grandcanonical import pressure_grid_index
-
-    if ir_counts is None:
-        ir_counts = THERMO_IR_COUNTS
-    p_idx, pressure_used = pressure_grid_index(Ps, pressure_pa)
-    Ts = np.asarray(Ts, dtype=float)
-    lines: dict[int, np.ndarray] = {}
-    for n in ir_counts:
-        mask = ir_size_reservoir_mask(
-            n_ir_per_struct, int(n), formulas,
-            include_gas_reservoir=include_gas_reservoir,
-        )
-        if not np.any(mask):
-            continue
-        Pgi_n = _renorm_pgi_slab(Pgi, mask, p_idx=p_idx)
-        if winner_Pgi is not None:
-            winner_n = _renorm_pgi_slab(winner_Pgi, mask, p_idx=p_idx)
-            winner = np.argmax(winner_n, axis=0)
-        else:
-            winner = np.argmax(Pgi_n, axis=0)
-        pop = 100.0 * np.take_along_axis(Pgi_n, winner[None, :], axis=0)[0]
-        lines[int(n)] = pop
     return Ts, pressure_used, lines
 
 

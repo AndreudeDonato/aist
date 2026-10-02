@@ -251,27 +251,3 @@ def motif_spin_kde_panel(
                 ha="right", va="top", fontsize=AXIS_LABEL_FONTSIZE, color="black",
             )
     return ymax
-
-
-def o_spin_kde_panel(
-    ax,
-    points: dict[str, tuple[np.ndarray, np.ndarray]],
-    motif: dict,
-    title: str,
-    *,
-    eval_xlim: tuple[float, float] | None = None,
-    display_xlim: tuple[float, float] | None = None,
-    show_xlabel: bool = True,
-    show_ylabel: bool = True,
-    corner_label: str | None = None,
-) -> None:
-    # O-A2 omitted in paper figures (sparse motif); uncomment next line to restore
-    tags = [t for t in o_motif_tags(motif) if t != "O-A2"]
-    motif_spin_kde_panel(
-        ax, points, motif, tags, title,
-        eval_xlim=eval_xlim,
-        display_xlim=display_xlim,
-        show_xlabel=show_xlabel,
-        show_ylabel=show_ylabel,
-        corner_label=corner_label,
-    )

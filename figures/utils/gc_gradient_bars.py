@@ -13,7 +13,6 @@ from figures.utils.gc_subset import ir_size_reservoir_mask, subset_joined_table_
 from figures.utils.comparison import gas_structure_mask, scalar_field_rgb_with_gas
 from figures.utils.join import (
     cluster_population_fractions,
-    ensemble_o_motif_per_ir_map,
     ensemble_weighted_mean_map,
     ensemble_weighted_rgb_map,
     ir_motif_population_fractions,
@@ -211,33 +210,6 @@ def draw_vertical_bar_sections(
         j = k
 
 
-def cluster_only_phase_index_1d(
-    joined: dict,
-    n_ir: int,
-    pressure_pa: float,
-    *,
-    include_gas_reservoir: bool | None = None,
-) -> tuple[np.ndarray, list[str]] | None:
-    """Global minimum over cluster rows only (gas excluded from phase boundaries)."""
-    ctx = _subset_at_pressure(
-        joined, n_ir, pressure_pa, include_gas_reservoir=include_gas_reservoir,
-    )
-    if ctx is None:
-        return None
-    jt_sub, p_idx, ts = ctx
-    gas_mask = gas_structure_mask(jt_sub["formulas_gc"])
-    cluster_idx = np.where(~gas_mask)[0]
-    if cluster_idx.size == 0:
-        return None
-    pgi_slab = np.asarray(jt_sub["Pgi"][:, p_idx, :], dtype=float)
-    local_argmax = np.argmax(pgi_slab[cluster_idx, :], axis=0)
-    phase_index_1d = cluster_idx[local_argmax]
-    labels = stoichiometry_ratio_overlay_labels(
-        jt_sub["n_O"], jt_sub["n_Ir"],
-    )
-    return phase_index_1d, labels
-
-
 def gas_fraction_vs_T_at_pressure(
     joined: dict,
     n_ir: int,
@@ -364,21 +336,6 @@ def winner_scalar_vs_T_at_pressure(
     winner = np.argmax(pgi_slab, axis=0)
     values = np.asarray(per_sub, dtype=float)[winner]
     return ts, float(jt_sub["Ps"][p_idx]), values
-
-
-def ensemble_o_motif_vs_T_at_pressure(
-    joined: dict,
-    n_ir: int,
-    o_motif_index: int,
-    pressure_pa: float,
-) -> tuple[np.ndarray, float, np.ndarray] | None:
-    """``⟨n_O^{motif} / n_Ir⟩`` vs ``T`` for one Ir-size bucket at fixed ``pO₂``."""
-    ctx = _subset_at_pressure(joined, n_ir, pressure_pa)
-    if ctx is None:
-        return None
-    jt_sub, p_idx, ts = ctx
-    field = ensemble_o_motif_per_ir_map(jt_sub, o_motif_index)
-    return ts, float(jt_sub["Ps"][p_idx]), np.asarray(field[p_idx, :], dtype=float)
 
 
 def ensemble_rgb_vs_T_at_pressure(
@@ -578,40 +535,6 @@ def draw_rgb_gradient_bars(
             return None, None
         t_plot, _, rgb = curve
         return t_plot, rgb
-
-    return _draw_bar_layers(
-        ax, joined, pressure_pa, ir_counts,
-        bar_colors_fn=colors_fn,
-        section_kind=section_kind,
-        section_labels=section_labels,
-    )
-
-
-def draw_o_motif_gradient_bars(
-    ax,
-    joined: dict,
-    pressure_pa: float,
-    o_motif_index: int,
-    ir_counts: list[int],
-    *,
-    cmap: str,
-    vmin: float,
-    vmax: float,
-    section_kind: SectionKind = "global_min",
-    section_labels: list[str] | None = None,
-) -> float:
-    """Horizontal bars coloured by ``⟨n_O^{motif} / n_Ir⟩`` (Fig. 4 supplementary)."""
-    norm = Normalize(vmin=vmin, vmax=vmax)
-    cm = plt.get_cmap(cmap)
-
-    def colors_fn(n: int):
-        curve = ensemble_o_motif_vs_T_at_pressure(
-            joined, n, o_motif_index, pressure_pa,
-        )
-        if curve is None:
-            return None, None
-        t_plot, _, values = curve
-        return t_plot, cm(norm(values))
 
     return _draw_bar_layers(
         ax, joined, pressure_pa, ir_counts,

@@ -594,30 +594,3 @@ def plot_struct_cluster_dataset_split(datasets_loaded, struct_fit, output_path):
 kernel_smoothed_population_stack = _kernel_smoothed_population_stack
 atom_population_stack_vs_oxidation = _atom_population_stack_vs_oxidation
 struct_population_stack_vs_oxidation = _struct_population_stack_vs_oxidation
-
-
-def population_stack_vs_values(
-    x_values: np.ndarray,
-    labels: np.ndarray,
-    k: int,
-    *,
-    n_bins: int = 100,
-    bandwidth=None,
-    smooth_sigma: float = 1.0,
-) -> tuple[np.ndarray, np.ndarray]:
-    """Smoothed population (%) vs an arbitrary 1D axis (e.g. Tchar)."""
-    labels = np.asarray(labels, dtype=int)
-
-    def accumulate(counts, si, w):
-        cid = int(labels[si])
-        if 0 <= cid < k:
-            counts[cid] += w
-
-    return _kernel_smoothed_population_stack(
-        np.asarray(x_values, dtype=float),
-        k,
-        n_bins=n_bins,
-        bandwidth=bandwidth,
-        smooth_sigma=smooth_sigma,
-        accumulate=accumulate,
-    )

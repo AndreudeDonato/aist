@@ -39,23 +39,6 @@ def compute_zpe_energy(atoms: Atoms, temperature_k: float = 1.0) -> float:
     return float(np.asarray(e_vib).reshape(-1)[0])
 
 
-def tchar_mean(atoms: Atoms) -> float:
-    """Mean Einstein characteristic temperature (K)."""
-    freqs = prepare_vibrational_modes(atoms)
-    if freqs.size == 0:
-        return np.nan
-    vib_temp = freqs * 100.0 * _TP.c * _TP.h_planck / _TP.kb
-    return float(np.mean(vib_temp))
-
-
-def tchar_min(atoms: Atoms) -> float:
-    freqs = prepare_vibrational_modes(atoms)
-    if freqs.size == 0:
-        return np.nan
-    vib_temp = freqs * 100.0 * _TP.c * _TP.h_planck / _TP.kb
-    return float(np.min(vib_temp))
-
-
 def mode_characteristic_temperatures(atoms: Atoms) -> np.ndarray:
     """Characteristic vibrational temperatures Θ_i (K) for each cluster mode."""
     freqs = prepare_vibrational_modes(atoms)
@@ -92,75 +75,6 @@ def tchar_energy_weighted_at_Ts(atoms: Atoms, Ts: np.ndarray) -> np.ndarray:
     theta_eff = np.sum(weights * theta.reshape(-1, 1), axis=0)
     theta_eff = np.where(valid, theta_eff, np.nan)
     return theta_eff.astype(float)
-
-
-def tchar_energy_weighted(atoms: Atoms, temperature_k: float) -> float:
-    """Energy-weighted mean Θ (K) from cluster modes at one temperature."""
-    val = tchar_energy_weighted_at_Ts(atoms, np.array([float(temperature_k)]))
-    return float(val[0])
-
-
-def hvib_svib_at_T(atoms: Atoms, T: float) -> tuple[float, float]:
-    """Return (H_vib incl. ZPE, S_vib) in eV and eV/K at temperature T."""
-    freqs = prepare_vibrational_modes(atoms)
-    if freqs.size == 0:
-        return np.nan, np.nan
-    thermo = ThermoFromAtoms(atoms)
-    ev, sv, _ = thermo.get_vibrational(freqs, np.array([float(T)]))
-    zpe = float(atoms.info.get("zpe", 0.0))
-    return float(np.asarray(ev).ravel()[0]) + zpe, float(np.asarray(sv).ravel()[0])
-
-
-def compute_vib_table(structures: list[Atoms], T_ref: float = 273.0) -> dict[str, np.ndarray]:
-    """Per-structure vibrational descriptors."""
-    n = len(structures)
-    tc_mean = np.full(n, np.nan)
-    tc_min = np.full(n, np.nan)
-    H_vib = np.full(n, np.nan)
-    S_vib = np.full(n, np.nan)
-
-    for i, atoms in enumerate(structures):
-        tc_mean[i] = tchar_mean(atoms)
-        tc_min[i] = tchar_min(atoms)
-        h, s = hvib_svib_at_T(atoms, T_ref)
-        H_vib[i], S_vib[i] = h, s
-
-    return {
-        "tchar_mean": tc_mean,
-        "tchar_min": tc_min,
-        "H_vib": H_vib,
-        "S_vib": S_vib,
-        "mTS_vib": -T_ref * S_vib,
-        "G_vib": H_vib - T_ref * S_vib,
-    }
-
-
-def tchar_ensemble_map(
-    structures: list[Atoms],
-    Pgi: np.ndarray,
-    *,
-    use: str = "mean",
-) -> np.ndarray:
-    """Ensemble-weighted characteristic T on (nP, nT) grid."""
-    fn = tchar_mean if use == "mean" else tchar_min
-    tc = np.array([fn(a) for a in structures], dtype=float)
-    valid = np.isfinite(tc)
-    if not valid.any():
-        return np.full(Pgi.shape[1:], np.nan)
-
-    n = min(len(structures), Pgi.shape[0])
-    if len(structures) != Pgi.shape[0]:
-        tc = tc[:n]
-        valid = valid[:n]
-        Pgi = Pgi[:n]
-
-    Pgi_valid = Pgi[valid]
-    tc_valid = tc[valid]
-    weight_sum = Pgi_valid.sum(axis=0)
-    tc_map = np.einsum("i,ijk->jk", tc_valid, Pgi_valid)
-    with np.errstate(invalid="ignore", divide="ignore"):
-        tc_map = np.where(weight_sum > 0, tc_map / weight_sum, np.nan)
-    return tc_map
 
 
 def tchar_energy_weighted_ensemble_map(
@@ -320,63 +234,6 @@ def compute_vib_gibbs_contribution(atoms: Atoms, temperature_k: float) -> float:
         + contrib.get("zpe", 0.0)
         - T * contrib.get("sv", 0.0)
     )
-
-
-def g_vib_global_minima_per_ir_by_ir_content(
-    structures: list[Atoms] | str,
-    *,
-    temperature_k: float,
-    ir_symbol: str = "Ir",
-    o_symbol: str = "O",
-) -> dict[int, list[dict[str, Any]]]:
-    """Global-minimum G_vib/n_Ir vs O content, minus the n_O = 0 minimum for each Ir count.
-
-    Same stoichiometry selection as ``zpe_global_minima_by_ir_content``; values are
-    ``(G_vib / n_Ir) − (G_vib / n_Ir)_{n_O=0}`` in eV at fixed ``temperature_k``.
-    """
-    from aist.core.minima import select_stoichiometry_minima
-
-    if isinstance(structures, str):
-        structures = list(read(structures, ":"))
-
-    minima = select_stoichiometry_minima(
-        structures,
-        x_group_formula=ir_symbol,
-        y_group_formula=o_symbol,
-        orient=False,
-    )
-
-    grouped: dict[int, list[dict[str, Any]]] = {}
-    for n_ir, n_o, atoms in minima:
-        if n_ir <= 0:
-            continue
-        g_vib = compute_vib_gibbs_contribution(atoms, temperature_k)
-        if not np.isfinite(g_vib):
-            continue
-        grouped.setdefault(n_ir, []).append({
-            "n_o": n_o,
-            "g_vib": g_vib,
-            "g_vib_per_ir": float(g_vib) / float(n_ir),
-        })
-
-    out: dict[int, list[dict[str, Any]]] = {}
-    for n_ir, rows in grouped.items():
-        ref = next((r for r in rows if int(r["n_o"]) == 0), None)
-        if ref is None:
-            continue
-        g_ref_per_ir = float(ref["g_vib_per_ir"])
-        enriched = []
-        for r in rows:
-            g_per_ir = float(r["g_vib_per_ir"])
-            enriched.append({
-                "n_o": int(r["n_o"]),
-                "g_vib": float(r["g_vib"]),
-                "g_vib_per_ir": g_per_ir,
-                "g_vib_per_ir_diff": g_per_ir - g_ref_per_ir,
-            })
-        out[n_ir] = enriched
-
-    return out
 
 
 def _structure_stoichiometry_groups(

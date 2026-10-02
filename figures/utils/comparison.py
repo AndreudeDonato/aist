@@ -10,10 +10,7 @@ from ase.io import read
 from figures.config import (
     GC_COMPARISON_LEVEL,
     GC_INCLUDE_GAS_RESERVOIR,
-    GC_NPZ,
     GC_NPZ_BY_DATASET,
-    GC_NPZ_PBE0,
-    GC_VARIANTS_NPZ,
     GC_VARIANTS_NPZ_BY_DATASET,
     TRAJ_PBE,
     TRAJ_PBE0,
@@ -242,11 +239,6 @@ def atom_motif_population_stack_by_ir_size(
     return atom_motif_population_stack_unified_gas(
         jt_sub, pressure_pa, smooth_sigma=smooth_sigma,
     )
-
-
-def gas_reservoir_active(formulas=None) -> bool:
-    """True when the IrO₂ / IrO₃ reservoir is enabled for plotting joins."""
-    return GC_INCLUDE_GAS_RESERVOIR
 
 
 def gas_population_fraction(Pgi: np.ndarray, gas_mask: np.ndarray) -> np.ndarray:

@@ -49,18 +49,6 @@ def struct_cluster_palette(k: int):
     return plt.get_cmap("tab10" if k <= 10 else "tab20")
 
 
-def gradient_colormap(colors, name: str = "ace_gradient"):
-    """Continuous colormap that linearly blends through ``colors`` (index 0 … k−1)."""
-    from matplotlib.colors import LinearSegmentedColormap
-
-    colors = [np.asarray(c) for c in colors]
-    if len(colors) == 0:
-        return plt.get_cmap("viridis")
-    if len(colors) == 1:
-        return LinearSegmentedColormap.from_list(name, [colors[0], colors[0]], N=256)
-    return LinearSegmentedColormap.from_list(name, colors, N=256)
-
-
 DATASET_COLORS = {
     "PBE": "#2166ac",
     "PBE0": "#b2182b",

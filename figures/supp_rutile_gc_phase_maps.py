@@ -26,7 +26,6 @@ from figures.config import (
 )
 from figures.utils.io import ensure_dirs, load_gc_npz
 from figures.utils.plotting import (
-    AXIS_LABEL_FONTSIZE,
     TITLE_FONTSIZE,
     add_phase_colorbar,
     draw_global_minimum_phase_overlay,

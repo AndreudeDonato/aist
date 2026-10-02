@@ -37,7 +37,6 @@ from figures.utils.hirshfeld import (
 from figures.utils.io import ensure_dirs
 from figures.utils.plotting import (
     AXIS_LABEL_FONTSIZE,
-    TITLE_FONTSIZE,
     save_fig,
 )
 

@@ -7,15 +7,6 @@ from mpl_toolkits.mplot3d.art3d import Line3DCollection
 
 from figures.utils.plotting import AXIS_LABEL_FONTSIZE, TICK_FONTSIZE, TITLE_FONTSIZE
 
-def inertia_ratios(moments: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """``moments`` shape ``(n, 3)`` with I1 ≤ I2 ≤ I3 → (I1/I3, I2/I3)."""
-    I1, I2, I3 = moments[:, 0], moments[:, 1], moments[:, 2]
-    with np.errstate(divide="ignore", invalid="ignore"):
-        x = I1 / I3
-        y = I2 / I3
-    return x, y
-
-
 MOMENT_RATIO_R23_MIN = 0.5  # λ₂/λ₃ floor for physical inertia tensors (see methodology doc §2.5)
 
 # Achievable-region corners in raw (I₁/I₃, I₂/I₃) ratios
@@ -98,13 +89,6 @@ def _moment_ratio_tight_xy_limits() -> tuple[tuple[float, float], tuple[float, f
         (min(xs) - pad["left"], max(xs) + pad["right"]),
         (min(ys) - pad["bottom"], max(ys) + pad["top"]),
     )
-
-
-def _moment_ratio_view_xy_limits() -> tuple[tuple[float, float], tuple[float, float]]:
-    """Axis limits with the moment-ratio triangle centroid at the panel centre."""
-    cx, cy = MOMENT_RATIO_SHAPE_CENTER
-    span = MOMENT_RATIO_VIEW_HALF_SPAN
-    return (cx - span, cx + span), (cy - span, cy + span)
 
 
 def _moment_ratio_corner_text_2d(ax: Axes, zorder: int = 4) -> None:
@@ -233,19 +217,6 @@ def _draw_moment_ratio_guides_2d(ax: Axes, *, marker_scale: float = 0.10, zorder
     return lim_s
 
 
-def style_inertia_triangle(ax: Axes, *, marker_scale: float = 0.10) -> float:
-    """Grey guides, limit markers, labels — match ``plot_inertia_comparison.py``."""
-    xlim, ylim = _moment_ratio_view_xy_limits()
-    ax.set_xlabel(r"$I_x/I_z$")
-    ax.set_ylabel(r"$I_y/I_z$")
-    ax.set_xlim(xlim)
-    ax.set_ylim(ylim)
-    ax.set_xticks(np.linspace(xlim[0], xlim[1], 5))
-    ax.set_yticks(np.linspace(ylim[0], ylim[1], 5))
-    ax.set_aspect("equal", "box")
-    return _draw_moment_ratio_guides_2d(ax, marker_scale=marker_scale)
-
-
 def style_bare_inertia_triangle(ax: Axes, *, marker_scale: float = 0.10) -> None:
     """S/L/P triangle guides only — no axis box or tick labels (fig. 2 floor view)."""
     xlim, ylim = _moment_ratio_tight_xy_limits()
@@ -320,58 +291,3 @@ def style_inertia_shape_extent_3d(
         ax.set_box_aspect((x_span, y_span, MOMENT_RATIO_EXTENT_BOX_SCALE * z_span))
     except AttributeError:
         pass
-
-
-def scatter_discrete(
-    ax: Axes,
-    x: np.ndarray,
-    y: np.ndarray,
-    labels: np.ndarray,
-    colors: list,
-    *,
-    sizes: np.ndarray | float = 12.0,
-    alpha: float = 0.55,
-    edgecolors: str = "none",
-    linewidths: float = 0.0,
-    zorder: int = 2,
-) -> None:
-    """Scatter each integer label group with its discrete colour."""
-    labels = np.asarray(labels, dtype=int)
-    for c in np.unique(labels):
-        mask = labels == c
-        if not mask.any():
-            continue
-        col = colors[int(c) % len(colors)]
-        sz = sizes[mask] if isinstance(sizes, np.ndarray) else sizes
-        ax.scatter(
-            x[mask], y[mask], c=[col], s=sz, alpha=alpha,
-            edgecolors=edgecolors, linewidths=linewidths, zorder=zorder,
-        )
-
-
-def scatter_discrete_3d(
-    ax,
-    x: np.ndarray,
-    y: np.ndarray,
-    z: np.ndarray,
-    labels: np.ndarray,
-    colors: list,
-    *,
-    sizes: np.ndarray | float = 12.0,
-    alpha: float = 0.55,
-    edgecolors: str = "none",
-    linewidths: float = 0.0,
-) -> None:
-    """3D scatter coloured by discrete integer labels."""
-    labels = np.asarray(labels, dtype=int)
-    for c in np.unique(labels):
-        mask = labels == c
-        if not mask.any():
-            continue
-        col = colors[int(c) % len(colors)]
-        sz = sizes[mask] if isinstance(sizes, np.ndarray) else sizes
-        ax.scatter(
-            x[mask], y[mask], z[mask], c=[col], s=sz, alpha=alpha,
-            edgecolors=edgecolors, linewidths=linewidths, depthshade=False,
-            zorder=_MOMENT_RATIO_ZORDER_DATA,
-        )

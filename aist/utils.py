@@ -15,10 +15,6 @@ def get_energy(atoms: Atoms):
         except Exception:
             raise ValueError("Energy not found in .info['energy'] or via get_potential_energy()")
         
-def get_info_value(atoms, key, default=0):
-    """Safely get a value from atoms.info, return default if key not found."""
-    return atoms.info.get(key, default)
-    
 def to_latex_formula(formula):
         return re.sub(r'([A-Z][a-z]*)(\d*)',
                       lambda m: m.group(1) + (f'$_{{{m.group(2)}}}$' if

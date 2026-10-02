@@ -48,7 +48,6 @@ from figures.utils.io import ensure_dirs, load_ace_features
 from figures.utils.plotting import (
     AXIS_LABEL_FONTSIZE,
     TICK_FONTSIZE,
-    TITLE_FONTSIZE,
     add_phase_colorbar,
     apply_gc_temperature_xticks,
     discrete_category_colorbar,

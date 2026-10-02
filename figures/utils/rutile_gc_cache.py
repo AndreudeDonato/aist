@@ -10,10 +10,6 @@ from aist.core.grandcanonical import run_gc
 
 from figures.config import (
     AMBIENT_PO2_PA,
-    IRO2_REF_PBE,
-    IRO2_REF_PBE0,
-    IRO3_REF_PBE,
-    IRO3_REF_PBE0,
     IR_REF_PBE,
     IR_REF_PBE0,
     IRO2_RUTILE_PBE,

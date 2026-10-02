@@ -287,13 +287,3 @@ def patch_gc_variants_gas(
         data[f"{prefix}_stoich_map"] = stoich[ens["phase_index"]]
 
     np.savez(npz_path, **data)
-
-
-def patch_gc_variants_novib_gas(
-    npz_path: str,
-    gas_rows: list[tuple[int, Atoms, float]],
-    *,
-    include_e: bool = True,
-) -> None:
-    """Backward-compatible alias for ``patch_gc_variants_gas``."""
-    patch_gc_variants_gas(npz_path, gas_rows, include_e=include_e)

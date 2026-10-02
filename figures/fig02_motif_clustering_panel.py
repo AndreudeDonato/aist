@@ -47,7 +47,6 @@ from figures.supp_moments_of_inertia import (
 from figures.utils.cache import ensure_for_figures
 from figures.utils.io import ensure_dirs, load_npz
 from figures.utils.plotting import (
-    ANNOTATION_FONTSIZE,
     AXIS_LABEL_FONTSIZE,
     LEGEND_FONTSIZE,
     TICK_FONTSIZE,
