@@ -24,9 +24,6 @@ import numpy as np
 from ase.io import read
 from matplotlib.colors import Normalize
 
-from aist.ace.pipeline import extent_blend as ACE_EXTENT_BLEND
-from aist.inertia import per_structure_shape_extent_rgb
-from aist.thermo import ThermoPartitionFunctions
 
 from figures.config import (
     ACE_FEATURES,
@@ -40,11 +37,11 @@ from figures.utils.io import (
     load_ace_features,
 )
 from figures.utils.comparison import (
-    per_frame_rows,
     atom_motif_colors_labels,
     build_comparison_joined_table,
     ensemble_shape_rgb_map_with_gas,
     gas_structure_mask,
+    inertia_rgb_rows,
     load_gc_comparison_view,
     structure_cluster_colors_labels,
 )
@@ -72,7 +69,6 @@ OUTPUT_PATH = os.path.join(OUTPUT_DIR, "supp_gc_clustering_maps.svg")
 N_ROWS = 5
 FIG_W_MM = 180
 FIG_H_MM = 210
-ACE_EXTENT_NORMALIZATION = "partial"
 
 DATASETS = [
     {
@@ -150,15 +146,9 @@ def _load_column(ds: dict) -> dict | None:
     rows = load_ace_features(ds["ace_csv"])
     jt = build_comparison_joined_table(gc, rows, ds.get("join_tag", "PBE"))
     n = jt["n"]
-    tp = ThermoPartitionFunctions()
     structures = list(read(traj_path, ":"))
     n_traj = len(structures)
-    inertia_rgb = per_structure_shape_extent_rgb(
-        structures, tp,
-        extent_normalization=ACE_EXTENT_NORMALIZATION,
-        extent_blend=ACE_EXTENT_BLEND,
-    )
-    inertia_rgb = per_frame_rows(inertia_rgb, jt["frame_index"])   # GC row order, gas rows NaN
+    inertia_rgb = inertia_rgb_rows(structures, jt["frame_index"])   # GC row order, gas rows NaN
     gas_mask = gas_structure_mask(jt["formulas_gc"])
     inertia_field = ensemble_shape_rgb_map_with_gas(jt["Pgi"], inertia_rgb, gas_mask)
     struct_colors, cluster_labels = structure_cluster_colors_labels(jt)

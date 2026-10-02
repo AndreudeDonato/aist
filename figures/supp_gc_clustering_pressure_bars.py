@@ -20,9 +20,6 @@ from matplotlib.colors import Normalize
 from matplotlib.cm import ScalarMappable
 from matplotlib.ticker import MaxNLocator
 
-from aist.ace.pipeline import extent_blend as ACE_EXTENT_BLEND
-from aist.inertia import per_structure_shape_extent_rgb
-from aist.thermo import ThermoPartitionFunctions
 
 from figures.config import (
     ACE_FEATURES,
@@ -37,10 +34,10 @@ from figures.config import (
 )
 from figures.utils.cache import ensure_for_supplementary
 from figures.utils.comparison import (
-    per_frame_rows,
     atom_motif_colors_labels,
     build_comparison_joined_table,
     homo_lumo_gaps_for_comparison,
+    inertia_rgb_rows,
     load_gc_comparison_view,
     structure_cluster_colors_labels,
 )
@@ -68,7 +65,6 @@ from figures.utils.plotting import (
 FIG_W_MM = 180
 FIG_H_MM = 252
 N_ROWS = 6
-ACE_EXTENT_NORMALIZATION = "partial"
 FIG03_LAYOUT_RECT = [0.04, 0, 0.91, 1]
 FIG03_CBAR_GAP = 0.008
 FIG03_CBAR_WIDTH = 0.012
@@ -109,15 +105,9 @@ def _load_column(ds: dict) -> dict | None:
         return None
     rows = load_ace_features(ds["ace_csv"])
     jt = build_comparison_joined_table(gc, rows, ds.get("join_tag", "PBE"))
-    tp = ThermoPartitionFunctions()
     structures = list(read(traj_path, ":"))
-    inertia_rgb = per_structure_shape_extent_rgb(
-        structures, tp,
-        extent_normalization=ACE_EXTENT_NORMALIZATION,
-        extent_blend=ACE_EXTENT_BLEND,
-    )
     n_traj = len(structures)
-    inertia_rgb = per_frame_rows(inertia_rgb, jt["frame_index"])   # GC row order, gas rows NaN
+    inertia_rgb = inertia_rgb_rows(structures, jt["frame_index"])   # GC row order, gas rows NaN
 
     struct_colors, _ = structure_cluster_colors_labels(jt)
     ir_colors, ir_labels = atom_motif_colors_labels(jt, "Ir")

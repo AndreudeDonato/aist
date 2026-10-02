@@ -439,33 +439,45 @@ _SUPPLEMENTARY_NEEDS_GC_VARIANTS = {
 }
 
 
+_FORCED: set[str] = set()
+
+
+def _force_once(name: str, force: bool) -> bool:
+    """Honour ``force`` only the first time a cache is requested in this process (build_all asks for the
+    figure caches and then for the supplementary ones; a forced rebuild should run once)."""
+    if not force or name in _FORCED:
+        return False
+    _FORCED.add(name)
+    return True
+
+
 def ensure_for_supplementary(names: Iterable[str], *, force: bool = False) -> None:
     ensure_raw_data()
     names = set(names)
     if names & _SUPPLEMENTARY_NEEDS_ACE:
-        ensure_ace(force=force)
+        ensure_ace(force=_force_once("ace", force))
     if names & _SUPPLEMENTARY_NEEDS_GC:
-        ensure_gc(force=force)
+        ensure_gc(force=_force_once("gc", force))
     if names & _SUPPLEMENTARY_NEEDS_GC_VARIANTS:
-        ensure_gc_variants(force=force)
+        ensure_gc_variants(force=_force_once("gc_variants", force))
     if "supp_rutile_gc_phase_maps" in names:
         from figures.utils.rutile_gc_cache import ensure_rutile_gc
-        ensure_rutile_gc(force=force)
+        ensure_rutile_gc(force=_force_once("rutile_gc", force))
 
 
 def ensure_for_figures(fig_nums: Iterable[int], *, force: bool = False) -> None:
     ensure_raw_data()
     nums = set(fig_nums)
     if nums & _FIG_NEEDS_ACE:
-        ensure_ace(force=force)
+        ensure_ace(force=_force_once("ace", force))
     if nums & _FIG_NEEDS_GC:
-        ensure_gc(force=force)
+        ensure_gc(force=_force_once("gc", force))
     if nums & _FIG_NEEDS_GC_VARIANTS:
-        ensure_gc_variants(force=force)
+        ensure_gc_variants(force=_force_once("gc_variants", force))
     if nums & _FIG_NEEDS_RUTILE_GC:
         from figures.utils.rutile_gc_cache import ensure_rutile_gc
-        ensure_rutile_gc(force=force)
+        ensure_rutile_gc(force=_force_once("rutile_gc", force))
     if nums & _FIG_NEEDS_FIG06_GC:
         from figures.utils.fig06_gc_cache import ensure_fig06_gc
-        ensure_fig06_gc(force=force)
+        ensure_fig06_gc(force=_force_once("fig06_gc", force))
     validate_cache_for_figures(nums)

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+from functools import lru_cache
 
 import numpy as np
 from ase.io import read
@@ -14,12 +15,16 @@ from figures.config import (
     GC_NPZ_PBE0,
     GC_VARIANTS_NPZ,
     GC_VARIANTS_NPZ_BY_DATASET,
+    TRAJ_PBE,
+    TRAJ_PBE0,
     gc_gas_reservoir_specs,
 )
 from figures.utils.homo_lumo import homo_lumo_gaps
 from figures.utils.io import load_ace_features, load_gc_npz, load_gc_pbe_novib_view
 from figures.utils.join import build_joined_table, ensemble_weighted_rgb_map
 from aist.ace.join import align_ace_rows_to_gc
+from aist.inertia import inertia_shape_extent_features, per_structure_shape_extent_rgb
+from aist.thermo import ThermoPartitionFunctions
 
 GAS_CLUSTER_LABEL = "GAS"
 GAS_CLUSTER_COLOR = "#ffffff"
@@ -45,6 +50,41 @@ def load_gc_comparison_view(dataset: str, *, light: bool = False) -> dict:
 
 def count_gas_structures(dataset: str) -> int:
     return sum(1 for path, _ in gc_gas_reservoir_specs(dataset) if os.path.exists(path))
+
+
+# Shape-extent settings of the ACE clustering, used for the inertia colours of the GC maps.
+ACE_EXTENT_NORMALIZATION = "partial"
+
+
+def _ace_extent_blend() -> float:
+    from aist.ace.pipeline import extent_blend
+
+    return float(extent_blend)
+
+
+@lru_cache(maxsize=None)
+def pooled_log_extent_range() -> tuple[float, float]:
+    """(min, max) ``log_extent`` over the PBE and PBE0 trajectories: one inertia colour scale for both
+    functionals, as in the pooled ACE clustering."""
+    tp = ThermoPartitionFunctions()
+    vals = [
+        inertia_shape_extent_features(a, tp, extent_normalization=ACE_EXTENT_NORMALIZATION,
+                                      extent_blend=_ace_extent_blend())[2]
+        for path in (TRAJ_PBE, TRAJ_PBE0) for a in read(path, ":")
+    ]
+    return float(min(vals)), float(max(vals))
+
+
+def inertia_rgb_rows(structures, frame_index) -> np.ndarray:
+    """Shape × extent RGB of every trajectory structure on the pooled PBE+PBE0 scale, in joined-table row
+    order (``jt["frame_index"]``; gas rows NaN)."""
+    rgb = per_structure_shape_extent_rgb(
+        structures, ThermoPartitionFunctions(),
+        extent_normalization=ACE_EXTENT_NORMALIZATION,
+        extent_blend=_ace_extent_blend(),
+        extent_range=pooled_log_extent_range(),
+    )
+    return per_frame_rows(rgb, frame_index)
 
 
 def per_frame_rows(values, frame_index) -> np.ndarray:

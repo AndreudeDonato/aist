@@ -180,8 +180,13 @@ def per_structure_shape_extent_rgb(
     *,
     extent_normalization: str = "partial",
     extent_blend: float = 0.1,
+    extent_range: tuple[float, float] | None = None,
 ) -> np.ndarray:
-    """Per-structure RGB ``(n, 3)`` for moment-ratio shape (R=L,G=P,B=S) × extent lightness."""
+    """Per-structure RGB ``(n, 3)`` for moment-ratio shape (R=L,G=P,B=S) × extent lightness.
+
+    Lightness is ``log_extent`` scaled to ``extent_range`` (min, max); by default the range of this batch,
+    so pass a common range to compare batches (e.g. PBE and PBE0 panels).
+    """
     if not structures:
         return np.zeros((0, 3), dtype=float)
     raw = [
@@ -193,7 +198,7 @@ def per_structure_shape_extent_rgb(
         for a in structures
     ]
     log_e = np.array([r[2] for r in raw], dtype=float)
-    e_min, e_max = float(log_e.min()), float(log_e.max())
+    e_min, e_max = extent_range if extent_range is not None else (float(log_e.min()), float(log_e.max()))
     denom = max(e_max - e_min, 1e-12)
     extent_norm = (log_e - e_min) / denom
     out = np.zeros((len(raw), 3), dtype=float)
