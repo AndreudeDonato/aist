@@ -133,7 +133,6 @@ PAPER_EXPORT_DPI = 150   # as aist_paper/convert_svgs.sh
 
 ACE_ROOT = os.path.join(CACHE_DIR, "ace")
 ACE_DIR = os.path.join(ACE_ROOT, "atoms")
-ACE_PLOTS_DIR = os.path.join(ACE_ROOT, "plots")
 
 ACE_FEATURES = {
     "PBE": os.path.join(ACE_DIR, "ace_features_PBE.csv"),
@@ -144,17 +143,11 @@ ACE_CENTROIDS = {
     "PBE0": os.path.join(ACE_DIR, "ace_centroids_PBE0.traj"),
     "pooled": os.path.join(ACE_DIR, "ace_centroids_pooled.traj"),
 }
-ACE_GROUPS = {
-    "PBE": os.path.join(ACE_DIR, "ace_groups_PBE"),
-    "PBE0": os.path.join(ACE_DIR, "ace_groups_PBE0"),
-    "pooled": os.path.join(ACE_DIR, "ace_groups_pooled"),
-}
 MOTIF_JSON = {
     "PBE": os.path.join(ACE_DIR, "motif_atoms_PBE.json"),
     "PBE0": os.path.join(ACE_DIR, "motif_atoms_PBE0.json"),
     "pooled": os.path.join(ACE_DIR, "motif_atoms_pooled.json"),
 }
-VISUALIZE_SCRIPT = os.path.join(ACE_DIR, "visualize_motifs.py")
 
 ACE_ATOM_IR_NPZ = os.path.join(ACE_ROOT, "ace_atom_ir.npz")
 ACE_ATOM_O_NPZ = os.path.join(ACE_ROOT, "ace_atom_o.npz")
@@ -193,14 +186,7 @@ MINIMA_TRAJ = {
     "PBE0": os.path.join(CACHE_DIR, "minima_PBE0.traj"),
 }
 
-# ---------------------------------------------------------------------------
-# Dataset strategy (vib / GC figures on PBE)
-# ---------------------------------------------------------------------------
-VIB_DATASET = "PBE"
-VIB_TRAJ = TRAJ_PBE
-VIB_ACE_FEATURES = ACE_FEATURES["PBE"]
-VIB_O2_REF = O2_REF_PBE
-VIB_GC_NPZ = GC_NPZ
+# ACE features joined to the PBE GC in validation.py
 GC_ACE_FEATURES = ACE_FEATURES["PBE"]
 
 # ---------------------------------------------------------------------------
@@ -225,12 +211,10 @@ THERMO_IR_COUNTS = (4, 5, 6)
 GC_IR_COUNTS = THERMO_IR_COUNTS
 
 # Figure 4: motif populations vs T at fixed pO₂ (Pa)
-FIG04_PRESSURE_PA = AMBIENT_PO2_PA
 FIG04_LOW_PRESSURE_PA = 1.0e-5
 FIG04_HIGH_PRESSURE_PA = AMBIENT_PO2_PA
 FIG04_SMOOTH_SIGMA = 1.0
 FIG04_IR_COUNTS = THERMO_IR_COUNTS   # main Fig. 4 atom-motif rows (was Ir3 | Ir6 | Ir9)
-FIG04_POP_ZOOM_MIN = 60.0   # O terminal/bridging panel: y from 60% to 100%
 # O motif indices: O-A0 bridging, O-A1 terminal, O-A2 molecular — fixed by aist.ace.clustering.
 # reorder_o_atom_clusters_by_bonding, which names the SOAP–UMAP clusters by bonding and stops if they are not these three
 FIG04_O_TERMINAL_IDX = 1
@@ -265,13 +249,12 @@ PHASE_CMAP = "coolwarm"
 DATASET_COLORS = {"PBE": "#2166ac", "PBE0": "#b2182b"}
 DPI = 800
 
-# ACE clustering reproducibility (must match ``aist.ace.constants``)
+# ACE clustering seed (must match ``aist.ace.constants``)
 ACE_RANDOM_STATE = 42
-ACE_SILHOUETTE_SAMPLE = 5000
 
 
 def gc_grid_config(**overrides):
-    """``GCConfig`` with the figure-pipeline T–p grid (default 150×150, 1–1000 K).
+    """``GCConfig`` with the figure-pipeline T–p grid (default 150×150, 100–1000 K).
 
     Override per-term flags, e.g. ``include_v_product``, ``include_zpe_mu``, etc.
     """
