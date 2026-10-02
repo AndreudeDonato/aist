@@ -36,8 +36,27 @@ python3 figures/build_all.py --rebuild-cache
 python3 figures/build_all.py --no-paper      # do not touch ../aist_paper
 ```
 
+## Tests
+
+```bash
+python3 -m pytest tests/
+```
+
+`tests/test_thermo.py` checks the thermodynamics core against ASE (`IdealGasThermo` for O₂ and CH₄,
+`HarmonicThermo`) and the Ir-normalized grand-canonical formula of the Methods on a toy ensemble.
+
+## Caches
+
+Every cache in `figures/cache/` (GC, variants, Fig. 6, rutile, ACE) stores a stamp: `CACHE_VERSION` from
+`figures/config.py`, the thermodynamic settings and the SHA-1 of its input files. A cache whose stamp differs
+is rebuilt, so changing a setting or a trajectory is enough. After a code change that alters cached numbers,
+bump `CACHE_VERSION`.
+
+## Paper figures
+
 Every figure the manuscript uses is also written into `../aist_paper/figures/{main,supplementary}/`
 (SVG + PNG, Inkscape at 150 dpi as `aist_paper/convert_svgs.sh` does; `figures/utils/paper.py`), so
 `aist_paper/compile_all.sh` always picks up the latest version. A figure goes where the paper already
 has it and is only rewritten when its content changed; to add a new figure to the paper, put a first
-copy in the right folder once. `AIST_PAPER_FIGURES=<dir>` points it elsewhere.
+copy in the right folder once. Nothing is written there when a figure fails. `AIST_PAPER_FIGURES=<dir>`
+points it elsewhere.
