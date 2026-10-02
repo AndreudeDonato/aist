@@ -219,7 +219,6 @@ FIG04_IR_COUNTS = THERMO_IR_COUNTS   # main Fig. 4 atom-motif rows (was Ir3 | Ir
 # reorder_o_atom_clusters_by_bonding, which names the SOAP–UMAP clusters by bonding and stops if they are not these three
 FIG04_O_TERMINAL_IDX = 1
 FIG04_O_BRIDGING_IDX = 0
-FIG04_SPIN_XMAX = 1.0   # |Hirshfeld spin| display limit for O-spin KDE panels
 
 # Figure 6 (sublimation): PBE0 GC with gas + support variants
 FIG06_CACHE_DIR = os.path.join(CACHE_DIR, "fig06")

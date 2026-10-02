@@ -11,6 +11,7 @@ from __future__ import annotations
 import os
 
 import matplotlib.pyplot as plt
+import numpy as np
 from matplotlib.gridspec import GridSpec
 
 from aist.ace.common import ace_atom_label
@@ -18,7 +19,6 @@ from aist.ace.common import ace_atom_label
 from figures.config import (
     DPI,
     FIG04_O_BRIDGING_IDX,
-    FIG04_SPIN_XMAX,
     MOTIF_JSON,
     OUTPUT_DIR,
     TRAJ_PBE,
@@ -26,8 +26,8 @@ from figures.config import (
 )
 from figures.utils.cache import ensure_for_supplementary
 from figures.utils.hirshfeld import (
-    global_hirshfeld_limits,
     hirshfeld_by_motif,
+    motif_order,
     ir_motif_tags,
     kde_curve,
     motif_spin_kde_panel,
@@ -50,19 +50,25 @@ DATASETS = [
 ]
 
 
-def _spin_eval_xlim(limits: tuple | None) -> tuple[float, float]:
-    if limits is not None:
-        return (float(limits[1][0]), float(FIG04_SPIN_XMAX))
-    return (0.0, float(FIG04_SPIN_XMAX))
+def _spin_range(element: str) -> tuple[float, float]:
+    """(min, max) |Hirshfeld spin| of one element's atoms over both functionals."""
+    lo, hi = np.inf, -np.inf
+    for ds in DATASETS:
+        if not os.path.exists(ds["traj"]) or not os.path.exists(ds["motif_json"]):
+            continue
+        points, motif = hirshfeld_by_motif(ds["traj"], ds["motif_json"])
+        for tag in motif_order(motif):
+            if tag.startswith(element + "-"):
+                spins = np.asarray(points.get(tag, ((), ()))[1], dtype=float)
+                if spins.size:
+                    lo, hi = min(lo, float(spins.min())), max(hi, float(spins.max()))
+    return (0.0, 1.0) if not np.isfinite(lo) else (lo, hi)
 
 
 def _format_spin_kde_xaxis(ax, xmin: float, xmax: float) -> None:
-    tick_candidates = [0.0, 0.2, 0.4, 0.6, 0.8, xmax]
-    ticks = [t for t in tick_candidates if xmin <= t <= xmax]
-    if xmax not in ticks:
-        ticks.append(xmax)
+    step = 0.2 if xmax <= 1.2 else 0.5
     ax.set_xlim(xmin, xmax)
-    ax.set_xticks(ticks)
+    ax.set_xticks([t for t in np.arange(0.0, xmax + 1e-9, step) if t >= xmin])
     ax.margins(x=0)
 
 
@@ -127,10 +133,8 @@ def _draw_panel(
     )
     if ylim is not None and ax.get_visible():
         pin_limits(ax, xlim=display_xlim, ylim=ylim)
-    if show_xlabel:
-        _format_spin_kde_xaxis(ax, display_xlim[0], display_xlim[1])
-    else:
-        ax.tick_params(labelbottom=False)
+    _format_spin_kde_xaxis(ax, display_xlim[0], display_xlim[1])   # rows have their own x range
+    if not show_xlabel:
         ax.set_xlabel("")
 
 
@@ -167,33 +171,32 @@ def main() -> None:
     ensure_for_supplementary(["supp_motif_spin_kde"])
     ensure_dirs(OUTPUT_DIR)
 
-    limits = global_hirshfeld_limits(DATASETS)
-    eval_xlim = _spin_eval_xlim(limits)
-    display_xlim = (eval_xlim[0], float(FIG04_SPIN_XMAX))
+    o_xlim = _spin_range("O")
+    ir_xlim = _spin_range("Ir")
 
-    o_peak = _pbe0_bridging_kde_peak(eval_xlim)
-    ir_peak = _row_kde_peak(DATASETS, ir_motif_tags, eval_xlim)
+    o_peak = _pbe0_bridging_kde_peak(o_xlim)
+    ir_peak = _row_kde_peak(DATASETS, ir_motif_tags, ir_xlim)
     o_ylim = (0.0, o_peak) if o_peak is not None and o_peak > 0 else None
     ir_ylim = (0.0, ir_peak * 1.05) if ir_peak > 0 else None
 
     fig = plt.figure(figsize=(FIG_W_MM / 25.4, FIG_H_MM / 25.4), dpi=DPI)
-    gs = GridSpec(2, 2, figure=fig, hspace=0.22, wspace=0.28)
+    gs = GridSpec(2, 2, figure=fig, hspace=0.32, wspace=0.28)
 
     ax_o_pbe = fig.add_subplot(gs[0, 0])
     ax_o_pbe0 = fig.add_subplot(gs[0, 1], sharex=ax_o_pbe, sharey=ax_o_pbe)
-    ax_ir_pbe = fig.add_subplot(gs[1, 0], sharex=ax_o_pbe)
-    ax_ir_pbe0 = fig.add_subplot(gs[1, 1], sharex=ax_o_pbe, sharey=ax_ir_pbe)
+    ax_ir_pbe = fig.add_subplot(gs[1, 0])
+    ax_ir_pbe0 = fig.add_subplot(gs[1, 1], sharex=ax_ir_pbe, sharey=ax_ir_pbe)
 
     _draw_row(
         (ax_o_pbe, ax_o_pbe0), o_motif_tags,
         "O motifs — |Hirshfeld spin|",
-        eval_xlim=eval_xlim, display_xlim=display_xlim, ylim=o_ylim,
+        eval_xlim=o_xlim, display_xlim=o_xlim, ylim=o_ylim,
         show_xlabel=False,
     )
     _draw_row(
         (ax_ir_pbe, ax_ir_pbe0), ir_motif_tags,
         "Ir motifs — |Hirshfeld spin|",
-        eval_xlim=eval_xlim, display_xlim=display_xlim, ylim=ir_ylim,
+        eval_xlim=ir_xlim, display_xlim=ir_xlim, ylim=ir_ylim,
         show_xlabel=True,
     )
 
