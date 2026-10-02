@@ -38,7 +38,7 @@ from figures.config import (
 )
 from figures.utils.cache import _any_newer_than
 from figures.utils.gc_gas_oxides import merge_gas_oxides, patch_gas_reservoir_thermo, patch_gas_rot_trans
-from figures.utils.rutile_gc_calibrate import RutileCalibrationAnchor, rutile_delta_g_rutile_minus_iro3
+from figures.utils.rutile_gc_calibrate import RutileCalibrationAnchor, rutile_minus_iro3_at_anchor
 
 
 def _rutile_dataset_specs(label: str) -> dict:
@@ -133,26 +133,15 @@ def _gas_rows_with_pressure(
     return [(row, atoms, p_gas) for row, atoms, _ in gas_rows]
 
 
-def _anchor_delta_g(
-    output_npz: str,
-    gas_rows: list[tuple[int, object, float]],
-    *,
-    p_gas: float,
-    gas_use_vib: bool,
-) -> float:
-    """G_rutile − G_IrO₃(g) at the reference anchor for the chosen P_gas."""
+def _anchor_delta_g(output_npz: str) -> float:
+    """G_rutile − G_IrO₃(g) at the reference anchor, from the patched rutile GC (what the map shows)."""
     with np.load(output_npz, allow_pickle=True) as data:
-        g_base = np.asarray(data["G_tensor"], dtype=float)
+        g = np.asarray(data["G_tensor"], dtype=float)
         ts = np.asarray(data["Ts"], dtype=float)
         ps = np.asarray(data["Ps"], dtype=float)
-    anchor = RutileCalibrationAnchor(
-        T_K=RUTILE_GC_CALIBRATION_T_K,
-        P_O2_Pa=AMBIENT_PO2_PA,
-    )
-    return rutile_delta_g_rutile_minus_iro3(
-        g_base, ps, ts, gas_rows, p_gas,
-        anchor=anchor, gas_use_vib=gas_use_vib,
-    )
+        formulas = data["formulas"]
+    anchor = RutileCalibrationAnchor(T_K=RUTILE_GC_CALIBRATION_T_K, P_O2_Pa=AMBIENT_PO2_PA)
+    return rutile_minus_iro3_at_anchor(g, ps, ts, formulas, anchor=anchor)
 
 
 def _write_rutile_gas_metadata(
@@ -229,7 +218,7 @@ def _ensure_rutile_dataset(*, label: str, force: bool) -> None:
             patch_gas_reservoir_thermo(output_npz, rows, use_vib_zpe=True)
         elif RUTILE_GC_GAS_INCLUDE_ROT_TRANS:
             patch_gas_rot_trans(output_npz, rows, use_vib_zpe=False)
-        delta_g = _anchor_delta_g(output_npz, gas_rows, p_gas=p_gas, gas_use_vib=gas_use_vib)
+        delta_g = _anchor_delta_g(output_npz)
         print(
             f"[cache] rutile GC {label}: P_gas={p_gas:.6g} Pa "
             f"(ΔG={delta_g:.4f} eV at T={RUTILE_GC_CALIBRATION_T_K:.0f} K, "
