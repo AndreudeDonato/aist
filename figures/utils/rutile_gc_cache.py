@@ -10,20 +10,20 @@ from aist.core.grandcanonical import run_gc
 
 from figures.config import (
     AMBIENT_PO2_PA,
-    IR_REF_PBE,
-    IR_REF_PBE0,
     IRO2_RUTILE_PBE,
     IRO2_RUTILE_PBE0,
-    O2_RUTILE_PBE,
-    O2_RUTILE_PBE0,
+    IR_REF_PBE,
+    IR_REF_PBE0,
+    O2_REF_PBE,
+    O2_REF_PBE0,
     RUTILE_GC_CACHE_DIR,
     RUTILE_GC_CALIBRATION_T_K,
+    RUTILE_GC_GAS_INCLUDE_ROT_TRANS,
     RUTILE_GC_GAS_P,
     RUTILE_GC_GAS_USE_VIB,
-    RUTILE_GC_GAS_INCLUDE_ROT_TRANS,
+    RUTILE_GC_NPZ,
     RUTILE_GC_N_P,
     RUTILE_GC_N_T,
-    RUTILE_GC_NPZ,
     RUTILE_GC_P_MAX,
     RUTILE_GC_P_MIN,
     RUTILE_GC_STRUCTURES,
@@ -43,14 +43,14 @@ def _rutile_dataset_specs(label: str) -> dict:
         return {
             "rutile": IRO2_RUTILE_PBE,
             "ir_ref": IR_REF_PBE,
-            "o2_traj": O2_RUTILE_PBE,
+            "o2_traj": O2_REF_PBE,
             "output_npz": RUTILE_GC_NPZ["PBE"],
             "structures_traj": RUTILE_GC_STRUCTURES["PBE"],
         }
     return {
         "rutile": IRO2_RUTILE_PBE0,
         "ir_ref": IR_REF_PBE0,
-        "o2_traj": O2_RUTILE_PBE0,
+        "o2_traj": O2_REF_PBE0,
         "output_npz": RUTILE_GC_NPZ["PBE0"],
         "structures_traj": RUTILE_GC_STRUCTURES["PBE0"],
     }
