@@ -13,7 +13,7 @@ Per-structure stage (PBE + PBE0 pooled)
       -> StandardScaler -> PCA (95%) -> KMeans (silhouette)
       -> clusters C0..CN ordered by oxidation; same labels on both functionals
 
-Outputs (under ``analysis/ace_results/``):
+Outputs (under ``figures/cache/ace/``, as built by ``figures/build_all.py``):
    plots/
      ace_ir_atom_pca.svg, ace_o_atom_pca.svg     (2D PCA scatter, atoms)
      ace_struct_clustering_2d.svg                 (2D PCA scatter, structures)
@@ -139,7 +139,7 @@ pop_vs_oxidation_bandwidth = None   # None -> auto from data span / n_bins
 pop_vs_oxidation_smooth_sigma = 1.0 # extra 1D Gaussian smooth along x (0 = off)
 
 # --- Output paths
-RESULTS_DIR = os.path.join(ROOT_DIR, "analysis", "ace_results")
+RESULTS_DIR = os.path.join(ROOT_DIR, "figures", "cache", "ace")   # where build_all writes it
 PLOTS_DIR = os.path.join(RESULTS_DIR, "plots")
 ATOMS_DIR = os.path.join(RESULTS_DIR, "atoms")
 
@@ -545,7 +545,7 @@ if __name__ == "__main__":
     _parser.add_argument(
         "--results-dir",
         default=None,
-        help="Output directory (default: analysis/ace_results)",
+        help="Output directory (default: figures/cache/ace)",
     )
     _args = _parser.parse_args()
     main(results_dir=_args.results_dir)
