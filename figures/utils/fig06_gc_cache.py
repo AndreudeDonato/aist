@@ -28,7 +28,6 @@ from figures.config import (
     gc_fig06_cache_config,
 )
 from figures.utils.cache import (
-    _any_newer_than,
     _gc_frames_stale,
     _gc_input_structures,
     _gc_kept_frames,
@@ -115,9 +114,7 @@ def ensure_fig06_gc(*, force: bool = False) -> None:
         or _gc_frames_stale(output_npz, kept, len(gas_rows))
     )
 
-    if not force and not stale and os.path.exists(output_npz) and not _any_newer_than(
-        sources, [output_npz]
-    ):
+    if not force and not stale and os.path.exists(output_npz):
         print(
             f"[cache] fig06 GC PBE0 up to date "
             f"({FIG06_N_T}×{FIG06_N_P}, T={FIG06_T_MIN:.0f}–{FIG06_T_MAX:.0f} K, "

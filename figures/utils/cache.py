@@ -73,13 +73,6 @@ def _mtime(path: str) -> float:
     return os.path.getmtime(path) if os.path.exists(path) else 0.0
 
 
-def _any_newer_than(sources: Iterable[str], outputs: Iterable[str]) -> bool:
-    if not all(os.path.exists(p) for p in outputs):
-        return True
-    t_out = min(_mtime(p) for p in outputs)
-    return any(_mtime(s) > t_out for s in sources)
-
-
 def _gc_npz_grid_mismatch(path: str) -> bool:
     if not os.path.exists(path):
         return True
@@ -283,9 +276,7 @@ def _ensure_gc_dataset(
         or _gc_frames_stale(output_npz, kept, len(gas_rows))
     )
     p_gas = float(GC_GAS_P[label])
-    if not force and not stale and os.path.exists(output_npz) and not _any_newer_than(
-        sources, [output_npz]
-    ):
+    if not force and not stale and os.path.exists(output_npz):
         print(f"[cache] grand-canonical {label} up to date ({GC_N_T}×{GC_N_P} grid, P_gas={p_gas:.3g} Pa)")
         return
 
@@ -372,7 +363,7 @@ def _ensure_gc_variants_dataset(*, label: str, structures_file: str, o2_ref: str
         or _gc_variants_stale(output_npz, label)
         or _gc_frames_stale(output_npz, kept, len(gas_rows))
     )
-    if not force and not stale and os.path.exists(output_npz) and not _any_newer_than(sources, [output_npz]):
+    if not force and not stale and os.path.exists(output_npz):
         print(f"[cache] GC variants {label} up to date ({GC_N_T}×{GC_N_P} grid)")
         return
 

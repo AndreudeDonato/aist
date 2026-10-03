@@ -32,7 +32,6 @@ from figures.config import (
     gc_rutile_cache_config,
     gc_rutile_gas_specs,
 )
-from figures.utils.cache import _any_newer_than
 from figures.utils.gc_gas_oxides import merge_gas_oxides, patch_gas_reservoir_thermo, patch_gas_rot_trans
 from figures.utils.cache_stamp import gc_config_settings, make_stamp, npz_stamp, write_npz_stamp
 from figures.utils.rutile_gc_calibrate import RutileCalibrationAnchor, rutile_minus_iro3_at_anchor
@@ -185,9 +184,7 @@ def _ensure_rutile_dataset(*, label: str, force: bool) -> None:
     stale = npz_stamp(output_npz) != stamp or _rutile_npz_stale(output_npz)
     p_stored = _stored_rutile_gas_p(output_npz)
 
-    if not force and not stale and os.path.exists(output_npz) and not _any_newer_than(
-        sources, [output_npz]
-    ):
+    if not force and not stale and os.path.exists(output_npz):
         vib_tag = "+vib gas" if gas_use_vib else "novib gas"
         print(
             f"[cache] rutile GC {label} up to date "
