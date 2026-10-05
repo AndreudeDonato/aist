@@ -88,7 +88,6 @@ def main() -> None:
         ax.set_xticklabels([f"Ir$_{{{n}}}$" for n in THERMO_IR_COUNTS])
         ax.set_xlabel(r"$n_{\mathrm{Ir}}$", fontsize=AXIS_LABEL_FONTSIZE)
         ax.tick_params(axis="both", labelsize=TICK_FONTSIZE)
-        ax.grid(axis="y", linewidth=0.3, alpha=0.5)
     axes[0].set_ylabel(r"$\langle n_O/n_{\mathrm{Ir}}\rangle$", fontsize=AXIS_LABEL_FONTSIZE)
 
     handles = [Line2D([], [], color=cond["color"], linewidth=1.5, label=cond["label"]) for cond in STANDARD_CONDITIONS]
