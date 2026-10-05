@@ -195,6 +195,15 @@ ATMOSPHERIC_PRESSURE_PA = 101325.0
 AMBIENT_PO2_FRACTION = 0.20
 AMBIENT_PO2_PA = ATMOSPHERIC_PRESSURE_PA * AMBIENT_PO2_FRACTION
 
+# The four (T, pO₂) conditions of the size-trend and IR-spectra figures (Andreu, 2026-10-05): 273 and 500 K at
+# low and ambient pO₂; read at the nearest grid point. Colours: blue = 273 K, orange = 500 K, light = low pO₂.
+STANDARD_CONDITIONS = (
+    {"label": r"273 K, $10^{-5}$ Pa", "T": 273.0, "P": 1.0e-5, "color": "#6baed6"},
+    {"label": r"273 K, ambient", "T": 273.0, "P": AMBIENT_PO2_PA, "color": "#08519c"},
+    {"label": r"500 K, $10^{-5}$ Pa", "T": 500.0, "P": 1.0e-5, "color": "#fd8d3c"},
+    {"label": r"500 K, ambient", "T": 500.0, "P": AMBIENT_PO2_PA, "color": "#a63603"},
+)
+
 # Fixed thermodynamic points (Figures 9 population lines)
 FIXED_POINTS = [
     {"label": "273K_ambient_pO2", "T": 273.0, "P": AMBIENT_PO2_PA},

@@ -429,6 +429,8 @@ _SUPPLEMENTARY_NEEDS_ACE = {
 }
 _SUPPLEMENTARY_NEEDS_GC = {
     "supp_gc_g_vs_mu",
+    "supp_oxidation_vs_n_ir",
+    "supp_ir_spectra",
     "supp_ir_size_gc_maps",
     "supp_ir_size_o_motif_ratio_maps",
     "supp_ir_size_vib_vs_novib_maps",
@@ -448,6 +450,7 @@ _SUPPLEMENTARY_NEEDS_GC = {
 }
 _SUPPLEMENTARY_NEEDS_GC_VARIANTS = {
     "supp_gc_g_vs_mu",
+    "supp_oxidation_vs_n_ir",
     "supp_ir_size_gc_maps",
     "supp_ir_size_o_motif_ratio_maps",
     "supp_ir_size_vib_vs_novib_maps",

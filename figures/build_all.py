@@ -69,6 +69,8 @@ SUPPLEMENTARY_MODULES = {
     "supp_ranked_pop_by_ir": "Ranked structure pop (%) at low pO₂ — novib | vib × PBE|PBE0 × 273 | 500 K (2×4; former Fig. 8)",
     "supp_ir_size_oxidation_at_po2": "Per-Ir ⟨n_O/n_Ir⟩ & ⟨HOMO–LUMO⟩ vs T at ambient pO₂ (2×3; former Fig. 12)",
     "supp_vib_dof_gvib_contrib": "G_vib vs N_vib (273|500 K) + per-Ir vib ΔG vs T (ambient|low pO₂), PBE | PBE0 (4×2)",
+    "supp_oxidation_vs_n_ir": "⟨n_O/n_Ir⟩ vs Ir size at 273|500 K × low|ambient pO₂, with | without vibrations (PBE | PBE0)",
+    "supp_ir_spectra": "Population-weighted IR spectra by Ir size at 273|500 K × low|ambient pO₂ (PBE | PBE0)",
 }
 
 
