@@ -26,6 +26,13 @@ python3 -m pytest tests/         # checks the thermodynamics core against ASE
 - `aist.core.minima` — lowest-energy structure per stoichiometry.
 - `aist.ace` — SOAP descriptors (dscribe) → PCA → UMAP → KMeans atom motifs and structure clusters, O motifs named
   by bonding (bridging, terminal, molecular): `aist.ace.pipeline.main(results_dir=..., data_dir=...)`.
+- `aist.core.ensemble` — re-weighting from a (patched) free-energy tensor, subset renormalisation, lowest-G
+  structure; `aist.core.support` — support-stabilisation proxy; `aist.core.reservoir` — gas-phase reservoir
+  species appended to the pool; `aist.core.reference` — chemical potential of the reservoir molecule on the
+  (T, p) grid; `aist.core.subset` — views restricted to one metal-atom count (oxidation maps, winners,
+  property-vs-T curves, ranked populations); `aist.core.gaps` — HOMO–LUMO projections;
+  `aist.core.calibration` — G differences at an anchor (T, p).
+- `aist.cache_stamp` — stamps (code version, settings, input digests) that tell when a cached result is stale.
 - `aist.inertia`, `aist.steinhardt`, `aist.stoichiometry` (`balance_reaction`).
 
 ## Input format

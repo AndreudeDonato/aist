@@ -148,15 +148,18 @@ class ThermoPartitionFunctions:
         T_flat = T.ravel()[np.newaxis, :]
 
         vib_temp = Vib * 100.0 * self.c * self.h_planck / self.kb
-        if zpe:
-            q_ind_vib = np.exp(-vib_temp / (2.0 * T_flat)) / (1 - np.exp(-vib_temp / T_flat))
-            e_ind_vib = vib_temp * (0.5 + 1.0 / (np.exp(vib_temp / T_flat) - 1))
-        else:
-            q_ind_vib = 1 / (1 - np.exp(-vib_temp / T_flat))
-            e_ind_vib = vib_temp / (np.exp(vib_temp / T_flat) - 1)
+        # At low T, exp(theta/T) overflows to inf; the resulting 1/(inf - 1) = 0 terms are the correct limits,
+        # so the overflow is expected and silenced here instead of warning on every map.
+        with np.errstate(over="ignore"):
+            if zpe:
+                q_ind_vib = np.exp(-vib_temp / (2.0 * T_flat)) / (1 - np.exp(-vib_temp / T_flat))
+                e_ind_vib = vib_temp * (0.5 + 1.0 / (np.exp(vib_temp / T_flat) - 1))
+            else:
+                q_ind_vib = 1 / (1 - np.exp(-vib_temp / T_flat))
+                e_ind_vib = vib_temp / (np.exp(vib_temp / T_flat) - 1)
 
-        s_ind_vib = (vib_temp / T_flat) / (np.exp(vib_temp / T_flat) - 1) - np.log(1 - np.exp(-vib_temp / T_flat))
-        
+            s_ind_vib = (vib_temp / T_flat) / (np.exp(vib_temp / T_flat) - 1) - np.log(1 - np.exp(-vib_temp / T_flat))
+
         qvib = np.prod(q_ind_vib, axis=0)
         svib = self.r_cons * np.sum(s_ind_vib, axis=0)
         evib = self.r_cons * np.sum(e_ind_vib, axis=0)
