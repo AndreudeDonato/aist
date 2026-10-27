@@ -13,7 +13,7 @@ Per-structure stage (PBE + PBE0 pooled)
       -> StandardScaler -> PCA (95%) -> KMeans (silhouette)
       -> clusters C0..CN ordered by oxidation; same labels on both functionals
 
-Outputs (under ``figures/cache/ace/``, as built by ``figures/build_all.py``):
+Outputs (under ``results_dir``, ``main(results_dir=...)``; the paper pipeline uses its figures/cache/ace/):
    plots/
      ace_ir_atom_pca.svg, ace_o_atom_pca.svg     (2D PCA scatter, atoms)
      ace_struct_clustering_2d.svg                 (2D PCA scatter, structures)
@@ -33,16 +33,12 @@ Outputs (under ``figures/cache/ace/``, as built by ``figures/build_all.py``):
 from __future__ import annotations
 
 import os
-import sys
 
 import numpy as np
 from ase.io import read
 
 
 PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__))
-ROOT_DIR = os.path.dirname(os.path.dirname(PACKAGE_DIR))
-if ROOT_DIR not in sys.path:
-    sys.path.insert(0, ROOT_DIR)
 
 from aist.ace import io as ace_io
 from aist.ace import plotting as ace_plot
@@ -70,11 +66,9 @@ from aist.thermo import ThermoPartitionFunctions
 # ======================= USER INPUT =========================
 # ============================================================
 
-# --- Datasets (atoms and structures both pooled across PBE + PBE0)
-datasets = [
-    {"label": "PBE", "traj": os.path.join(ROOT_DIR, "data/IryOxPBE.traj")},
-    {"label": "PBE0", "traj": os.path.join(ROOT_DIR, "data/IryOxPBE0.traj")},
-]
+# --- Datasets (atoms and structures pooled across them). Configure with ``set_data_dir(<dir>)`` (expects
+# ``<dir>/IryOxPBE.traj`` and ``<dir>/IryOxPBE0.traj``) or ``main(datasets_override=[{"label": ..., "traj": ...}, ...])``.
+datasets: list[dict] = []
 
 # --- ACE / SOAP descriptor (dscribe.SOAP = radial basis x spherical harmonics)
 soap_species = ("Ir", "O")
@@ -139,7 +133,7 @@ pop_vs_oxidation_bandwidth = None   # None -> auto from data span / n_bins
 pop_vs_oxidation_smooth_sigma = 1.0 # extra 1D Gaussian smooth along x (0 = off)
 
 # --- Output paths
-RESULTS_DIR = os.path.join(ROOT_DIR, "figures", "cache", "ace")   # where build_all writes it
+RESULTS_DIR = os.path.join(os.getcwd(), "ace_results")   # default; callers pass results_dir to main()
 PLOTS_DIR = os.path.join(RESULTS_DIR, "plots")
 ATOMS_DIR = os.path.join(RESULTS_DIR, "atoms")
 
@@ -259,6 +253,9 @@ def main(
         set_data_dir(data_dir)
     if datasets_override is not None:
         datasets = datasets_override
+    if not datasets:
+        raise ValueError("No datasets configured: pass data_dir=<dir> (with IryOxPBE.traj and IryOxPBE0.traj) "
+                         "or datasets_override=[{'label': ..., 'traj': ...}, ...] to aist.ace.pipeline.main()")
     if results_dir is not None:
         configure_outputs(results_dir)
     set_reproducible_seed(random_state)

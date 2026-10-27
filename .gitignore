@@ -1,13 +1,6 @@
 __pycache__/
 *.pyc
 *.code-workspace
-scripts/results/
-scripts/resultsall/
-scripts/IryOx/
-figures/cache/
-analysis/Iratoms/cache/
-
-# Generated: rebuilt from data/ by figures/build_all.py (see README)
-figures/outputs/
 *.egg-info/
 .cursor/
+ace_results/

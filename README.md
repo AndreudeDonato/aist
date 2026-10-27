@@ -1,62 +1,39 @@
 # aist
 
-Grand-canonical thermodynamics of gas-phase Ir_yO_x clusters (y = 3–9) and the figures of the
-IryOx paper (`../aist_paper`). Python package + figure scripts.
+Ab initio statistical thermodynamics for clusters, on ASE `Atoms` objects: grand-canonical ensembles over isomers
+and stoichiometries, harmonic vibrational and rotational thermodynamics, and SOAP / UMAP / KMeans motif
+classification of atoms and structures.
 
-## Layout
+Developed for the IryOx papers (Andreu A. de Donato, IQTCUB, Universitat de Barcelona). The manuscripts, their
+figure pipeline and the curated datasets live in a separate repository (`aist_paper`), which imports this package.
+Nothing in this package reads project data.
 
-- `aist/` — the library: grand-canonical ensembles (`core/`), vibrational and rotational thermodynamics
-  (`thermo.py`, `composedthermo.py`, `core/vibrational.py`), ACE/SOAP motif clustering (`ace/`)
-- `data/` — the only input: `IryOxPBE.traj`, `IryOxPBE0.traj` and the reference structures
-  (Ir, O2, IrO2, IrO3, rutile IrO2)
-- `figures/` — one script per paper figure (`fig*.py`, `supp_*.py`), `config.py`, `build_all.py`
-- `analysis/` — exploratory analysis scripts
-- `docs/` — methodology notes
-- `scripts/` — older stand-alone scripts
-
-## What enters which figures
-
-- Structure analysis and the ACE/SOAP clustering use every structure of both trajectories (Ir3–Ir9).
-- Thermodynamics (everything grand-canonical) uses Ir4–Ir6 only, for both functionals
-  (`config.GC_IR_COUNTS`), with vibrations for both (`GC_USE_VIB_ZPE_BY_DATASET`). Structures without a
-  spectrum are left out of the ensembles and listed in `figures/cache/gc_excluded_<label>.tsv`; each cache has
-  a `<npz>_frames.npy` sidecar mapping its rows to trajectory frames.
-- The vibrational figures compare PBE and PBE0, each with its own references
-  (`figures/utils/datasets.py`: `dataset_inputs`, `gc_structures`).
-
-## Regenerating everything
-
-Every figure is rebuilt from `data/`; nothing derived is kept in the repository.
+## Install
 
 ```bash
-pip install -e .                         # once
-python3 figures/build_all.py             # cache (figures/cache/) + all figures (figures/outputs/)
-python3 figures/build_all.py --only 3 7  # some figures
-python3 figures/build_all.py --rebuild-cache
-python3 figures/build_all.py --no-paper      # do not touch ../aist_paper
+pip install -e .                 # editable install
+python3 -m pytest tests/         # checks the thermodynamics core against ASE
 ```
 
-## Tests
+## What is in the package
 
-```bash
-python3 -m pytest tests/
-```
+- `aist.thermo`, `aist.composedthermo` — partition functions and G = E + ZPE + U(T) − T·S per species
+  (translational, rotational, vibrational, electronic), read from `Atoms.info` metadata.
+- `aist.core.grandcanonical` — `GCConfig`, `compute_gc`, `run_gc`: formation free energies per reference atom on a
+  (T, p) grid, Boltzmann populations with point-group degeneracies, ensemble projections of per-structure properties.
+- `aist.core.gc_variants` — full / novib / vib-only / ZPE-only ensembles on one grid.
+- `aist.core.vibrational` — ZPE, characteristic temperatures, energy-weighted Θ_eff maps.
+- `aist.core.minima` — lowest-energy structure per stoichiometry.
+- `aist.ace` — SOAP descriptors (dscribe) → PCA → UMAP → KMeans atom motifs and structure clusters, O motifs named
+  by bonding (bridging, terminal, molecular): `aist.ace.pipeline.main(results_dir=..., data_dir=...)`.
+- `aist.inertia`, `aist.steinhardt`, `aist.stoichiometry` (`balance_reaction`).
 
-`tests/test_thermo.py` checks the thermodynamics core against ASE (`IdealGasThermo` for O₂ and CH₄,
-`HarmonicThermo`) and the Ir-normalized grand-canonical formula of the Methods on a toy ensemble.
+## Input format
 
-## Caches
+ASE trajectories whose frames carry a single-point energy and, in `atoms.info`: `frequencies` (cm⁻¹, all 3N
+modes), `zpe` (eV), `total_spin` (`{"J": multiplicity}`), `hirshfeld` (charges, spins, volumes) and `HOMO-LUMO`
+(eV). Reference species (metal atom, O₂) as extxyz files with their energies.
 
-Every cache in `figures/cache/` (GC, variants, Fig. 6, rutile, ACE) stores a stamp: `CACHE_VERSION` from
-`figures/config.py`, the thermodynamic settings and the SHA-1 of its input files. A cache whose stamp differs
-is rebuilt, so changing a setting or a trajectory is enough. After a code change that alters cached numbers,
-bump `CACHE_VERSION`.
+## Methods
 
-## Paper figures
-
-Every figure the manuscript uses is also written into `../aist_paper/figures/{main,supplementary}/`
-(SVG + PNG, Inkscape at 150 dpi as `aist_paper/convert_svgs.sh` does; `figures/utils/paper.py`), so
-`aist_paper/compile_all.sh` always picks up the latest version. A figure goes where the paper already
-has it and is only rewritten when its content changed; to add a new figure to the paper, put a first
-copy in the right folder once. Nothing is written there when a figure fails. `AIST_PAPER_FIGURES=<dir>`
-points it elsewhere.
+`docs/methodology_clustering_and_thermodynamics.md`.

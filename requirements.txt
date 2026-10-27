@@ -1,14 +1,11 @@
-# Imported by aist/, figures/ and analysis/ (2026-10-01)
+# Runtime dependencies of the aist package (see setup.py); pytest for tests/
 ase
 numpy
 scipy
-matplotlib
 sympy
-pandas
 pymatgen
+matplotlib
 scikit-learn
 umap-learn
-pillow
 dscribe
-mace-torch
-pytest  # tests/
+pytest
