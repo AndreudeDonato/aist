@@ -286,3 +286,27 @@ def test_variants_match_legacy_run_gc_variants(toy_files, tmp_path):
         assert np.array_equal(new.G, old[f"{name}_G_tensor"]), name
         assert np.array_equal(new.populations, old[f"{name}_Pgi"]), name
         assert np.array_equal(new.phase_index, old[f"{name}_phase_index"]), name
+
+
+def test_contributions_per_row_add_up_and_match_the_0_1_slab(toy_files):
+    """Per-row parts of ΔG at one pressure, as the IryOx figure helpers computed them from 0.1 pieces."""
+    from aist_v01.composedthermo import compute_thermo_contributions
+    from aist_v01.stoichiometry import balance_reaction
+
+    paths, clusters, _ = toy_files
+    ens = _ir_o2(clusters, terms=VIB.replace(pressure=0.01))
+    T, p = np.linspace(200.0, 900.0, 6), 3e2
+    res = ens.evaluate(T=T, p={"O2": p}, dtype=np.float64)
+    parts = res.contributions()
+    assert np.allclose(sum(parts.values()), res.G, atol=1e-9)
+    assert set(res.contributions(names=["vibrational"])) == {"vibrational"}
+
+    o2, ir = toy.o2(), toy.metal_atom()
+    _, mu = compute_thermo_contributions(o2, T, np.full_like(T, p), elec_states=[(0.0, 3)])
+    for i, atoms in enumerate(clusters):
+        _, c = compute_thermo_contributions(atoms, T, np.full_like(T, 0.01), include_r=False, include_t=False,
+                                            elec_states=[(0.0, atoms.info["total_spin"]["J"])])
+        r, q = balance_reaction([ir, o2], [atoms])
+        vib = q[0] * (c["ev"] + c["zpe"] - T * c["sv"]) + r[0] * (0 + 0 - T * 0) + r[1] * (
+            mu["ev"] + mu["zpe"] - T * mu["sv"])
+        assert np.array_equal(parts["vibrational"][i], vib)

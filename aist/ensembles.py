@@ -255,38 +255,65 @@ class EnsembleResult:
         """Index (into ``rows``) of the lowest-ΔG structure at every grid point."""
         return self.phase_index
 
+    def contributions(self, names=None) -> dict:
+        """Each row's ΔG split into parts on the grid: ``dft`` (bare energies), ``electronic``, ``vibrational``
+        (with ZPE), ``rotational`` and ``translational``; arrays of shape ``(rows, *grid)`` that add up to ΔG.
+
+        Each part collects the structure's term and the matching terms of the references and reservoirs, with
+        the balance coefficients. ``names`` restricts the output to some parts (each costs one rows × grid
+        array). Needs every reservoir given by pressure.
+        """
+        names = list(names or _PARTS)
+        out = {name: np.empty((len(self.rows),) + self.grid.shape) for name in names}
+        for j, parts in enumerate(self._row_parts()):
+            for name in names:
+                out[name][j] = parts[name]
+        return out
+
     def decomposition(self) -> dict:
-        """Ensemble averages of the parts of ΔG: bare DFT, electronic, vibrational (with ZPE), rotational and
-        translational (keys ``E_dft_avg`` ... ``E_trans_avg``). Needs every reservoir given by pressure."""
+        """Ensemble averages of the parts of ΔG (``contributions``), keys ``E_dft_avg``, ``E_elec_avg``,
+        ``E_vib_avg``, ``E_rot_avg`` and ``E_trans_avg``."""
+        out = {key: np.zeros(self.grid.shape) for key in _PARTS.values()}
+        for j, parts in enumerate(self._row_parts()):
+            w = self.populations[j].astype(float)
+            for name, key in _PARTS.items():
+                out[key] += w * parts[name]
+        return out
+
+    def _row_parts(self):
+        """Yield, row by row, the parts of ΔG on the grid (one implementation for both methods above)."""
         ens, grid = self.ensemble, self.grid
         if any(grid.modes[r.name] != "p" for r in ens.reservoirs):
-            raise ValueError("decomposition() needs every reservoir given by pressure")
+            raise ValueError("contributions need every reservoir given by pressure")
         Tg, T1 = grid.T, grid.T_values
         res = [_parts(r.atoms, Tg, grid.full[r.name], r.terms, r.multiplicity, None, r.symmetry_number)
                for r in ens.reservoirs]
-        out = {k: np.zeros(grid.shape) for k in ("E_dft_avg", "E_elec_avg", "E_vib_avg", "E_rot_avg", "E_trans_avg")}
         k0 = ens._n_ref
 
         def g(c, e, s, T):
             return c[e] - T * c[s]
 
-        for j, i in enumerate(self.rows):
-            w = self.populations[j].astype(float)
+        for i in self.rows:
             c = _parts(ens.structures[i], T1, None, ens.terms[i], None, None, None)
+            parts = {}
             dft = ens._p[i] * c["energy"]
             for r, ref in enumerate(ens.references):
                 dft = dft + ens._c[i, r] * ref.energy_per_atom
             for k, rc in enumerate(res):
                 dft = dft + ens._c[i, k0 + k] * rc["energy"]
-            out["E_dft_avg"] += w * dft
-            for key, (e, s) in (("E_elec_avg", ("eelec", "selec")), ("E_rot_avg", ("er", "sr")),
-                                ("E_trans_avg", ("et", "st"))):
+            parts["dft"] = np.broadcast_to(dft, grid.shape)
+            for name, (e, s) in (("electronic", ("eelec", "selec")), ("rotational", ("er", "sr")),
+                                 ("translational", ("et", "st"))):
                 term = ens._p[i] * grid.along_T(g(c, e, s, T1))
                 for k, rc in enumerate(res):
                     term = term + ens._c[i, k0 + k] * g(rc, e, s, Tg)
-                out[key] += w * term
+                parts[name] = term
             vib = ens._p[i] * grid.along_T(c["ev"] + c["zpe"] - T1 * c["sv"])
             for k, rc in enumerate(res):
                 vib = vib + ens._c[i, k0 + k] * (rc["ev"] + rc["zpe"] - Tg * rc["sv"])
-            out["E_vib_avg"] += w * vib
-        return out
+            parts["vibrational"] = vib
+            yield parts
+
+
+_PARTS = {"dft": "E_dft_avg", "electronic": "E_elec_avg", "vibrational": "E_vib_avg", "rotational": "E_rot_avg",
+          "translational": "E_trans_avg"}
