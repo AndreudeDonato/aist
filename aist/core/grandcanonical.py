@@ -1,7 +1,7 @@
 """Grand-canonical ensembles in the 0.1 file-based API (``compute_gc`` / ``run_gc`` NPZ dictionaries).
 
 These functions keep the names, arguments and outputs of aist 0.1 and are thin layers over the species-agnostic
-core in ``aist.gce`` (``GrandCanonicalEnsemble``): one reference element read from ``GCConfig.reference_file``
+core in ``aist.ensembles`` (``GrandCanonicalEnsemble``): one reference element read from ``GCConfig.reference_file``
 and one single-element reservoir molecule read from ``pressure_file``. The NPZ keys keep their IryOx names
 (``x_per_non_o``, ``q_ir_mean``, ...); here "O" means the reservoir element and "Ir" the reference element.
 """
@@ -101,15 +101,13 @@ def mean_ir_hirshfeld_charge(atoms) -> float:
 
 
 def reservoir_from_file(structure: Atoms, cfg: GCConfig):
-    """The reservoir molecule of a 0.1-style computation: multiplicity from ``info`` (O2 files without it: triplet).
-
-    With ``include_e_mu=False`` no multiplicity is needed.
-    """
-    from aist.species import Reservoir, ThermoTerms, spin_multiplicity
+    """The reservoir molecule of a 0.1-style computation: multiplicity from ``info`` (O2 files without it: triplet)."""
+    from aist.contributions import ThermoTerms, _spin_multiplicity
+    from aist.ensembles import Reservoir
 
     terms = ThermoTerms(vibrations=cfg.include_v_mu, zpe=cfg.include_zpe_mu, electronic=cfg.include_e_mu,
                         rotation=cfg.include_r_mu, translation=cfg.include_t_mu)
-    mult = spin_multiplicity(structure)
+    mult = _spin_multiplicity(structure)
     if mult is None and structure.get_chemical_formula() == "O2":
         mult = 3  # the 0.1 API's O2 triplet, for O2 files without spin data
     return Reservoir(structure, multiplicity=mult, terms=terms)
@@ -117,8 +115,8 @@ def reservoir_from_file(structure: Atoms, cfg: GCConfig):
 
 def ensemble_from_config(structures, structure_pressure: Atoms, cfg: GCConfig):
     """The ``GrandCanonicalEnsemble`` that ``compute_gc`` evaluates for ``cfg``."""
-    from aist.gce import GrandCanonicalEnsemble
-    from aist.species import Reference, ThermoTerms
+    from aist.contributions import ThermoTerms
+    from aist.ensembles import GrandCanonicalEnsemble, Reference
 
     reservoir = reservoir_from_file(structure_pressure, cfg)
     if len(reservoir.composition) != 1:
@@ -238,7 +236,7 @@ def compute_gc(
             moments_vol.append(principal_moments_sorted_hirshfeld(structure, volumes))
         E_struct = get_energy(structure)
         E0_dft_structures.append(E_struct)
-        Eform_dft_structures.append(ens._p[i] * E_struct + ens._c_ref[i, 0] * E_ref + ens._c_res[i, 0] * reservoir.energy)
+        Eform_dft_structures.append(ens._p[i] * E_struct + ens._c[i, 0] * E_ref + ens._c[i, 1] * reservoir.energy)
 
     o_counts = np.array(ens.count(x_element), dtype=float)
     non_o_counts = np.array(ens.normalization, dtype=float)

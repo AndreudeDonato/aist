@@ -15,7 +15,7 @@ from ase.io import read
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from aist import GrandCanonicalEnsemble, Reference, Reservoir, SupportShift, ThermoTerms  # noqa: E402
+from aist import GrandCanonicalEnsemble, Reference, Reservoir, ThermoTerms  # noqa: E402
 
 PAPER = os.environ.get("AIST_PAPER_DIR")
 pytestmark = pytest.mark.skipif(not PAPER, reason="set AIST_PAPER_DIR to the paper repository to run")
@@ -26,7 +26,7 @@ BRANCHES = (("full", True, True), ("novib", False, False), ("vib_nozpe", True, F
 
 def _ensemble(label: str, cache: str):
     frames = np.load(os.path.join(PAPER, "figures", "cache", f"{cache}_frames.npy"))
-    assert np.all(frames >= 0), "gas-phase rows in the cache: extend this test with GasSpecies"
+    assert np.all(frames >= 0), "gas-phase rows in the cache: extend this test with per-row terms"
     traj = read(os.path.join(PAPER, "data", f"IryOx{label}.traj"), index=":")
     return GrandCanonicalEnsemble(
         [traj[i] for i in frames],
@@ -37,17 +37,21 @@ def _ensemble(label: str, cache: str):
     )
 
 
-def _support(cached) -> SupportShift:
-    # the cache stores the settings in float32; the shift was applied with the config's decimal values
-    return SupportShift(round(float(cached["gc_support_ev_per_ir"]), 6),
-                        {"O": round(float(cached["gc_support_ev_per_o"]), 6)})
+def _support(ens, cached) -> np.ndarray:
+    """The paper's support proxy as a correction to ΔG per Ir: −(a + b n_O/n_Ir) on every cluster row.
+
+    The cache stores a and b in float32; the shift was applied with the config's decimal values.
+    """
+    a, b = round(float(cached["gc_support_ev_per_ir"]), 6), round(float(cached["gc_support_ev_per_o"]), 6)
+    n_o, n_ir = ens.count("O"), ens.count("Ir")
+    return -np.array([a + b * (int(o) / int(i)) for o, i in zip(n_o, n_ir)])
 
 
 @pytest.mark.parametrize("label,cache,_", CASES)
 def test_main_ensemble_is_reproduced(label, cache, _):
     cached = np.load(os.path.join(PAPER, "figures", "cache", f"{cache}.npz"), allow_pickle=True)
     ens = _ensemble(label, cache)
-    res = ens.evaluate(T=cached["Ts"], p={"O2": cached["Ps"]}).shifted(_support(cached))
+    res = ens.evaluate(T=cached["Ts"], p={"O2": cached["Ps"]}).shifted(_support(ens, cached))
     assert np.array_equal(res.G, cached["G_tensor"])
     assert np.array_equal(res.populations, cached["Pgi"])
     assert np.array_equal(res.phase_index, cached["phase_index"])
@@ -61,7 +65,7 @@ def test_variants_are_reproduced(label, _, cache):
     ens = _ensemble(label, cache)
     for name, vib, zpe in BRANCHES:
         res = ens.variant(vibrations=vib, zpe=zpe).evaluate(T=cached["Ts"], p={"O2": cached["Ps"]})
-        res = res.shifted(_support(cached))
+        res = res.shifted(_support(ens, cached))
         assert np.array_equal(res.G, cached[f"{name}_G_tensor"]), name
         assert np.array_equal(res.populations, cached[f"{name}_Pgi"]), name
         assert np.array_equal(res.phase_index, cached[f"{name}_phase_index"]), name

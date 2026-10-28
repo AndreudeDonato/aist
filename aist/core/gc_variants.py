@@ -1,4 +1,4 @@
-"""Full / novib / vib-no-ZPE / ZPE-only grand-canonical variants (0.1 file-based API over ``aist.gce``)."""
+"""Full / novib / vib-no-ZPE / ZPE-only grand-canonical variants (0.1 file-based API over ``aist.ensembles``)."""
 from __future__ import annotations
 
 import os

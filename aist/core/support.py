@@ -20,7 +20,7 @@ def support_corrections_per_ir(
     """Per-row stabilisation (eV per metal atom, positive); zero for gas rows.
 
     Metal atoms are all atoms other than ``ligand`` (default O), as in ``compute_gc``'s ``non_o_counts``; for
-    several ligand elements use ``aist.SupportShift`` on a ``GrandCanonicalEnsemble``.
+    several ligand elements shift an ``aist.ensembles.EnsembleResult`` (``shifted``) with your own correction.
     """
     structures = read(structures_file, index=":")
     gas = {int(i) for i in gas_rows_idx}

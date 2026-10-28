@@ -94,11 +94,13 @@ def test_compute_gc_takes_other_metals(files):
     assert np.array_equal(ir["Pgi"], pt["Pgi"]) and np.array_equal(ir["x_per_non_o"], pt["x_per_non_o"])
 
 
-def test_compute_gc_needs_the_spin_of_a_non_o2_reservoir(files):
+def test_compute_gc_reads_the_reservoir_spin_from_the_file(files):
+    """Without spin data a non-O2 reservoir gets degeneracy 1 (with a warning); with it, its own multiplicity."""
     cfg = _cfg(sys.modules["aist.core.grandcanonical"], files["ir"])
-    with pytest.raises(ValueError, match="multiplicity"):
-        compute_gc(files["ir_h"], files["h2"], cfg, save_outputs=False)
-    out = compute_gc(files["ir_h"], files["h2_spin"], cfg, save_outputs=False)
+    with pytest.warns(UserWarning, match="degeneracy 1"):
+        no_spin = compute_gc(files["ir_h"], files["h2"], cfg, save_outputs=False)
+    out = compute_gc(files["ir_h"], files["h2_spin"], cfg, save_outputs=False)  # J = 1: the same numbers
+    assert np.array_equal(no_spin["G_tensor"], out["G_tensor"])
     structures = read(files["ir_h"], ":")
     assert np.array_equal(out["x_values"], [a.get_chemical_symbols().count("H") for a in structures])
     assert np.array_equal(out["non_o_counts"], [a.get_chemical_symbols().count("Ir") for a in structures])
