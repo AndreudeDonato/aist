@@ -1,8 +1,7 @@
 """Thermodynamic conditions: temperature and one pressure or Δμ per reservoir, any of them an axis.
 
 Every array-valued quantity becomes a grid axis and every scalar stays fixed. The default axis order is the
-reservoirs (in the order they were given) and then T, which for one reservoir is the ``(p, T)`` layout of the
-``compute_gc`` tensors.
+reservoirs (in the order they were given) and then T: for one reservoir, a ``(p, T)`` layout.
 """
 from __future__ import annotations
 

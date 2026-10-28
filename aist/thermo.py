@@ -59,26 +59,6 @@ class ThermoFromAtoms:
     def get_electronic(self, states, T):
         return self.tp.get_electronic(states, T)
 
-    def get_nuclear_spin(self, nuclear_spins):
-        return self.tp.get_nuclear_spin(nuclear_spins)
-
-    def get_total_thermo(self, T, P, vib_freqs, elec_states, nuclear_spins, include_zpe=False):
-        return self.tp.get_total_thermo(
-            self.atoms, T, P, vib_freqs, elec_states, nuclear_spins, include_zpe=include_zpe
-        )
-    
-    def get_enthalpy(self, T, P, vib_freqs, elec_states, nuclear_spins, include_zpe=False):
-        """Compute H = U + RT"""
-        etot, _, _ = self.get_total_thermo(T, P, vib_freqs, elec_states, nuclear_spins, include_zpe=include_zpe)
-        H = etot + self.tp.r_cons * T * self.tp.Jmol_to_eV  # RT term
-        return H
-
-    def get_gibbs(self, T, P, vib_freqs, elec_states, nuclear_spins, include_zpe=False):
-        """Compute G = H - T*S"""
-        etot, stot, _ = self.get_total_thermo(T, P, vib_freqs, elec_states, nuclear_spins, include_zpe=include_zpe)
-        H = etot + self.tp.r_cons * T * self.tp.Jmol_to_eV
-        G = H - T * stot
-        return G
 
 class ThermoPartitionFunctions:
     def __init__(self):
@@ -115,12 +95,6 @@ class ThermoPartitionFunctions:
         eigvals = np.linalg.eigvalsh(I)
         return np.count_nonzero(eigvals < tol) == 1
     
-    def get_num_vibrational_modes(self, atoms):
-        n_atoms = len(atoms)
-        if n_atoms < 2:
-            return 0
-        return 3 * n_atoms - (5 if self.is_linear(atoms) else 6)
-
     def get_symmetry_number_from_point_group(self, atoms):
         mol = Molecule(species=atoms.get_chemical_symbols(), coords=atoms.get_positions())
         pga = PointGroupAnalyzer(mol)
@@ -213,35 +187,3 @@ class ThermoPartitionFunctions:
         selec_ev = selec * self.Jmol_to_eV
 
         return eelec.reshape(T_shape), selec_ev.reshape(T_shape), qelec.reshape(T_shape)
-
-    def get_nuclear_spin(self, nuclear_spins):
-        qspin = 1
-        for I in nuclear_spins:
-            qspin *= int(2 * I + 1)
-        sspin = self.r_cons * np.log(qspin)
-        return sspin * self.Jmol_to_eV, qspin
-
-    def get_total_thermo(self, atoms, T, P, vib_freqs, elec_states, nuclear_spins, include_zpe=False):
-        # Translational
-        etrans, strans, qtrans = self.get_translational(T, P, atoms)
-        
-        # Vibrational (optionally include ZPE)
-        evib, svib, qvib = self.get_vibrational(vib_freqs, T, zpe=include_zpe)
-        
-        # Rotational
-        erot, srot, qrot = self.get_rotational(atoms, T)
-        
-        # Electronic
-        eelec, selec, qelec = self.get_electronic(elec_states, T)
-        
-        # Nuclear spin
-        sspin, qspin = self.get_nuclear_spin(nuclear_spins)
-        
-        # Total energy and entropy
-        etot = etrans + evib + erot + eelec
-        stot = strans + svib + srot + selec + sspin
-        
-        # Total partition function
-        qtot = qtrans * qvib * qrot * qelec * qspin
-        
-        return etot, stot, qtot

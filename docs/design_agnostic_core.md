@@ -100,58 +100,44 @@ IryOx or several chemical potentials live in example scripts, never hard-coded.
 Paper I ensembles bit-identical. Gas rows are computed in one step: 0.1 rounded them twice (base, then patch), so
 they agree with it to float32 rounding (≤ 1e-6 eV), with the same lowest-G structure everywhere.
 
-## 4. Continuity with `aist_paper` (the contract)
+## 4. Continuity with `aist_paper`
 
-The contract is every name `aist_paper/figures` and `paper2` import today, as of 2026-10-28:
-- `aist.core.grandcanonical`: `GCConfig`, `compute_gc`, `run_gc`, `GC_CONTRIBUTION_SERIES`, `pressure_grid_index`,
-  `temperature_grid_index`, `global_minimum_population_map`, `mean_ir_hirshfeld_charge`;
-- `aist.core.gc_variants.run_gc_variants`;
-- `aist.core.ensemble`, `reservoir`, `support`, `reference`, `subset`, `gaps`, `calibration`, `vibrational`, `minima`
-  (every name in use);
-- `aist.composedthermo`, `aist.thermo`, `aist.stoichiometry`, `aist.utils`, `aist.inertia`, `aist.steinhardt`,
-  `aist.cache_stamp`;
-- `aist.ace.*` (pipeline, join, io, common, constants, clustering, datasets, descriptors, plotting, reproducibility).
+The paper's figure code was switched to these names by the FABLE session (aist_paper branch `agnostic-switch`).
+47 of 49 figures are byte-identical. Fig. 6 and the rutile maps agree to float32 rounding (ΔG ≤ 1e-6 eV, the same
+lowest-G structure everywhere).
 
-These keep their signatures and outputs. The thermodynamic ones become thin functions over the new core (Ir/O
-behaviour taken from the files they are given). The exploratory `analysis/` and `scripts/` folders are best effort.
-`GCConfig` keeps its fields so that the cache stamps of `aist_paper` do not change.
+After that switch, the 0.1 layer was deleted (Andreu, 2026-10-28):
+- the file API: `compute_gc`, `run_gc`, `run_gc_variants`, `GCConfig`;
+- the NPZ patch and view helpers;
+- `cache_stamp`, `composedthermo`, `stoichiometry` and `steinhardt`;
+- the frozen 0.1 copy used as a test oracle.
 
-The old implementation is frozen in `tests/legacy_reference.py` and serves as the oracle: the compatibility
-functions must give identical arrays on toy data. Nothing is removed until `aist_paper`'s wrappers have switched and
-all 49 figures rebuild identically.
+The paper keeps its own copies of the helpers it needs. `tests/test_paper_reproduction.py` remains the bit-for-bit
+anchor.
 
 ## 5. Tests
 
-1. **Balance:** unique coefficients; a dependent reservoir set (O2 + H2 + H2O) raises; an element not spanned
-   raises with its name; Paper I coefficients identical to `balance_reaction`.
-2. **Reservoirs:**
-   - a missing multiplicity raises;
-   - H2 gets its own (singlet) state, with no O2 triplet;
-   - μ matches ASE `IdealGasThermo` for O2, H2O and H2;
-   - the `dmu` axis equals the `p` axis at the corresponding pressure.
-3. **Generality:**
-   - Pt + O2 runs and equals the Ir run with the element relabelled;
-   - Ir + H2 gives ⟨n_H/n_Ir⟩ ≠ 0 and n_Ir counts only Ir;
-   - an Ir/O/H toy set with O2 + H2O has unique balances and a fixed-T map with axes (p_O2, p_H2O). Changing the
-     reservoir basis (O2 + H2 with μ_H2 = μ_H2O − μ_O2/2) gives the same populations.
-4. **Continuity:** `compute_gc`, `run_gc_variants`, the gas and support patches and the subset, gap and vibrational
-   helpers are bit-identical to the frozen legacy code on toy ensembles.
-5. **Paper I reproduction** (`tests/test_paper_reproduction.py`, skipped unless `AIST_PAPER_DIR` is set; reads
-   data files only, imports nothing from the paper repository): for both functionals on the 150 × 150 grid, with the
-   IrO2/IrO3 gas species and the 0.65 eV/Ir + 0.1 eV/O support shift, `Pgi`, `G_tensor` and `phase_index` are equal
-   to the cached `grandcanonical_results.npz` / `grandcanonical_PBE0.npz`; the same for the variants NPZs.
+1. **Contributions** against ASE `IdealGasThermo` / `HarmonicThermo` and closed forms. Each term can be switched
+   off, the default is electronic only, and a missing spin means degeneracy 1 with a warning.
+2. **Ensembles:**
+   - exact balance; dependent reservoirs and unsupplied elements raise;
+   - generality: Pt equals Ir relabelled, Ir + H2, O2 + H2O at fixed T, a reservoir basis change, the Δμ axis
+     equals the pressure axis;
+   - per-row terms; variants; `with_structures`; subsets; `shifted`;
+   - `contributions` add up to ΔG and `decomposition` is their average.
+3. **Paper I reproduction** (needs `AIST_PAPER_DIR`): main ensembles and the four variants, both functionals, bit
+   for bit.
 
 ## 6. State (2026-10-28)
 
 1. Done on branch `contributions-core`:
    - the core and the building blocks;
-   - the 0.1 API (`compute_gc`, `run_gc_variants`) as a thin layer, bit-identical to 0.1 on every key;
+   - the 0.1 API (`compute_gc`, `run_gc_variants`) as a thin layer, bit-identical to 0.1 on every key (later
+     removed, section 4);
    - Paper I reproduced bit for bit;
    - licence, packaging, CI, README and examples.
-2. Next:
-   - aist_paper switches to the new names (FABLE session, identity check);
-   - after that, remove the 0.1 layer, the NPZ patch helpers and `tests/legacy`, with Andreu's OK;
-   - the motif pipeline driven by one config object.
+2. Done: aist_paper switched; the 0.1 layer removed (see section 4).
+3. Next: the motif pipeline driven by one config object.
 
 ## 7. Open points for Andreu
 

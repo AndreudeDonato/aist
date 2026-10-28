@@ -4,7 +4,6 @@ from __future__ import annotations
 import numpy as np
 from scipy.ndimage import gaussian_filter1d
 
-from aist.core.grandcanonical import pressure_grid_index
 
 
 def align_ace_rows_to_gc(gc_data: dict, ace_rows: list[dict]) -> list[dict]:
@@ -187,7 +186,9 @@ def atom_motif_population_vs_T_at_pressure(
     Stacking Ir then O motifs makes the boundary between blocks track oxidation.
     Returns ``(Ts, pressure_used, Y)`` with ``Y`` shape ``(k_Ir + k_O, n_T)``.
     """
-    p_idx, pressure_used = pressure_grid_index(joined["Ps"], pressure_pa)
+    Ps = np.asarray(joined["Ps"], dtype=float)
+    p_idx = int(np.argmin(np.abs(np.log(Ps) - np.log(pressure_pa))))  # nearest on the log grid
+    pressure_used = float(Ps[p_idx])
     Pgi = joined["Pgi"]
     n_Ir = np.asarray(joined["n_Ir"], dtype=float)
     n_O = np.asarray(joined["n_O"], dtype=float)

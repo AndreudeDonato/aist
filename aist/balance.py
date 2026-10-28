@@ -2,7 +2,7 @@
 
 Structure *i* with element counts ``n_i`` is written as ``n_i = Σ_s x_is c_s`` over the composition vectors
 ``c_s`` of the references and reservoirs. The coefficients are solved in rational arithmetic, so the floats that
-enter the free energies are correctly rounded (and equal to those of ``aist.stoichiometry.balance_reaction``).
+enter the free energies are correctly rounded.
 """
 from __future__ import annotations
 

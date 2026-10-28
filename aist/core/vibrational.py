@@ -7,7 +7,7 @@ import numpy as np
 from ase import Atoms
 from ase.io import read
 
-from aist.composedthermo import compute_thermo_contributions, process_frequencies
+from aist.contributions import internal_frequencies, vibrational, zero_point_energy
 from aist.thermo import ThermoFromAtoms, ThermoPartitionFunctions
 
 
@@ -17,14 +17,7 @@ KB_EV = _TP.kb * _TP.J_to_eV
 
 def prepare_vibrational_modes(atoms: Atoms) -> np.ndarray:
     """Return vibrational frequencies (cm-1) with trans/rot modes stripped."""
-    freqs = atoms.info.get("frequencies", None)
-    if freqs is None:
-        return np.array([], dtype=float)
-    freqs = np.asarray(freqs, dtype=float)
-    if freqs.size == 0:
-        return np.array([], dtype=float)
-    thermo = ThermoFromAtoms(atoms)
-    return process_frequencies(thermo, freqs)
+    return internal_frequencies(atoms)
 
 
 def compute_zpe_energy(atoms: Atoms, temperature_k: float = 1.0) -> float:
@@ -214,26 +207,14 @@ def zpe_global_minima_by_ir_content(
 def compute_vib_gibbs_contribution(atoms: Atoms, temperature_k: float) -> float:
     """Vibrational Gibbs term G_vib = E_vib + ZPE − T S_vib (eV), cluster modes only.
 
-    Matches the product-side vibrational contribution in ``compute_gc`` decomposition
-    (``E_vib_avg``), excluding reference and μ(O₂) reservoir terms.
+    The structure's own part of ``EnsembleResult.contributions()["vibrational"]``, without the reference and
+    reservoir terms.
     """
     if prepare_vibrational_modes(atoms).size == 0:
         return np.nan
     T = float(temperature_k)
-    _, contrib = compute_thermo_contributions(
-        atoms,
-        np.array([T]),
-        np.array([1.0]),
-        include_v=True,
-        include_zpe=True,
-        include_r=False,
-        include_t=False,
-    )
-    return float(
-        contrib.get("ev", 0.0)
-        + contrib.get("zpe", 0.0)
-        - T * contrib.get("sv", 0.0)
-    )
+    ev, sv = vibrational(atoms, np.array([T]))
+    return float((ev + zero_point_energy(atoms) - T * sv)[0])
 
 
 def _structure_stoichiometry_groups(
@@ -261,8 +242,8 @@ def stoichiometry_weights(
 ) -> np.ndarray:
     """Boltzmann weights over the isomers ``indices`` (one stoichiometry) at grid point ``(p_idx, t_idx)``.
 
-    Same rule as ``compute_gc`` (``g_i exp(-beta G_i)`` with the Ir-normalized ``G_tensor`` and the
-    point-group degeneracies), taken relative to the lowest isomer of the group, so the weights stay exact
+    Same rule as ``GrandCanonicalEnsemble`` (``g_i exp(-beta ΔG_i)`` with the stored ``G_tensor`` and the
+    chirality degeneracies), taken relative to the lowest isomer of the group, so the weights stay exact
     where the global populations ``Pgi`` underflow (stoichiometries far from stable).
     """
     idx = np.asarray(indices, dtype=int)
@@ -308,12 +289,10 @@ def boltzmann_weighted_vib_stoichiometry_by_ir_content(
     ``temperature_k``. Differences are referenced to the Boltzmann average at
     ``n_O = 0`` for each ``n_Ir``.
     """
-    from aist.core.grandcanonical import pressure_grid_index, temperature_grid_index
-
     if len(structures) != np.shape(gc["G_tensor"])[0]:
         raise ValueError(f"{len(structures)} structures but {np.shape(gc['G_tensor'])[0]} GC rows")
-    p_idx, _ = pressure_grid_index(gc["Ps"], pressure_pa)
-    t_idx, _ = temperature_grid_index(gc["Ts"], temperature_k)
+    p_idx = int(np.argmin(np.abs(np.log(np.asarray(gc["Ps"], dtype=float)) - np.log(pressure_pa))))
+    t_idx = int(np.argmin(np.abs(np.asarray(gc["Ts"], dtype=float) - temperature_k)))
 
     zpe_all = np.array(
         [compute_zpe_energy(s, zpe_temperature_k) for s in structures],

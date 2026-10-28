@@ -129,21 +129,15 @@ multiplicities.
 Per-atom SOAP descriptors (DScribe), then PCA, UMAP and KMeans clustering of atoms and structures. Run it with
 `aist.ace.pipeline.main(data_dir=..., results_dir=...)`.
 
-## The 0.1 file-based API
-
-`aist.core.grandcanonical.compute_gc`, `run_gc` and `aist.core.gc_variants.run_gc_variants` keep the 0.1
-interface (trajectory files in, NPZ dictionaries out). They run on the construction above and give the same arrays
-as 0.1, bit for bit.
-
 ## Tests
 
 ```bash
 python -m pytest
 ```
 
-The suite checks the contributions against ASE and closed forms, the ensembles' generality, and bit-for-bit
-continuity with the 0.1 code (frozen in `tests/legacy/`). `tests/test_paper_reproduction.py` checks the IryOx
-paper ensembles when `AIST_PAPER_DIR` points at the paper repository.
+The suite checks the contributions against ASE's thermochemistry and closed forms, and the ensembles' generality
+(other metals, other reservoirs, two reservoirs at once, exact balance). `tests/test_paper_reproduction.py`
+reproduces the IryOx paper ensembles bit for bit when `AIST_PAPER_DIR` points at the paper repository.
 
 ## Citing
 
