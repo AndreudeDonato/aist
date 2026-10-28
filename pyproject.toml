@@ -1,3 +1,70 @@
 [build-system]
-requires = ["setuptools>=61"]
+requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[project]
+# Distribution name: "aist" is taken on PyPI by an unrelated package; the import name stays `aist`.
+name = "aist-thermo"
+dynamic = ["version"]
+description = "Grand-canonical ensembles of clusters on ASE Atoms: ab initio statistical thermodynamics over isomers and stoichiometries, with motif classification."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+authors = [
+  { name = "Andreu A. de Donato" },
+]
+keywords = [
+  "ase",
+  "thermodynamics",
+  "grand canonical",
+  "ab initio thermodynamics",
+  "clusters",
+  "nanoclusters",
+  "statistical mechanics",
+  "phase diagrams",
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering :: Chemistry",
+  "Topic :: Scientific/Engineering :: Physics",
+]
+dependencies = [
+  "ase>=3.22",
+  "numpy>=1.22",
+  "scipy>=1.8",
+  "pymatgen>=2023.1.1",
+  "sympy>=1.9",
+]
+
+[project.optional-dependencies]
+# SOAP / UMAP / KMeans motif classification (aist.ace)
+motifs = [
+  "dscribe>=2.0",
+  "matplotlib>=3.5",
+  "scikit-learn>=1.0",
+  "threadpoolctl>=3.0",
+  "umap-learn>=0.5",
+]
+test = [
+  "pytest>=7.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/AndreudeDonato/aist"
+Repository = "https://github.com/AndreudeDonato/aist"
+Issues = "https://github.com/AndreudeDonato/aist/issues"
+
+[tool.setuptools.packages.find]
+include = ["aist", "aist.*"]
+
+[tool.setuptools.dynamic]
+version = { attr = "aist.__version__" }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
