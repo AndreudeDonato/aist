@@ -12,9 +12,12 @@ def process_frequencies(thermo, frequencies):
     return frequencies[5:] if thermo.is_linear() else frequencies[6:]
 
 def compute_thermo_contributions(structure, Tg, Pg, elec_states=None,
-                                 include_v=True, include_zpe=True, include_r=True, include_t=True):
+                                 include_v=True, include_zpe=True, include_r=True, include_t=True,
+                                 symmetry_number=None):
     """
     Compute energy and entropy contributions for a given ASE Atoms object.
+
+    ``symmetry_number`` overrides the rotational symmetry number found from the point group.
     Returns:
         total_energy - Tg*total_entropy
         contributions dict: {'et', 'ev', 'er', 'eelec', 'st', 'sv', 'sr', 'selec', 'zpe'}
@@ -36,7 +39,7 @@ def compute_thermo_contributions(structure, Tg, Pg, elec_states=None,
     if include_v and len(frequencies) > 0:
         ev, sv, _ = thermo.get_vibrational(frequencies, Tg)
     if include_r and len(structure) > 1:
-        er, sr, _ = thermo.get_rotational(Tg)
+        er, sr, _ = thermo.get_rotational(Tg, sigma=symmetry_number)
     if elec_states is not None:
         eelec, selec, _ = thermo.get_electronic(elec_states, Tg)
 
