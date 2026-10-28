@@ -1,4 +1,4 @@
-"""Grand-canonical ensemble of small Cu-O clusters in O2, from start to finish on ASE objects.
+"""Grand-canonical ensemble of small Cu-O clusters in O2 (one chemical potential), on ASE objects.
 
 Random Cu3Ox and Cu4Ox structures are relaxed and vibrated with ASE's EMT potential, then weighted on a
 (T, p_O2) grid. EMT is a toy potential, used here only because it ships with ASE and runs in seconds: for
@@ -65,6 +65,5 @@ print("p \\ T     " + "".join(f"{t:8.0f}" for t in T))
 for pi, row in zip(p, result.composition("O")):
     print(f"{pi:9.1e} " + "".join(f"{x:8.2f}" for x in row))
 i, j = result.index(O2=1e5, T=200.0)
-best = result.rows[result.most_stable()[i, j]]
-print(f"most stable at 1e5 Pa, 200 K: {ensemble.formulas[best]} "
-      f"(population {result.most_stable_population()[i, j]:.2f})")
+best = result.most_stable()[i, j]
+print(f"most stable at 1e5 Pa, 200 K: {result.formulas[best]} (population {result.populations[best, i, j]:.2f})")

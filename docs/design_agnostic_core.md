@@ -69,62 +69,36 @@ element symbol (that element's count). **Default per reference atom (decided, An
 **Lowest-G structure.** The "most stable" structure is argmin ΔG, not argmax P: with g = 2, argmax P would pick a
 chiral isomer up to kT ln 2 above the minimum.
 
-## 3. Objects (proposal: object model, names, ASE-style `get_*` methods)
+## 3. Layout (decided by Andreu, 2026-10-28: "this is the way")
 
-```python
-from ase.io import read
-from aist import GrandCanonicalEnsemble, Reference, Reservoir, ThermoTerms
+The core is the free-energy contributions of one `Atoms` object. How they are combined into an ensemble is the
+user's choice, so the library offers general building blocks and one generalised construction. Systems such as
+IryOx or several chemical potentials live in example scripts, never hard-coded.
 
-ens = GrandCanonicalEnsemble(
-    read("clusters.traj", ":"),
-    references=[Reference(read("Pt_atom.xyz"))],                 # mu per Pt atom = E / natoms
-    reservoirs=[Reservoir(read("O2.xyz"), multiplicity=3),
-                Reservoir(read("H2O.xyz"), multiplicity=1)],
-    terms=ThermoTerms(vibrations=True, zpe=True, electronic=True, rotation=False, translation=False),
-)
-res = ens.evaluate(T=500.0, p={"O2": np.logspace(-10, 5, 100), "H2O": np.logspace(-10, 5, 100)})
-res.populations            # (n_structures, 100, 100)
-res.composition("O")       # <n_O / N_ref> map
-res.average(values)        # population-weighted mean of any per-structure property
-res.most_stable()          # argmin ΔG index map
-res.subset(counts={"Pt": 6})   # renormalised per-size view
-res.shifted(delta)         # re-ensembled after a free-energy correction (support, user terms)
-ens.get_populations(T=300.0, p={"O2": 2.1e4, "H2O": 1e3})   # ASE-style convenience: one weight per Atoms object
-```
+- **`aist.contributions` (the core).** Plain functions on an `Atoms` object, on any T (and p):
+  - `electronic`, `zero_point_energy`, `vibrational`, `rotational`, `translational`, each returning (U, S);
+  - `free_energy(atoms, T, p, terms)` = E + ZPE + Σ U − T Σ S over the switched-on terms;
+  - `contributions(...)`: the per-term pieces.
 
-**Classes**
-- `Reservoir(atoms, *, name=None, multiplicity=None, electronic_states=None, symmetry_number=None, terms=ThermoTerms.all())`
-  - `name` defaults to the chemical formula.
-  - `chemical_potential(T, p)` is cached per grid.
-- `Reference(atoms=None, *, energy=None, element=None)`: an elemental `Atoms` (μ = E per atom) or an explicit energy.
-- `ThermoTerms`: the per-term flags. Structures default to the electronic term only; reservoirs to all terms
-  (`ThermoTerms.gas()`).
-  `ens.variant(vibrations=False, zpe=False)` switches the same terms on structures and reservoirs: the full / novib /
-  vib-only / ZPE-only variants.
-- `GasSpecies(atoms, pressure, multiplicity=None)`: a volatile product (IrO2(g), IrO3(g)) appended to the pool. It
-  takes the structure terms plus its own translation and rotation at its partial pressure.
-- `GrandCanonicalEnsemble(structures, *, references, reservoirs, terms, normalize="reference", degeneracy="chirality", gas=())`
-  - Attributes: `elements`, `compositions` (integer matrix), `coefficients` (a, ν), `normalization` (N_i), `formulas`.
-  - `evaluate(T, p=None, dmu=None, axes=None, dtype=np.float32)` returns an `EnsembleResult`.
-- `EnsembleResult`
-  - Fields: `axes` (ordered name → values), `G` (n × grid), `populations`, `degeneracy`, the ensemble's composition data.
-  - Methods: `composition`, `average`, `most_stable`, `most_stable_population`, `configurational_entropy`,
-    `subset`, `shifted`, `index` (nearest grid point; log scale for pressures), `decomposition` (ensemble-averaged
-    electronic / vibrational / rotational / translational / bare-DFT parts), and `to_legacy_dict` (the
-    `compute_gc` NPZ keys).
-- Corrections: `SupportShift(ev_per_reference, ev_per_element={"O": 0.1})` gives δ_i = −(a + Σ_e b_e n_ie/N_i) on
-  cluster rows only; gas rows are untouched. Any array δ broadcastable to (n, *grid) also works.
+  `ThermoTerms` holds the switches: by default the electronic term only, and `ThermoTerms.gas()` switches every
+  term on. Without a known multiplicity the electronic term uses degeneracy 1 and warns, the same rule for every
+  `Atoms` object.
+- **`aist.ensembles` (building blocks).**
+  - `boltzmann_populations(G, T, degeneracy)` and `chirality_degeneracy(atoms)`;
+  - `Reference` (fixed μ per atom) and `Reservoir` (μ = the molecule's free energy with its terms, all on by
+    default);
+  - `GrandCanonicalEnsemble(structures, references, reservoirs, terms, normalize, degeneracy)`: `terms` is one
+    `ThermoTerms` or one per row, so gas-phase products are just rows with their own terms. Methods: `evaluate`,
+    `variant`, `with_structures`, `count`.
+  - `EnsembleResult`: `G`, `populations`, `phase_index`; `composition`, `average`, `most_stable`, `subset`,
+    `shifted` (any correction, e.g. a support proxy), `decomposition`, `index`.
+- **`aist.balance`** (exact balance, `BalanceError`) and **`aist.conditions`** (T, p and Δμ axes).
+- **`examples/`:** `water_contributions.py` (the core), `isomers_canonical.py` (an ensemble built by hand),
+  `cu_oxide_emt.py` (the grand-canonical construction).
 
-**Conditions**
-- `T` is a scalar or a 1D array (K).
-- Each reservoir is fixed by exactly one of `p[name]` (Pa, scalar or array) or `dmu[name]` (eV, relative to its
-  bare DFT energy, scalar or array). Giving both, or neither, is an error.
-- Array entries become axes: by default reservoir axes in reservoir order, then T, which gives Paper I's (p, T)
-  layout. `axes=` sets another order.
-
-**Precision.** G is stored in `dtype` (default float32: about 1 μeV resolution at |ΔG| ≈ 10 eV, and half the
-memory). Populations are computed in float64 from the stored G, plus any correction, exactly as the 0.1 code does,
-so corrections applied in sequence reproduce the cached Paper I tensors. `dtype=np.float64` is available.
+ΔG is stored in float32 by default. Populations are computed with the arithmetic of the 0.1 code, which keeps the
+Paper I ensembles bit-identical. Gas rows are computed in one step: 0.1 rounded them twice (base, then patch), so
+they agree with it to float32 rounding (≤ 1e-6 eV), with the same lowest-G structure everywhere.
 
 ## 4. Continuity with `aist_paper` (the contract)
 
@@ -167,27 +141,21 @@ all 49 figures rebuild identically.
    IrO2/IrO3 gas species and the 0.65 eV/Ir + 0.1 eV/O support shift, `Pgi`, `G_tensor` and `phase_index` are equal
    to the cached `grandcanonical_results.npz` / `grandcanonical_PBE0.npz`; the same for the variants NPZs.
 
-## 6. Order of work on the branch
+## 6. State (2026-10-28)
 
-1. Core: `aist/species.py` (Reference, Reservoir, ThermoTerms, GasSpecies), `aist/balance.py`,
-   `aist/conditions.py`, `aist/gce.py` (GrandCanonicalEnsemble, EnsembleResult, SupportShift). Tests 1–3.
-2. Continuity: the legacy names over the core; tests 4–5. Then a message to the FABLE session for the paper-side
-   identity check.
-3. Agnostic helpers:
-   - `subset`, `gaps` and `vibrational` keyed by element and reference count, with the old Ir/O names as aliases;
-   - the motif pipeline driven by a `MotifConfig` (species, SOAP cutoffs, k per species, seed), no module globals.
-     The bridging / terminal / molecular naming becomes an optional `naming="oxide"` scheme. `aist.motifs` is the new
-     home and `aist.ace` stays as an alias. "ACE" here is not the Atomic Cluster Expansion.
-4. Release readiness:
-   - `[project]` metadata in `pyproject.toml` with a version, plus an optional `motifs` extra for the SOAP/UMAP
-     stack **(proposal)**;
-   - the licence file once Andreu chooses (MIT proposed);
-   - a minimal CI (install + pytest);
-   - the README rewritten around a small non-IryOx example. No IryOx data in the package.
+1. Done on branch `contributions-core`:
+   - the core and the building blocks;
+   - the 0.1 API (`compute_gc`, `run_gc_variants`) as a thin layer, bit-identical to 0.1 on every key;
+   - Paper I reproduced bit for bit;
+   - licence, packaging, CI, README and examples.
+2. Next:
+   - aist_paper switches to the new names (FABLE session, identity check);
+   - after that, remove the 0.1 layer, the NPZ patch helpers and `tests/legacy`, with Andreu's OK;
+   - the motif pipeline driven by one config object.
 
 ## 7. Open points for Andreu
 
-1. Object model and names as in section 3 (proposal).
+1. Object model and names: section 3, decided.
 2. Default normalisation per reference atom: decided. Default terms: electronic only, decided.
 3. Light install with an optional `motifs` extra (proposal).
 4. Licence: MIT (proposal).

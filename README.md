@@ -1,20 +1,24 @@
 # aist
 
-Ab initio statistical thermodynamics of cluster ensembles, on ASE `Atoms` objects.
+Free-energy contributions of ASE `Atoms` objects, and building blocks for ensembles of them.
 
-`aist` takes a set of structures computed with any calculator and treats them as one grand-canonical ensemble
-in contact with gas reservoirs. The set can hold many isomers of many stoichiometries, for example metal-oxide
-clusters M_yO_x. Each structure needs an energy, and optionally harmonic frequencies and a spin multiplicity.
-`aist` returns the Boltzmann population of every structure on a grid of temperature and reservoir pressures (or
-chemical potentials). From the populations you get ensemble observables:
-- the average composition;
-- the most stable structure and its population;
-- the configurational entropy;
-- the population-weighted mean of any per-structure property (charges, gaps, motif labels, spectra).
+The core of `aist` is a small set of functions. Each takes an `Atoms` object computed with any calculator and
+returns its free-energy terms at the temperatures and pressures you give:
+- electronic energy and spin degeneracy;
+- zero-point energy;
+- harmonic vibrations;
+- rotation;
+- translation.
 
-The reservoir chemical potentials come from the full ideal-gas partition functions. The per-structure free
-energies come from harmonic vibrations with ZPE, electronic (spin) degeneracy and, optionally, rotation and
-translation. Both are checked against ASE's `IdealGasThermo` and `HarmonicThermo`.
+You choose which terms enter; no approximation is right or wrong.
+
+How free energies are combined into an ensemble is also your choice. `aist` provides general pieces for that:
+- Boltzmann populations of any set of structures;
+- exact balancing of a structure against the reservoirs you pick;
+- ideal-gas chemical potentials.
+
+It also provides one complete construction, a grand-canonical ensemble over isomers and stoichiometries on a grid
+of temperatures and pressures. `examples/` shows full setups to copy and adapt.
 
 ## Install
 
@@ -27,111 +31,109 @@ pip install -e ".[motifs,test]"         # + SOAP/UMAP/KMeans motif classificatio
 
 Releases will be published on PyPI as `aist-thermo` (`pip install aist-thermo`).
 
-## Quick start
+## The core: contributions of one `Atoms` object
 
 ```python
 import numpy as np
-from ase.io import read
-from aist import GrandCanonicalEnsemble, Reference, Reservoir, ThermoTerms
+from aist import ThermoTerms, contributions, free_energy
 
-clusters = read("clusters.traj", ":")    # energies + info["frequencies"], info["zpe"], info["total_spin"]
-ensemble = GrandCanonicalEnsemble(
-    clusters,
-    references=[Reference(read("Pt_atom.xyz"))],                  # μ_Pt fixed: energy per atom
-    reservoirs=[Reservoir(read("O2.xyz"), multiplicity=3)],       # μ_O2(T, p): full ideal-gas partition function
-    terms=ThermoTerms(vibrations=True, zpe=True),                 # your choice; default: electronic only
-)
-result = ensemble.evaluate(T=np.linspace(100, 1000, 150), p={"O2": np.logspace(-10, 10, 150)})
-
-result.populations          # (n_structures, n_p, n_T)
-result.composition("O")     # ⟨n_O / n_Pt⟩ map
-result.most_stable()        # index of the lowest-ΔG structure at every (p, T)
-result.average(values)      # population-weighted mean of any per-structure property
-result.subset(counts={"Pt": 6}).composition("O")   # one cluster size, populations renormalised
+T = np.linspace(100, 1000, 10)                                             # K, any shape
+G = free_energy(atoms, T, terms=ThermoTerms(vibrations=True, zpe=True))    # E − kT ln(2S+1) + ZPE + F_vib
+mu = free_energy(o2, T, 1e5, ThermoTerms.gas(), multiplicity=3)           # ideal-gas molecule at 1 bar
+parts = contributions(o2, T, 1e5, ThermoTerms.gas(), multiplicity=3)      # each term separately (eV)
 ```
 
-`examples/cu_oxide_emt.py` runs the whole chain on objects built in ASE, in about 20 s:
-1. relax random Cu₃O_x and Cu₄O_x structures with ASE's EMT potential;
-2. compute their vibrations with `ase.vibrations`;
-3. weight them in O₂ on a (T, p) grid.
+| Term (`ThermoTerms`) | What it is |
+|---|---|
+| always | energy E: the attached calculator's, or `info["energy"]` |
+| `electronic` (default on) | −kT ln(2S+1), or the full sum over `states=[(energy, degeneracy), ...]` |
+| `zpe` | `info["zpe"]`, or ½ Σ hcν over the real internal modes |
+| `vibrations` | harmonic U − TS of the internal modes |
+| `rotation` | rigid rotor; symmetry number from the point group unless given |
+| `translation` | ideal gas at pressure p, including pV (H − TS = −kT ln q) |
 
-EMT is a toy potential. For science, attach DFT data.
+`ThermoTerms.gas()` switches every term on. The individual functions (`electronic`, `zero_point_energy`,
+`vibrational`, `rotational`, `translational`) return energies and entropies, and match ASE's
+`IdealGasThermo` and `HarmonicThermo` (see `tests/`).
 
-## What is computed
+## Ensembles: your construction
 
-For structure *i* with element counts n_ie, references *r* (elements held at fixed μ, e.g. the isolated metal atom)
-and reservoir molecules *k*:
+A canonical ensemble of isomers takes three lines:
 
-    ΔG_i(T, {p_k}) = (1/N_i) [ G_i(T) − Σ_r a_ir μ_r − Σ_k ν_ik μ_k(T, p_k) ]
-    P_i = g_i exp(−ΔG_i / kT) / Σ_j g_j exp(−ΔG_j / kT)
+```python
+from aist import boltzmann_populations
+from aist.ensembles import chirality_degeneracy
 
-- **Balance.** The coefficients a_ir and ν_ik balance each structure exactly, in rational arithmetic. A set of
-  reservoirs that is linearly dependent, or that cannot supply an element, stops with an error. For example,
-  O₂ + H₂ + H₂O together is dependent.
-- **Free energy of a structure.** G_i = E_i − kT ln(2S+1) plus the terms the user switches on: ZPE, harmonic
-  vibrations, rotation, translation (`ThermoTerms`). Which approximation fits is the user's call; by default only the
-  electronic contribution (energy and spin degeneracy) enters.
-- **Normalisation.** N_i is the number of reference atoms (`normalize="reference"`, the default: a free energy
-  per metal atom), 1 (`"cluster"`), or the count of a chosen element.
-- **Degeneracy.** g_i is the chirality degeneracy from the point group (2 for chiral clusters, which counts both
-  enantiomers).
+G = np.array([free_energy(a, T, terms=ThermoTerms(vibrations=True, zpe=True)) for a in isomers])
+P = boltzmann_populations(G, T, [chirality_degeneracy(a) for a in isomers])
+```
 
-## Conditions, reservoirs and variants
+For structures that exchange atoms with gas reservoirs, `GrandCanonicalEnsemble` balances every structure exactly
+against fixed references and reservoir molecules, then weights it on a grid of conditions:
 
-- **Conditions as axes.** Each reservoir is set either by a pressure (`p={"O2": ...}`, in Pa) or by a chemical
-  potential relative to its DFT energy (`dmu={"O2": ...}`, in eV). Array-valued conditions become axes and
-  scalars stay fixed. For example, a map at fixed temperature over two reservoirs:
+    ΔG_i = (1/N_i) [ G_i(T) − Σ_r a_ir μ_r − Σ_k ν_ik μ_k(T, p_k) ],    P_i ∝ g_i exp(−ΔG_i / kT)
 
-  ```python
-  ensemble = GrandCanonicalEnsemble(structures, references=[Reference(metal)],
-                                    reservoirs=[Reservoir(o2, multiplicity=3), Reservoir(h2o, multiplicity=1)])
-  result = ensemble.evaluate(T=500.0, p={"O2": np.logspace(-10, 5, 100), "H2O": np.logspace(-10, 5, 100)})
-  ```
-- **Every contribution is a switch.**
-  - `ThermoTerms(vibrations=, zpe=, electronic=, rotation=, translation=)` sets the terms of the structures.
-  - Each reservoir takes its own `terms=` (default all on).
-  - `GasSpecies` has `vibrations=`, `rotation=` and `translation=`.
-  - The electronic term of a reservoir needs its spin multiplicity: pass `multiplicity=` or `electronic_states=`,
-    store `info["total_spin"]["J"]`, or switch the term off.
-- **Variants.** `ensemble.variant(vibrations=False, zpe=False)` switches the same terms on structures and
-  reservoirs, giving the full, no-vibration, vibrations-only and ZPE-only comparisons. Cached partition functions
-  are shared.
-- **Other data sources.** `ensemble.with_structures(new_list)` keeps the rows, balance and degeneracies but takes
-  new energies or frequencies, for example from a machine-learned potential.
-- **Corrections.**
-  - `result.shifted(delta)` re-weights after a free-energy correction.
-  - `SupportShift(ev_per_reference, {"O": ev})` is a flat adhesion proxy for supported clusters.
-  - `GasSpecies(atoms, pressure)` adds volatile products (e.g. MO₂(g)) to the pool at a fixed partial pressure.
+```python
+from aist import GrandCanonicalEnsemble, Reference, Reservoir
+
+ensemble = GrandCanonicalEnsemble(
+    clusters,                                                     # any number of isomers and stoichiometries
+    references=[Reference(metal_atom)],                           # μ fixed: energy per atom
+    reservoirs=[Reservoir(o2, multiplicity=3), Reservoir(h2o, multiplicity=1)],   # μ(T, p): ideal gas
+    terms=ThermoTerms(vibrations=True, zpe=True),                 # one for all rows, or one per row
+)
+result = ensemble.evaluate(T=500.0, p={"O2": np.logspace(-10, 5, 100), "H2O": np.logspace(-10, 5, 100)})
+result.populations                    # (rows, 100, 100): a map at fixed T over two pressures
+result.composition("O")               # ⟨n_O / n_metal⟩
+result.most_stable()                  # lowest-ΔG row at every point
+result.subset(counts={"Pt": 6})       # one cluster size, populations renormalised
+result.shifted(delta)                 # re-weighted after any correction to ΔG (e.g. a support proxy)
+```
+
+- **Conditions.** Each reservoir is set by a pressure (`p=`, Pa) or a Δμ relative to its DFT energy (`dmu=`, eV).
+  Array-valued T, p or Δμ become axes; scalars stay fixed.
+- **Balance.** The balance uses exact rational arithmetic. A dependent set of reservoirs (e.g. O₂ + H₂ + H₂O), or
+  an element that nothing supplies, raises `BalanceError`.
+- **Normalisation.** N_i is the number of reference atoms (`normalize="reference"`, the default), 1 (`"cluster"`),
+  or the count of a chosen element.
+- **Degeneracy.** g_i is the chirality degeneracy (`degeneracy="chirality"`), `None`, or your own array.
+- **Gas-phase products** (e.g. MO₂(g)) enter as rows with their own terms, such as translation and rotation at
+  their partial pressure.
+- **Variants.** `ensemble.variant(vibrations=False, zpe=False)` switches the same terms on every row and
+  reservoir.
+- **Other data sources.** `ensemble.with_structures(other)` keeps the rows but takes new data, e.g. frequencies
+  from a machine-learned potential.
+
+## Examples
+
+| Script | What it shows |
+|---|---|
+| `examples/water_contributions.py` | the core: each term of a molecule's free energy, attached DFT-style data |
+| `examples/isomers_canonical.py` | a canonical ensemble built by hand: Cu₄Ag₂ isomers (EMT) vs T |
+| `examples/cu_oxide_emt.py` | a grand-canonical ensemble: Cu₃O_x and Cu₄O_x clusters (EMT) in O₂ on a (T, p) grid |
+
+EMT is a toy potential that ships with ASE. For science, attach DFT energies, frequencies and spin
+multiplicities.
 
 ## Input conventions
 
-Each `Atoms` object carries:
-- **Energy (eV):** from its calculator (e.g. a `SinglePointCalculator`) or from `info["energy"]`.
+- **Energy (eV):** the attached calculator's (e.g. a `SinglePointCalculator`), or `info["energy"]`.
 - **`info["frequencies"]`:** all 3N harmonic frequencies in cm⁻¹, ascending, with the 5 or 6 rigid-body modes
-  first. Imaginary modes are given as negative values.
-- **`info["zpe"]`:** zero-point energy (eV).
-- **`info["total_spin"]["J"]`:** spin multiplicity 2S+1. A structure without it is treated as a singlet, with a
-  warning.
+  first. Imaginary modes are negative.
+- **`info["zpe"]`:** zero-point energy (eV); optional.
+- **`info["total_spin"]["J"]`:** spin multiplicity 2S+1. If it is missing and `multiplicity=` is not passed, the
+  electronic term uses degeneracy 1 and warns.
 
 ## Motif classification (`aist.ace`, needs `[motifs]`)
 
-The motif classification works per atom:
-1. SOAP descriptors (DScribe);
-2. PCA, then UMAP;
-3. KMeans clustering of atoms and structures.
-
-An optional scheme names the oxygen motifs by bonding: bridging, terminal and molecular. The labels can be joined
-to the ensemble populations. It runs with `aist.ace.pipeline.main(data_dir=..., results_dir=...)`.
+Per-atom SOAP descriptors (DScribe), then PCA, UMAP and KMeans clustering of atoms and structures. Run it with
+`aist.ace.pipeline.main(data_dir=..., results_dir=...)`.
 
 ## The 0.1 file-based API
 
 `aist.core.grandcanonical.compute_gc`, `run_gc` and `aist.core.gc_variants.run_gc_variants` keep the 0.1
-interface:
-- trajectory files in, NPZ dictionaries out;
-- one single-element reference and one single-element reservoir molecule.
-
-They now run on the core above and give the same arrays as 0.1, bit for bit. The helpers in `aist.core`
-(subsets, gaps, support, reservoir patches, vibrational metrics) work on those dictionaries.
+interface (trajectory files in, NPZ dictionaries out). They run on the construction above and give the same arrays
+as 0.1, bit for bit.
 
 ## Tests
 
@@ -139,18 +141,14 @@ They now run on the core above and give the same arrays as 0.1, bit for bit. The
 python -m pytest
 ```
 
-The suite checks:
-- the thermodynamics against ASE and closed forms;
-- generality: other metals, H₂ and H₂O reservoirs, several reservoirs at once;
-- bit-for-bit continuity with the 0.1 code, kept frozen in `tests/legacy/`.
-
-`tests/test_paper_reproduction.py` also checks the IryOx paper ensembles bit for bit when `AIST_PAPER_DIR`
-points at the paper repository.
+The suite checks the contributions against ASE and closed forms, the ensembles' generality, and bit-for-bit
+continuity with the 0.1 code (frozen in `tests/legacy/`). `tests/test_paper_reproduction.py` checks the IryOx
+paper ensembles when `AIST_PAPER_DIR` points at the paper repository.
 
 ## Citing
 
 Developed for the IryOx papers on gas-phase Ir_yO_x clusters (Andreu A. de Donato, Universitat de Barcelona; in
-preparation). Methods notes: `docs/`.
+preparation).
 
 ## License
 
