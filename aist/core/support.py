@@ -15,9 +15,13 @@ from aist.core.reservoir import VARIANT_BRANCHES
 
 
 def support_corrections_per_ir(
-    structures_file: str, gas_rows_idx, *, ev_per_ir: float, ev_per_o: float,
+    structures_file: str, gas_rows_idx, *, ev_per_ir: float, ev_per_o: float, ligand: str = "O",
 ) -> np.ndarray:
-    """Per-row stabilisation (eV per metal atom, positive); zero for gas rows."""
+    """Per-row stabilisation (eV per metal atom, positive); zero for gas rows.
+
+    Metal atoms are all atoms other than ``ligand`` (default O), as in ``compute_gc``'s ``non_o_counts``; for
+    several ligand elements use ``aist.SupportShift`` on a ``GrandCanonicalEnsemble``.
+    """
     structures = read(structures_file, index=":")
     gas = {int(i) for i in gas_rows_idx}
     corr = np.zeros(len(structures), dtype=float)
@@ -25,8 +29,8 @@ def support_corrections_per_ir(
         if i in gas:
             continue
         symbols = atoms.get_chemical_symbols()
-        n_ir = sum(1 for s in symbols if s != "O")
-        n_o = symbols.count("O")
+        n_ir = sum(1 for s in symbols if s != ligand)
+        n_o = symbols.count(ligand)
         corr[i] = ev_per_ir + ev_per_o * (n_o / n_ir)
     return corr
 

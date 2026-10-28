@@ -40,13 +40,16 @@ def oxidation_ratio_xgrid(ratios: np.ndarray, *, n_bins: int = POP_OX_N_BINS) ->
     return np.linspace(x_min, x_max, int(n_bins))
 
 
-def structure_oxidation_ratios_and_gaps(structures):
-    """``(n_O/n_Ir, gap, n_Ir)`` arrays over the structures that carry a gap."""
+def structure_oxidation_ratios_and_gaps(structures, *, element: str = "O", reference: str = "Ir"):
+    """``(n_element/n_reference, gap, n_reference)`` arrays over the structures that carry a gap.
+
+    The defaults give the IryOx ``n_O/n_Ir``; pass ``element``/``reference`` for any other system.
+    """
     ratios, gaps, n_ir_vals = [], [], []
     for atoms in structures:
         syms = atoms.get_chemical_symbols()
-        n_ir = sum(s == "Ir" for s in syms)
-        n_o = sum(s == "O" for s in syms)
+        n_ir = sum(s == reference for s in syms)
+        n_o = sum(s == element for s in syms)
         gap = atoms.info.get(HOMO_LUMO_KEY)
         if gap is None or n_ir == 0:
             continue
@@ -56,9 +59,9 @@ def structure_oxidation_ratios_and_gaps(structures):
     return np.asarray(ratios, dtype=float), np.asarray(gaps, dtype=float), np.asarray(n_ir_vals, dtype=int)
 
 
-def structure_oxidation_ratios(structures) -> np.ndarray:
-    """Per-structure ``n_O / n_Ir`` for structures with a gap."""
-    return structure_oxidation_ratios_and_gaps(structures)[0]
+def structure_oxidation_ratios(structures, *, element: str = "O", reference: str = "Ir") -> np.ndarray:
+    """Per-structure ``n_element / n_reference`` (default ``n_O / n_Ir``) for structures with a gap."""
+    return structure_oxidation_ratios_and_gaps(structures, element=element, reference=reference)[0]
 
 
 def kernel_smoothed_mean_vs_oxidation(
@@ -89,9 +92,10 @@ def kernel_smoothed_mean_vs_oxidation(
     return y
 
 
-def homo_lumo_gap_lines_by_ir_size(structures, ir_counts, x_grid, *, smooth_sigma: float = POP_OX_SMOOTH_SIGMA):
-    """Per-``n_Ir`` kernel-smoothed mean gap vs ``x_grid``."""
-    ratios, gaps, n_ir_vals = structure_oxidation_ratios_and_gaps(structures)
+def homo_lumo_gap_lines_by_ir_size(structures, ir_counts, x_grid, *, smooth_sigma: float = POP_OX_SMOOTH_SIGMA,
+                                   element: str = "O", reference: str = "Ir"):
+    """Kernel-smoothed mean gap vs ``x_grid`` (``n_element/n_reference``), one line per reference-atom count."""
+    ratios, gaps, n_ir_vals = structure_oxidation_ratios_and_gaps(structures, element=element, reference=reference)
     lines: dict[int, np.ndarray] = {}
     for n_ir in ir_counts:
         mask = n_ir_vals == int(n_ir)

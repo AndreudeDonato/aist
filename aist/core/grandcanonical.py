@@ -1,26 +1,39 @@
-"""Grand-canonical ensemble computation (moved from scripts/compute_grandcanonical.py)."""
+"""Grand-canonical ensembles in the 0.1 file-based API (``compute_gc`` / ``run_gc`` NPZ dictionaries).
+
+These functions keep the names, arguments and outputs of aist 0.1 and are thin layers over the species-agnostic
+core in ``aist.gce`` (``GrandCanonicalEnsemble``): one reference element read from ``GCConfig.reference_file``
+and one single-element reservoir molecule read from ``pressure_file``. The NPZ keys keep their IryOx names
+(``x_per_non_o``, ``q_ir_mean``, ...); here "O" means the reservoir element and "Ir" the reference element.
+"""
 from __future__ import annotations
 
 import os
+import warnings
 from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
 from ase import Atoms
 from ase.io import read, write
-from pymatgen.core.structure import Molecule
-from pymatgen.symmetry.analyzer import PointGroupAnalyzer
 from scipy.constants import Boltzmann, electron_volt
 
-from aist.composedthermo import compute_thermo_contributions
 from aist.inertia import (
     get_hirshfeld_volumes,
     principal_moments_sorted_hirshfeld,
     principal_moments_sorted_mass,
 )
-from aist.stoichiometry import balance_reaction
-from aist.thermo import POINT_GROUP_DEGEN, ThermoPartitionFunctions
+from aist.thermo import ThermoPartitionFunctions
 from aist.utils import ensure_output_dir, get_energy
+
+
+def load_reference(path: str) -> Atoms:
+    """Load a single-element reference (e.g. one metal atom) from a structure file."""
+    ref = read(path)
+    if not isinstance(ref, Atoms):
+        ref = ref[0]
+    if len(set(ref.get_chemical_symbols())) != 1:
+        raise ValueError(f"Reference {path!r} must contain one element, got {ref.get_chemical_formula()}")
+    return ref
 
 
 def load_ir_reference(path: str) -> Atoms:
@@ -68,19 +81,54 @@ class GCConfig:
             raise ValueError(
                 "GCConfig.reference_file must be set (e.g. data/IrPBE.xyz or data/IrPBE0.xyz)"
             )
-        return load_ir_reference(self.reference_file)
+        return load_reference(self.reference_file)
 
 
-def mean_ir_hirshfeld_charge(atoms) -> float:
+def mean_hirshfeld_charge(atoms, element: str) -> float:
+    """Mean Hirshfeld charge of the atoms of ``element`` (``atoms.info['hirshfeld']['charges']``)."""
     h = atoms.info.get("hirshfeld", None)
     if not (isinstance(h, dict) and "charges" in h):
         raise ValueError("Missing atoms.info['hirshfeld']['charges']")
     charges = np.asarray(h["charges"], dtype=float)
-    symbols = np.asarray(atoms.get_chemical_symbols())
-    mask = symbols == "Ir"
+    mask = np.asarray(atoms.get_chemical_symbols()) == element
     if not np.any(mask):
-        raise ValueError("No Ir atoms found for Hirshfeld charge average")
+        raise ValueError(f"No {element} atoms found for Hirshfeld charge average")
     return float(charges[mask].mean())
+
+
+def mean_ir_hirshfeld_charge(atoms) -> float:
+    return mean_hirshfeld_charge(atoms, "Ir")
+
+
+def reservoir_from_file(structure: Atoms, cfg: GCConfig):
+    """The reservoir molecule of a 0.1-style computation: multiplicity from ``info`` (O2 files without it: triplet).
+
+    With ``include_e_mu=False`` no multiplicity is needed.
+    """
+    from aist.species import Reservoir, ThermoTerms, spin_multiplicity
+
+    terms = ThermoTerms(vibrations=cfg.include_v_mu, zpe=cfg.include_zpe_mu, electronic=cfg.include_e_mu,
+                        rotation=cfg.include_r_mu, translation=cfg.include_t_mu)
+    mult = spin_multiplicity(structure)
+    if mult is None and structure.get_chemical_formula() == "O2":
+        mult = 3  # the 0.1 API's O2 triplet, for O2 files without spin data
+    return Reservoir(structure, multiplicity=mult, terms=terms)
+
+
+def ensemble_from_config(structures, structure_pressure: Atoms, cfg: GCConfig):
+    """The ``GrandCanonicalEnsemble`` that ``compute_gc`` evaluates for ``cfg``."""
+    from aist.gce import GrandCanonicalEnsemble
+    from aist.species import Reference, ThermoTerms
+
+    reservoir = reservoir_from_file(structure_pressure, cfg)
+    if len(reservoir.composition) != 1:
+        raise ValueError("compute_gc takes a single-element reservoir molecule (O2, H2, N2, ...); use "
+                         "aist.GrandCanonicalEnsemble for others")
+    terms = ThermoTerms(vibrations=cfg.include_v_product, zpe=cfg.include_zpe_product,
+                        electronic=cfg.include_e_product, rotation=cfg.include_r_product,
+                        translation=cfg.include_t_product, pressure=cfg.P_dilute)
+    return GrandCanonicalEnsemble(structures, references=[Reference(cfg.reference_structure())],
+                                  reservoirs=[reservoir], terms=terms)
 
 
 def compute_gc(
@@ -110,128 +158,16 @@ def compute_gc(
 
     structure_pressure = read(pressure_file)
     structures_main = read(structures_file, index=":")
-    reference_structure = cfg.reference_structure()
+    ens = ensemble_from_config(structures_main, structure_pressure, cfg)
+    reservoir = ens.reservoirs[0]
+    x_element = next(iter(reservoir.composition))
+    ref_element = ens.references[0].element
 
     Ts = np.linspace(cfg.T_min, cfg.T_max, cfg.n_T)
     Ps = np.logspace(np.log10(cfg.P_min), np.log10(cfg.P_max), cfg.n_P)
     Tg, Pg = np.meshgrid(Ts, Ps, indexing="xy")
-    Pg_dilute = np.full_like(Pg, cfg.P_dilute, dtype=float)
-
-    elec_O2 = [(0.0, 3)] if cfg.include_e_mu else None
-    mu, mu_contrib = compute_thermo_contributions(
-        structure_pressure,
-        Tg,
-        Pg,
-        elec_states=elec_O2,
-        include_v=cfg.include_v_mu,
-        include_zpe=cfg.include_zpe_mu,
-        include_r=cfg.include_r_mu,
-        include_t=cfg.include_t_mu,
-    )
-    Eo = get_energy(structure_pressure)
-    E_ir = get_energy(reference_structure)
-
-    Er_val, ref_contrib = compute_thermo_contributions(
-        reference_structure,
-        Tg,
-        cfg.P_beam,
-        elec_states=None,
-        include_v=False,
-        include_zpe=False,
-        include_r=False,
-        include_t=False,
-    )
-
-    tp = ThermoPartitionFunctions()
-    warned_missing_hirshfeld = False
-
-    def _g_from(contrib_dict, e_key, s_key=None):
-        if s_key is None:
-            s_key = "s" + e_key[1:]
-        return contrib_dict.get(e_key, 0.0) - Tg * contrib_dict.get(s_key, 0.0)
-
-    G_list = []
-    formulas = []
-    o_counts = []
-    non_o_counts = []
-    q_ir_mean = []
-    moments = []
-    moments_vol = []
-    E0_dft_structures = []
-    Eform_dft_structures = []
-    r_p_coeffs_list = []
-
-    for structure in structures_main:
-        symbols = structure.get_chemical_symbols()
-        n_M = sum(1 for s in symbols if s != "O")
-        n_O = symbols.count("O")
-
-        spin_info = structure.info.get("total_spin", {})
-        J = spin_info.get("J", None)
-        elec_states = [(0.0, J)] if (cfg.include_e_product and J is not None) else None
-
-        Ep, _ = compute_thermo_contributions(
-            structure,
-            Tg,
-            Pg_dilute,
-            elec_states=elec_states,
-            include_v=cfg.include_v_product,
-            include_zpe=cfg.include_zpe_product,
-            include_r=cfg.include_r_product,
-            include_t=cfg.include_t_product,
-        )
-
-        r_coeffs, p_coeffs = balance_reaction(
-            [reference_structure, structure_pressure], [structure]
-        )
-        r_p_coeffs_list.append((r_coeffs, p_coeffs))
-
-        G = p_coeffs[0] * Ep + r_coeffs[0] * Er_val + r_coeffs[1] * mu
-        G_list.append(G.astype(np.float32))
-
-        formulas.append(structure.get_chemical_formula())
-        o_counts.append(n_O)
-        non_o_counts.append(n_M)
-        q_ir_mean.append(mean_ir_hirshfeld_charge(structure))
-        moments.append(principal_moments_sorted_mass(structure, tp))
-
-        volumes = get_hirshfeld_volumes(structure)
-        if volumes is None:
-            if not warned_missing_hirshfeld:
-                print("No Hirshfeld volumes found; using mass-weighted moments of inertia.")
-                warned_missing_hirshfeld = True
-            moments_vol.append((np.nan, np.nan, np.nan))
-        else:
-            moments_vol.append(principal_moments_sorted_hirshfeld(structure, volumes))
-
-        E_struct = get_energy(structure)
-        E0_dft_structures.append(E_struct)
-        Eform_dft_structures.append(
-            p_coeffs[0] * E_struct + r_coeffs[0] * E_ir + r_coeffs[1] * Eo
-        )
-
-    G_tensor = np.stack(G_list, axis=0)
-
-    kB = Boltzmann / electron_volt
-    beta = 1.0 / (kB * Tg)
-    G_min = np.min(G_tensor, axis=0, keepdims=True)
-    weights = np.exp(-beta * (G_tensor - G_min))
-
-    degeneracies = []
-    for structure in structures_main:
-        mol = Molecule(
-            species=structure.get_chemical_symbols(),
-            coords=structure.get_positions(),
-        )
-        pg = PointGroupAnalyzer(mol).sch_symbol
-        degeneracies.append(POINT_GROUP_DEGEN.get(pg, 1))
-    deg = np.array(degeneracies)[:, None, None]
-    weights *= deg
-
-    Xi = np.sum(weights, axis=0)
-    Pgi = (weights / Xi).astype(np.float32)
-
-    phase_index = np.argmin(G_tensor, axis=0)
+    res = ens.evaluate(T=Ts, p={reservoir.name: Ps})
+    G_tensor, Pgi, phase_index = res.G, res.populations, res.phase_index
 
     if save_outputs and output_minima_traj:
         ensure_output_dir(output_minima_traj)
@@ -279,12 +215,38 @@ def compute_gc(
             )
             write(out_path, [structures_main[i] for i in selected_indices])
 
-    o_counts = np.array(o_counts, dtype=float)
-    non_o_counts = np.array(non_o_counts, dtype=float)
+    tp = ThermoPartitionFunctions()
+    q_ir_mean, moments, moments_vol, E0_dft_structures, Eform_dft_structures = [], [], [], [], []
+    warned_missing_hirshfeld = warned_missing_charges = False
+    E_ref = ens.references[0].energy_per_atom
+    for i, structure in enumerate(structures_main):
+        try:
+            q_ir_mean.append(mean_hirshfeld_charge(structure, ref_element))
+        except ValueError:
+            if not warned_missing_charges:
+                warnings.warn(f"No Hirshfeld charges on {ref_element} for some structures; q_ir_mean is NaN there")
+                warned_missing_charges = True
+            q_ir_mean.append(np.nan)
+        moments.append(principal_moments_sorted_mass(structure, tp))
+        volumes = get_hirshfeld_volumes(structure)
+        if volumes is None:
+            if not warned_missing_hirshfeld:
+                print("No Hirshfeld volumes found; using mass-weighted moments of inertia.")
+                warned_missing_hirshfeld = True
+            moments_vol.append((np.nan, np.nan, np.nan))
+        else:
+            moments_vol.append(principal_moments_sorted_hirshfeld(structure, volumes))
+        E_struct = get_energy(structure)
+        E0_dft_structures.append(E_struct)
+        Eform_dft_structures.append(ens._p[i] * E_struct + ens._c_ref[i, 0] * E_ref + ens._c_res[i, 0] * reservoir.energy)
+
+    o_counts = np.array(ens.count(x_element), dtype=float)
+    non_o_counts = np.array(ens.normalization, dtype=float)
     ratio_o_non_o = o_counts / non_o_counts
     x_per_non_o = np.sum(Pgi * ratio_o_non_o[:, None, None], axis=0)
     stoich = ratio_o_non_o
 
+    kB = Boltzmann / electron_volt
     G_avg = np.sum(Pgi * G_tensor, axis=0)
     S_conf = -kB * np.sum(Pgi * np.log(Pgi + 1e-20), axis=0)
 
@@ -309,7 +271,7 @@ def compute_gc(
         "non_o_counts": non_o_counts,
         "x_per_non_o": x_per_non_o,
         "stoich": stoich,
-        "formulas": np.array(formulas, dtype=object),
+        "formulas": np.array([s.get_chemical_formula() for s in structures_main], dtype=object),
         "q_ir_mean": q_ir_mean,
         "q_ir_avg": q_ir_avg,
         "E0_dft_structures": np.array(E0_dft_structures, dtype=float),
@@ -325,89 +287,14 @@ def compute_gc(
         "I1_I3_vol": I1_vol / I3_vol,
         "I2_I3_vol": I2_vol / I3_vol,
         "pop_max": np.max(Pgi, axis=(1, 2)),
-        "degeneracy": np.array(degeneracies, dtype=float),
+        "degeneracy": np.array(ens.degeneracy, dtype=float),
         "G_avg": G_avg,
         "S_conf": S_conf,
         "include_decomposition": np.array([int(cfg.include_decomposition)], dtype=int),
     }
 
     if cfg.include_decomposition:
-        E_dft_avg = np.zeros(Tg.shape, dtype=float)
-        E_elec_avg = np.zeros(Tg.shape, dtype=float)
-        E_vib_avg = np.zeros(Tg.shape, dtype=float)
-        E_rot_avg = np.zeros(Tg.shape, dtype=float)
-        E_trans_avg = np.zeros(Tg.shape, dtype=float)
-        Eo_b = np.full_like(mu, Eo)
-
-        for i, structure in enumerate(structures_main):
-            w = Pgi[i].astype(float)
-            r_coeffs, p_coeffs = r_p_coeffs_list[i]
-
-            spin_info = structure.info.get("total_spin", {})
-            J = spin_info.get("J", None)
-            elec_states = [(0.0, J)] if (cfg.include_e_product and J is not None) else None
-
-            _, contrib = compute_thermo_contributions(
-                structure,
-                Tg,
-                Pg_dilute,
-                elec_states=elec_states,
-                include_v=cfg.include_v_product,
-                include_zpe=cfg.include_zpe_product,
-                include_r=cfg.include_r_product,
-                include_t=cfg.include_t_product,
-            )
-
-            E_dft_avg += w * (
-                p_coeffs[0] * get_energy(structure)
-                + r_coeffs[0] * Er_val
-                + r_coeffs[1] * Eo_b
-            )
-            E_elec_avg += w * (
-                p_coeffs[0] * _g_from(contrib, "eelec", "selec")
-                + r_coeffs[0] * _g_from(ref_contrib, "eelec", "selec")
-                + r_coeffs[1] * _g_from(mu_contrib, "eelec", "selec")
-            )
-            E_vib_avg += w * (
-                p_coeffs[0]
-                * (
-                    contrib.get("ev", 0.0)
-                    + contrib.get("zpe", 0.0)
-                    - Tg * contrib.get("sv", 0.0)
-                )
-                + r_coeffs[0]
-                * (
-                    ref_contrib.get("ev", 0.0)
-                    + ref_contrib.get("zpe", 0.0)
-                    - Tg * ref_contrib.get("sv", 0.0)
-                )
-                + r_coeffs[1]
-                * (
-                    mu_contrib.get("ev", 0.0)
-                    + mu_contrib.get("zpe", 0.0)
-                    - Tg * mu_contrib.get("sv", 0.0)
-                )
-            )
-            E_rot_avg += w * (
-                p_coeffs[0] * _g_from(contrib, "er", "sr")
-                + r_coeffs[0] * _g_from(ref_contrib, "er", "sr")
-                + r_coeffs[1] * _g_from(mu_contrib, "er", "sr")
-            )
-            E_trans_avg += w * (
-                p_coeffs[0] * _g_from(contrib, "et", "st")
-                + r_coeffs[0] * _g_from(ref_contrib, "et", "st")
-                + r_coeffs[1] * _g_from(mu_contrib, "et", "st")
-            )
-
-        data.update(
-            {
-                "E_dft_avg": E_dft_avg,
-                "E_elec_avg": E_elec_avg,
-                "E_vib_avg": E_vib_avg,
-                "E_rot_avg": E_rot_avg,
-                "E_trans_avg": E_trans_avg,
-            }
-        )
+        data.update(res.decomposition())
 
     if save_outputs and output_npz:
         ensure_output_dir(output_npz)
