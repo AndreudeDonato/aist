@@ -95,6 +95,9 @@ IryOx or several chemical potentials live in example scripts, never hard-coded.
 - **`aist.balance`** (exact balance, `BalanceError`) and **`aist.conditions`** (T, p and Δμ axes).
 - **`examples/`:** `water_contributions.py` (the core), `isomers_canonical.py` (an ensemble built by hand),
   `cu_oxide_emt.py` (the grand-canonical construction).
+- **Not in the library (Andreu, 2026-10-29):** the SOAP/UMAP/KMeans motif classification (`aist.ace`), the
+  inertia shape descriptors, and the IryOx vibrational and minima analyses. They are paper analyses and live in the
+  paper repository (`figures/ace`, `figures/utils/{inertia,vibrational,minima}.py`).
 
 ΔG is stored in float32 by default. Populations are computed with the arithmetic of the 0.1 code, which keeps the
 Paper I ensembles bit-identical. Gas rows are computed in one step: 0.1 rounded them twice (base, then patch), so
@@ -137,7 +140,8 @@ anchor.
    - Paper I reproduced bit for bit;
    - licence, packaging, CI, README and examples.
 2. Done: aist_paper switched; the 0.1 layer removed (see section 4).
-3. Next: the motif pipeline driven by one config object.
+3. Done: the motif classification and the IryOx analysis helpers moved to the paper repository (Andreu,
+   2026-10-29). The motif refactor was cancelled.
 
 ## 7. Open points for Andreu
 

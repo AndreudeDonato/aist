@@ -3,7 +3,6 @@ __pycache__/
 *.code-workspace
 *.egg-info/
 .cursor/
-ace_results/
 build/
 dist/
 .pytest_cache/

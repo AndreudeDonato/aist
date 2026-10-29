@@ -26,7 +26,7 @@ From a clone of this repository:
 
 ```bash
 pip install -e .                        # import name: aist
-pip install -e ".[motifs,test]"         # + SOAP/UMAP/KMeans motif classification (aist.ace) and the tests
+pip install -e ".[test]"                # with the tests
 ```
 
 Releases will be published on PyPI as `aist-thermo` (`pip install aist-thermo`).
@@ -123,11 +123,6 @@ multiplicities.
 - **`info["zpe"]`:** zero-point energy (eV); optional.
 - **`info["total_spin"]["J"]`:** spin multiplicity 2S+1. If it is missing and `multiplicity=` is not passed, the
   electronic term uses degeneracy 1 and warns.
-
-## Motif classification (`aist.ace`, needs `[motifs]`)
-
-Per-atom SOAP descriptors (DScribe), then PCA, UMAP and KMeans clustering of atoms and structures. Run it with
-`aist.ace.pipeline.main(data_dir=..., results_dir=...)`.
 
 ## Tests
 
